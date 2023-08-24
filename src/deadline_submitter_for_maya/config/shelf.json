@@ -1,0 +1,14 @@
+{
+    "Shelf":{
+        "shelfID": "Deadline",
+        "version": 1,
+        "buttons": {
+            "deadlineShelfRender": {
+                "help": "Submit a render to Deadline",
+                "image": "deadline_render_submitter.png",
+                "command": "DeadlineRenderSubmitter",
+                "commandType": "mel"
+            }
+        }
+    }
+}
