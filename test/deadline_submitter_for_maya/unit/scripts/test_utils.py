@@ -2,7 +2,7 @@
 
 import re
 
-from deadline_submitter_for_maya.scripts.aws_deadline.utils import timed_func
+from deadline.maya_submitter.utils import timed_func
 
 
 def test_timed_func(capsys):

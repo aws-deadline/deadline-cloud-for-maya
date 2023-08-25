@@ -3,8 +3,6 @@
 import sys
 from unittest.mock import MagicMock
 
-# we must mock pymel before importing client code
-pymel_modules = ["pymel", "pymel.core", "pymel.util", "mtoa", "mtoa.core"]
-
-for module in pymel_modules:
+# Mock the modules that code under test uses
+for module in ["maya", "maya.cmds", "maya.mel", "maya.standalone"]:
     sys.modules[module] = MagicMock()

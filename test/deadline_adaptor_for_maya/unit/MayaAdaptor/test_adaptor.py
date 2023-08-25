@@ -11,12 +11,11 @@ from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
 import jsonschema  # type: ignore
-from openjobio_adaptor_runtime import PathMappingRule
-from openjobio_adaptor_runtime.configuration.sysname import OSName
+from openjobio.adaptor_runtime_client import PathMappingRule
 
-import deadline_adaptor_for_maya.MayaAdaptor.adaptor as adaptor_module
-from deadline_adaptor_for_maya.MayaAdaptor import MayaAdaptor
-from deadline_adaptor_for_maya.MayaAdaptor.adaptor import _FIRST_MAYA_ACTIONS, MayaNotRunningError
+import deadline.maya_adaptor.MayaAdaptor.adaptor as adaptor_module
+from deadline.maya_adaptor.MayaAdaptor import MayaAdaptor
+from deadline.maya_adaptor.MayaAdaptor.adaptor import _FIRST_MAYA_ACTIONS, MayaNotRunningError
 
 # , _MAYA_INIT_KEYS
 
@@ -58,9 +57,9 @@ def run_data() -> dict:
 
 
 class TestMayaAdaptor_on_start:
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._ActionsQueue.__len__", return_value=0)
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._LoggingSubprocess")
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._AdaptorServer")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.ActionsQueue.__len__", return_value=0)
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
     def test_no_error(
         self,
         mock_server: Mock,
@@ -74,9 +73,9 @@ class TestMayaAdaptor_on_start:
         adaptor.on_start()
 
     @patch("time.sleep")
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._ActionsQueue.__len__", return_value=0)
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._LoggingSubprocess")
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._AdaptorServer")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.ActionsQueue.__len__", return_value=0)
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
     def test__wait_for_socket(
         self,
         mock_server: Mock,
@@ -100,7 +99,7 @@ class TestMayaAdaptor_on_start:
         assert mock_sleep.call_count == 3
 
     @patch("threading.Thread")
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._AdaptorServer")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
     def test_server_init_fail(self, mock_server: Mock, mock_thread: Mock, init_data: dict) -> None:
         """Tests that an error is raised if no socket becomes available"""
         # GIVEN
@@ -118,35 +117,9 @@ class TestMayaAdaptor_on_start:
             == "Could not find a socket path because the server did not finish initializing"
         )
 
-    @patch.object(adaptor_module._os.path, "isfile", return_value=False)
-    def test_client_not_found(
-        self,
-        mock_isfile: Mock,
-        init_data: dict,
-    ) -> None:
-        """Tests that the an error is raised if the maya client file cannot be found"""
-        # GIVEN
-        adaptor = MayaAdaptor(init_data)
-        test_dir = "test_dir"
-
-        with patch.object(adaptor_module._sys, "path", ["unreported_dir", test_dir]):
-            with pytest.raises(FileNotFoundError) as exc_info:
-                # WHEN
-                adaptor._get_maya_client_path()
-
-        # THEN
-        error_msg = (
-            "Could not find maya_client.py. Check that the MayaClient package is in "
-            f"one of the following directories: {[test_dir]}"
-        )
-        assert str(exc_info.value) == error_msg
-        mock_isfile.assert_called_with(
-            os.path.join(test_dir, "deadline_adaptor_for_maya", "MayaClient", "maya_client.py")
-        )
-
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._ActionsQueue.__len__", return_value=1)
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._LoggingSubprocess")
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._AdaptorServer")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.ActionsQueue.__len__", return_value=1)
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
     def test_maya_init_timeout(
         self,
         mock_server: Mock,
@@ -177,9 +150,9 @@ class TestMayaAdaptor_on_start:
         assert str(exc_info.value) == error_msg
 
     @patch.object(MayaAdaptor, "_maya_is_running", False)
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._ActionsQueue.__len__", return_value=1)
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._LoggingSubprocess")
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._AdaptorServer")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.ActionsQueue.__len__", return_value=1)
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
     def test_maya_init_fail(
         self,
         mock_server: Mock,
@@ -203,8 +176,8 @@ class TestMayaAdaptor_on_start:
         assert str(exc_info.value) == error_msg
 
     @patch.object(MayaAdaptor, "_action_queue")
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._LoggingSubprocess")
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._AdaptorServer")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
     def test_populate_action_queue_required_keys(
         self,
         mock_server: Mock,
@@ -232,14 +205,14 @@ class TestMayaAdaptor_on_start:
         calls = mock_actions_queue.enqueue_action.call_args_list
         assert calls[0].args[0].name == "renderer"
         assert calls[1].args[0].name == "path_mapping"
-        for call, action in zip(calls[2 : len(_FIRST_MAYA_ACTIONS) + 2], _FIRST_MAYA_ACTIONS):
-            assert call.args[0].name == action.name
+        for call, action_name in zip(calls[2 : len(_FIRST_MAYA_ACTIONS) + 2], _FIRST_MAYA_ACTIONS):
+            assert call.args[0].name == action_name
 
     @patch.object(MayaAdaptor, "map_path")
     @patch.object(MayaAdaptor, "path_mapping_rules", new_callable=PropertyMock)
     @patch.object(MayaAdaptor, "_action_queue")
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._LoggingSubprocess")
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._AdaptorServer")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
     def test_populate_action_queue_test_mapping(
         self,
         mock_server: Mock,
@@ -252,7 +225,10 @@ class TestMayaAdaptor_on_start:
         mock_actions_queue.__len__.return_value = 0
         mock_rules.return_value = [
             PathMappingRule(
-                source_os="linux", source_path="/source", destination_path="/destination"
+                source_os="linux",
+                source_path="/source",
+                destination_os="linux",
+                destination_path="/destination",
             )
         ]
         adaptor = MayaAdaptor(
@@ -283,8 +259,8 @@ class TestMayaAdaptor_on_start:
     @patch.object(MayaAdaptor, "map_path")
     @patch.object(MayaAdaptor, "path_mapping_rules", new_callable=PropertyMock)
     @patch.object(MayaAdaptor, "_action_queue")
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._LoggingSubprocess")
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._AdaptorServer")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
     def test_arnold_pathmapping_called(
         self,
         mock_server: Mock,
@@ -301,7 +277,10 @@ class TestMayaAdaptor_on_start:
         mock_actions_queue.__len__.return_value = 0
         mock_rules.return_value = [
             PathMappingRule(
-                source_os="linux", source_path="/source", destination_path="/destination"
+                source_os="linux",
+                source_path="/source",
+                destination_os="linux",
+                destination_path="/destination",
             )
         ]
         mock_server.return_value.socket_path = "/tmp/9999"
@@ -327,19 +306,17 @@ class TestMayaAdaptor_on_start:
 
     @pytest.mark.parametrize(
         "running_os, arnold_os_name",
-        [(OSName.WINDOWS, "windows"), (OSName.LINUX, "linux"), (OSName.MACOS, "mac")],
+        [("win32", "windows"), ("linux2", "linux"), ("darwin", "mac")],
     )
-    @patch.object(adaptor_module._OSName, "__new__")
     @patch.dict(os.environ, {}, clear=True)
     @patch.object(adaptor_module, "secure_open")
-    @patch.object(adaptor_module, "_json")
+    @patch.object(adaptor_module, "json")
     @patch.object(MayaAdaptor, "path_mapping_rules", new_callable=PropertyMock)
     def test_arnold_pathmapping(
         self,
         mock_rules: Mock,
         mock_json: Mock,
         mock_open: Mock,
-        mock_osname__new__: Mock,
         running_os: str,
         arnold_os_name: str,
     ):
@@ -347,54 +324,62 @@ class TestMayaAdaptor_on_start:
         # GIVEN
         mock_rules.return_value = [
             PathMappingRule(
-                source_os="linux", source_path="/source", destination_path="/destination"
+                source_os="linux",
+                source_path="/source",
+                destination_os="linux",
+                destination_path="/destination",
             ),
             PathMappingRule(
-                source_os="windows", source_path="C:\\source", destination_path="/destination"
+                source_os="windows",
+                source_path="C:\\source",
+                destination_os="linux",
+                destination_path="/destination",
             ),
             PathMappingRule(
-                source_os="mac os", source_path="/mac_source", destination_path="/destination"
+                source_os="mac os",
+                source_path="/mac_source",
+                destination_os="linux",
+                destination_path="/destination",
             ),
         ]
-        mock_osname__new__.return_value = running_os
-
-        expected_json = {
-            arnold_os_name: {
-                "C:/source": "/destination",
-                "/source": "/destination",
-                "/mac_source": "/destination",
-            },
-        }
-
-        adaptor = MayaAdaptor(
-            {
-                "renderer": "arnold",
-                "scene_file": "/path/to/file",
-                "project_path": "/path/to/dir",
-                "animation": True,
-                "version": 2022,
-                "render_layer": "layer",
+        with patch("sys.platform", running_os):
+            expected_json = {
+                arnold_os_name: {
+                    "C:/source": "/destination",
+                    "/source": "/destination",
+                    "/mac_source": "/destination",
+                },
             }
-        )
 
-        # WHEN
-        adaptor._setup_arnold_pathmapping()
+            adaptor = MayaAdaptor(
+                {
+                    "renderer": "arnold",
+                    "scene_file": "/path/to/file",
+                    "project_path": "/path/to/dir",
+                    "animation": True,
+                    "version": 2022,
+                    "render_layer": "layer",
+                }
+            )
 
-        # THEN
-        assert isinstance(adaptor._arnold_temp_dir, TemporaryDirectory)
-        assert "ARNOLD_PATHMAP" in os.environ
-        assert (arnold_json_path := os.environ["ARNOLD_PATHMAP"]) == str(
-            Path(adaptor._arnold_temp_dir.name) / "arnold_pathmapping.json"
-        )
-        mock_open.assert_called_with(Path(arnold_json_path), open_mode="w")
-        mock_json.dump.assert_called_once_with(
-            expected_json, mock_open.return_value.__enter__.return_value
-        )
+            # WHEN
+            adaptor._setup_arnold_pathmapping()
+
+            # THEN
+            assert isinstance(adaptor._arnold_temp_dir, TemporaryDirectory)
+            assert "ARNOLD_PATHMAP" in os.environ
+            assert (arnold_json_path := os.environ["ARNOLD_PATHMAP"]) == str(
+                Path(adaptor._arnold_temp_dir.name) / "arnold_pathmapping.json"
+            )
+            mock_open.assert_called_with(Path(arnold_json_path), open_mode="w")
+            mock_json.dump.assert_called_once_with(
+                expected_json, mock_open.return_value.__enter__.return_value
+            )
 
     @patch.object(MayaAdaptor, "_maya_is_running", False)
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._ActionsQueue.__len__", return_value=1)
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._LoggingSubprocess")
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._AdaptorServer")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.ActionsQueue.__len__", return_value=1)
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
     def test_init_data_wrong_schema(
         self,
         mock_server: Mock,
@@ -419,9 +404,9 @@ class TestMayaAdaptor_on_start:
 
 class TestMayaAdaptor_on_run:
     @patch("time.sleep")
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._ActionsQueue.__len__", return_value=0)
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._LoggingSubprocess")
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._AdaptorServer")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.ActionsQueue.__len__", return_value=0)
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
     def test_on_run(
         self,
         mock_server: Mock,
@@ -448,16 +433,16 @@ class TestMayaAdaptor_on_run:
 
     @patch("time.sleep")
     @patch(
-        "deadline_adaptor_for_maya.MayaAdaptor.adaptor.MayaAdaptor._is_rendering",
+        "deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._is_rendering",
         new_callable=PropertyMock,
     )
     @patch(
-        "deadline_adaptor_for_maya.MayaAdaptor.adaptor.MayaAdaptor._maya_is_running",
+        "deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._maya_is_running",
         new_callable=PropertyMock,
     )
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._ActionsQueue.__len__", return_value=0)
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._LoggingSubprocess")
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._AdaptorServer")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.ActionsQueue.__len__", return_value=0)
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
     def test_on_run_render_fail(
         self,
         mock_server: Mock,
@@ -490,9 +475,9 @@ class TestMayaAdaptor_on_run:
         )
 
     @patch("time.sleep")
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._ActionsQueue.__len__", return_value=0)
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._LoggingSubprocess")
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._AdaptorServer")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.ActionsQueue.__len__", return_value=0)
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
     def test_run_data_wrong_schema(
         self,
         mock_server: Mock,
@@ -520,13 +505,13 @@ class TestMayaAdaptor_on_run:
         assert error_msg in exc_info.value.message
 
 
-class TestMayaAdaptor_on_end:
+class TestMayaAdaptor_on_stop:
     @patch.object(MayaAdaptor, "_cleanup_arnold_dir")
     @patch("time.sleep")
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._ActionsQueue.__len__", return_value=0)
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._LoggingSubprocess")
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._AdaptorServer")
-    def test_on_end(
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.ActionsQueue.__len__", return_value=0)
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
+    def test_on_stop(
         self,
         mock_server: Mock,
         mock_logging_subprocess: Mock,
@@ -536,7 +521,7 @@ class TestMayaAdaptor_on_end:
         init_data: dict,
         run_data: dict,
     ) -> None:
-        """Tests that on_end completes without error"""
+        """Tests that on_stop completes without error"""
         # GIVEN
         adaptor = MayaAdaptor(init_data)
         mock_server.return_value.socket_path = "/tmp/9999"
@@ -546,7 +531,7 @@ class TestMayaAdaptor_on_end:
         adaptor.on_run(run_data)
 
         # WHEN
-        adaptor.on_end()
+        adaptor.on_stop()
 
         # THEN
         mock_cleanup_arnold.assert_called_once()
@@ -554,7 +539,7 @@ class TestMayaAdaptor_on_end:
 
 class TestMayaAdaptor_on_cleanup:
     @patch("time.sleep")
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._logger")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor._logger")
     def test_on_cleanup_maya_not_graceful_shutdown(
         self, mock_logger: Mock, mock_sleep: Mock, init_data: dict
     ) -> None:
@@ -563,7 +548,7 @@ class TestMayaAdaptor_on_cleanup:
         adaptor = MayaAdaptor(init_data)
 
         with patch(
-            "deadline_adaptor_for_maya.MayaAdaptor.adaptor.MayaAdaptor._maya_is_running",
+            "deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._maya_is_running",
             new_callable=lambda: True,
         ), patch.object(adaptor, "_MAYA_END_TIMEOUT_SECONDS", 0.01), patch.object(
             adaptor, "_maya_client"
@@ -578,7 +563,7 @@ class TestMayaAdaptor_on_cleanup:
         mock_client.terminate.assert_called_once()
 
     @patch("time.sleep")
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._logger")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor._logger")
     def test_on_cleanup_server_not_graceful_shutdown(
         self, mock_logger: Mock, mock_sleep: Mock, init_data: dict
     ) -> None:
@@ -587,7 +572,7 @@ class TestMayaAdaptor_on_cleanup:
         adaptor = MayaAdaptor(init_data)
 
         with patch(
-            "deadline_adaptor_for_maya.MayaAdaptor.adaptor.MayaAdaptor._maya_is_running",
+            "deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._maya_is_running",
             new_callable=lambda: False,
         ), patch.object(adaptor, "_SERVER_END_TIMEOUT_SECONDS", 0.01), patch.object(
             adaptor, "_server_thread"
@@ -602,9 +587,9 @@ class TestMayaAdaptor_on_cleanup:
 
     @patch.object(MayaAdaptor, "_cleanup_arnold_dir")
     @patch("time.sleep")
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._ActionsQueue.__len__", return_value=0)
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._LoggingSubprocess")
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor._AdaptorServer")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.ActionsQueue.__len__", return_value=0)
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
     def test_on_cleanup(
         self,
         mock_server: Mock,
@@ -615,7 +600,7 @@ class TestMayaAdaptor_on_cleanup:
         init_data: dict,
         run_data: dict,
     ) -> None:
-        """Tests that on_end completes without error"""
+        """Tests that on_stop completes without error"""
         # GIVEN
         adaptor = MayaAdaptor(init_data)
         mock_server.return_value.socket_path = "/tmp/9999"
@@ -624,11 +609,11 @@ class TestMayaAdaptor_on_cleanup:
 
         adaptor.on_start()
         adaptor.on_run(run_data)
-        adaptor.on_end()
+        adaptor.on_stop()
         mock_cleanup_arnold.reset_mock()
 
         with patch(
-            "deadline_adaptor_for_maya.MayaAdaptor.adaptor.MayaAdaptor._maya_is_running",
+            "deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._maya_is_running",
             new_callable=lambda: False,
         ):
             # WHEN
@@ -637,7 +622,7 @@ class TestMayaAdaptor_on_cleanup:
         # THEN
         mock_cleanup_arnold.assert_called_once()
 
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor.MayaAdaptor.update_status")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor.update_status")
     def test_handle_complete(self, mock_update_status: Mock, init_data: dict):
         """Tests that the _handle_complete method updates the progress correctly"""
         # GIVEN
@@ -657,7 +642,7 @@ class TestMayaAdaptor_on_cleanup:
     handle_progess_params = [(0, "[PROGRESS] 99 percent", 99), (1, " 45% done - 11 rays/pixel", 45)]
 
     @pytest.mark.parametrize("regex_index, stdout, expected_progress", handle_progess_params)
-    @patch("deadline_adaptor_for_maya.MayaAdaptor.adaptor.MayaAdaptor.update_status")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor.update_status")
     def test_handle_progress(
         self,
         mock_update_status: Mock,
@@ -710,7 +695,7 @@ class TestMayaAdaptor_on_cleanup:
         assert match is not None
         assert str(adaptor._exc_info) == f"Maya Encountered an Error: {stdout}"
 
-    @patch.object(adaptor_module._shutil, "disk_usage")
+    @patch.object(adaptor_module.shutil, "disk_usage")
     def test_license_handle_error(self, mock_disk_usage: Mock, init_data: dict) -> None:
         """Tests that the _handle_license_error method throws a runtime error correctly"""
         # GIVEN

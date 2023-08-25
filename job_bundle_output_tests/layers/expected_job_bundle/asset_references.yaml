@@ -1,0 +1,18 @@
+assetReferences:
+  inputs:
+    directories: []
+    filenames:
+    - /normalized/job/bundle/dir/layers.ma
+    - /normalized/job/bundle/dir/scene_file_to_reference.mb
+  outputs:
+    directories:
+    - /normalized/job/bundle/dir/images/layerDefaultFrames
+    - /normalized/job/bundle/dir/images/layerFrameRange1/camera1
+    - /normalized/job/bundle/dir/images/layerFrameRange1/persp
+    - /normalized/job/bundle/dir/images/masterLayer/camera1
+    - /normalized/job/bundle/dir/images/masterLayer/persp
+    - /normalized/job/bundle/dir/images/renderSetupLayer2/camera1
+    - /normalized/job/bundle/dir/images/renderSetupLayer2/camera2
+    - /normalized/job/bundle/dir/images/renderSetupLayer2/camera3
+    - /normalized/job/bundle/dir/images/renderSetupLayer4/camera1
+    - /normalized/job/bundle/dir/images/renderSetupLayer4/persp

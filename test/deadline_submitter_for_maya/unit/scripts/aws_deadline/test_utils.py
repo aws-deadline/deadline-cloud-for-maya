@@ -4,7 +4,7 @@ from typing import List
 
 import pytest
 
-from deadline_submitter_for_maya.scripts.aws_deadline.utils import join_paths
+from deadline.maya_submitter.utils import join_paths
 
 join_path_parameters = [
     ("some\\path\\with\\backslashes", [], "some/path/with/backslashes"),

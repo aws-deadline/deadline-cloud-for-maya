@@ -1,0 +1,33 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "camera": { "type": "string" },
+        "error_on_arnold_license_fail": { "type": "boolean" },
+        "image_height": { "type": "number" },
+        "image_width": { "type": "number" },
+        "output_file_path": { "type": "string" },
+        "output_file_prefix": { "type": "string" },
+        "project_path": { "type": "string" },
+        "render_layer": { "type": "string" },
+        "render_setup_include_lights": { "type": "boolean" },
+        "renderer": {
+            "enum": [
+                "arnold",
+                "file",
+                "mayaHardware",
+                "mayaHardware2",
+                "mayaSoftware",
+                "mayaVector"
+            ]
+        },
+        "scene_file": { "type": "string" },
+        "strict_error_checking": { "type": "boolean" }
+    },
+    "required": [
+        "project_path",
+        "render_layer",
+        "renderer",
+        "scene_file"
+    ]
+}

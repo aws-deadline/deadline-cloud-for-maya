@@ -1,0 +1,29 @@
+parameterValues:
+- name: deadline:priority
+  value: 50
+- name: deadline:targetTaskRunStatus
+  value: READY
+- name: deadline:maxFailedTasksCount
+  value: 20
+- name: deadline:maxRetriesPerTask
+  value: 5
+- name: MayaSceneFile
+  value: /normalized/job/bundle/dir/layers.ma
+- name: layerDefaultFramesFrames
+  value: 1-10
+- name: layerFrameRange1Frames
+  value: 1-10
+- name: masterLayerFrames
+  value: 1-10
+- name: renderSetupLayer2Frames
+  value: 20-30
+- name: renderSetupLayer4Frames
+  value: 1-20
+- name: ProjectPath
+  value: /normalized/job/bundle/dir/
+- name: OutputFilePath
+  value: /normalized/job/bundle/dir/images
+- name: RenderSetupIncludeLights
+  value: 'true'
+- name: RezPackages
+  value: mayaIO mtoa deadline_cloud_for_maya

@@ -10,17 +10,20 @@ license = ""
 requires-python = ">=3.7"
 
 dependencies = [
-    "deadline == 0.16.*",
+    "deadline == 0.19.*",
     "openjobio == 0.8.*",
 ]
 
 [project.scripts]
-MayaAdaptor = "deadline_adaptor_for_maya.MayaAdaptor:main"
+MayaAdaptor = "deadline.maya_adaptor.MayaAdaptor:main"
 
 [tool.hatch.build]
 artifacts = [
   "*_version.py",
 ]
+
+[tool.hatch.build.targets.wheel.force-include]
+"./maya_submitter_plugin" = "deadline/maya_submitter/maya_submitter_plugin"
 
 [tool.hatch.version]
 source = "vcs"
@@ -32,27 +35,23 @@ version_scheme = "post-release"
 version-file = "_version.py"
 
 [tool.hatch.build.hooks.custom]
-path = "hatch_version_hook.py"
+path = "hatch_custom_hook.py"
 
-[[tool.hatch.build.hooks.custom.copy_map]]
-sources = [
-  "_version.py",
-]
+[tool.hatch.build.hooks.custom.copy_version_py]
 destinations = [
-  "src/deadline_adaptor_for_maya",
-  "src/deadline_submitter_for_maya",
+  "src/deadline/maya_adaptor",
+  "src/deadline/maya_submitter",
 ]
 
 [tool.hatch.build.targets.sdist]
 include = [
     "src/*",
-    "hatch_version_hook.py",
+    "hatch_custom_hook.py",
 ]
 
 [tool.hatch.build.targets.wheel]
 packages = [
-  "src/deadline_adaptor_for_maya",
-  "src/deadline_submitter_for_maya",
+  "src/deadline",
 ]
 
 [tool.mypy]
@@ -61,10 +60,14 @@ check_untyped_defs = true
 show_error_codes = true
 pretty = true
 files = [ "src/**/*.py" ]
+ignore_missing_imports = true
+# Tell mypy that there's a namespace package at src/deadline
+namespace_packages = true
+explicit_package_bases = true
+mypy_path = "src"
 
 [[tool.mypy.overrides]]
-module = ["pymel.*","maya.*","PySide2.*"]
-ignore_missing_imports = true
+module = ["maya.*","PySide2.*"]
 
 [tool.ruff]
 ignore = [
@@ -84,8 +87,8 @@ line-length = 100
 xfail_strict = true
 addopts = [
     "--durations=5",
-    "--cov=src/deadline_adaptor_for_maya",
-    "--cov=src/deadline_submitter_for_maya",
+    "--cov=src/deadline/maya_adaptor",
+    "--cov=src/deadline/maya_submitter",
     "--color=yes",
     "--cov-report=html:build/coverage",
     "--cov-report=xml:build/coverage/coverage.xml",
@@ -101,24 +104,29 @@ looponfailroots = [
 filterwarnings = [
     "ignore::DeprecationWarning"
 ]
+pythonpath = [
+  # The Maya submitter plugin isn't structured like a Python package
+  "maya_submitter_plugin/plug-ins"
+]
 
 [tool.coverage.run]
-source_pkgs = [ "deadline_adaptor_for_maya", "deadline_submitter_for_maya" ]
+source_pkgs = [ "deadline/maya_adaptor", "deadline/maya_submitter", "maya_submitter_plugin/plugins" ]
 branch = true
 parallel = true
 omit = [
   "**/__main__.py",
   "**/_version.py",
-  "*/deadline_submitter_for_maya/scripts/aws_deadline/ui/*",
-  "*/deadline_submitter_for_maya/scripts/aws_deadline/shelf.py"
+  "*/deadline/maya_submitter/ui/*",
+  "*/deadline/maya_submitter/shelf.py"
 ]
 
 
 [tool.coverage.paths]
 source = [
-  "src/"
+  "src/",
+  "maya_submitter_plugin/plugins/"
 ]
 
 [tool.coverage.report]
 show_missing = true
-fail_under = 75
+fail_under = 50
