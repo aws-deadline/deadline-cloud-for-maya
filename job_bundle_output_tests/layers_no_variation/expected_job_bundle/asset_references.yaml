@@ -1,0 +1,11 @@
+assetReferences:
+  inputs:
+    directories: []
+    filenames:
+    - /normalized/job/bundle/dir/layers_no_variation.ma
+    - /normalized/job/bundle/dir/scene_file_to_reference.mb
+  outputs:
+    directories:
+    - /normalized/job/bundle/dir/images/layerTheFIrst
+    - /normalized/job/bundle/dir/images/layerTheSecond
+    - /normalized/job/bundle/dir/images/masterLayer

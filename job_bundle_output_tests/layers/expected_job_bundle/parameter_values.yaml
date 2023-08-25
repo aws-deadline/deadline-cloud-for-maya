@@ -19,11 +19,43 @@ parameterValues:
   value: 20-30
 - name: renderSetupLayer4Frames
   value: 1-20
+- name: layerDefaultFramesOutputFilePrefix
+  value: <Layer>/layer_specific_file_prefix_
+- name: layerFrameRange1OutputFilePrefix
+  value: <Layer>/<Camera>/<Scene>
+- name: masterLayerOutputFilePrefix
+  value: <Layer>/<Camera>/<Scene>
+- name: renderSetupLayer2OutputFilePrefix
+  value: <Layer>/<Camera>/<Scene>
+- name: renderSetupLayer4OutputFilePrefix
+  value: <Layer>/<Camera>/<Scene>
+- name: layerDefaultFramesImageWidth
+  value: 960
+- name: layerDefaultFramesImageHeight
+  value: 540
+- name: layerFrameRange1ImageWidth
+  value: 960
+- name: layerFrameRange1ImageHeight
+  value: 540
+- name: masterLayerImageWidth
+  value: 960
+- name: masterLayerImageHeight
+  value: 540
+- name: renderSetupLayer2ImageWidth
+  value: 960
+- name: renderSetupLayer2ImageHeight
+  value: 540
+- name: renderSetupLayer4ImageWidth
+  value: 1920
+- name: renderSetupLayer4ImageHeight
+  value: 1080
 - name: ProjectPath
   value: /normalized/job/bundle/dir/
 - name: OutputFilePath
   value: /normalized/job/bundle/dir/images
 - name: RenderSetupIncludeLights
   value: 'true'
+- name: ArnoldErrorOnLicenseFailure
+  value: 'false'
 - name: RezPackages
   value: mayaIO mtoa deadline_cloud_for_maya

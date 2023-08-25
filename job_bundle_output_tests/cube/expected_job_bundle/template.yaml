@@ -74,6 +74,29 @@ parameters:
     groupLabel: Software Environment
   description: A space-separated list of Rez packages to install
   default: mayaIO mtoa deadline_cloud_for_maya
+- name: OutputFilePrefix
+  type: STRING
+  userInterface:
+    control: LINE_EDIT
+    label: Output File Prefix
+    groupLabel: Maya Settings
+  description: The output filename prefix.
+- name: ImageWidth
+  type: INT
+  userInterface:
+    control: SPIN_BOX
+    label: Image Width
+    groupLabel: Maya Settings
+  minValue: 1
+  description: The image width of the output.
+- name: ImageHeight
+  type: INT
+  userInterface:
+    control: SPIN_BOX
+    label: Image Height
+    groupLabel: Maya Settings
+  minValue: 1
+  description: The image height of the output.
 environments:
 - name: Rez
   description: Initializes and destroys the Rez environment for the run
@@ -189,6 +212,9 @@ steps:
           output_file_path: '{{Param.OutputFilePath}}'
           render_setup_include_lights: {{Param.RenderSetupIncludeLights}}
           strict_error_checking: {{Param.StrictErrorChecking}}
+          output_file_prefix: '{{Param.OutputFilePrefix}}'
+          image_width: {{Param.ImageWidth}}
+          image_height: {{Param.ImageHeight}}
       actions:
         onEnter:
           command: MayaAdaptor

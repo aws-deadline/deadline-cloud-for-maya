@@ -8,11 +8,11 @@ parameterValues:
 - name: deadline:maxRetriesPerTask
   value: 5
 - name: MayaSceneFile
-  value: /normalized/job/bundle/dir/cube.ma
+  value: /normalized/job/bundle/dir/layers_no_variation.ma
 - name: Frames
-  value: '537'
+  value: 1-10
 - name: OutputFilePrefix
-  value: <Scene>
+  value: <Layer>/<Scene>
 - name: ImageWidth
   value: 960
 - name: ImageHeight
@@ -23,5 +23,7 @@ parameterValues:
   value: /normalized/job/bundle/dir/images
 - name: RenderSetupIncludeLights
   value: 'true'
+- name: ArnoldErrorOnLicenseFailure
+  value: 'false'
 - name: RezPackages
   value: mayaIO mtoa deadline_cloud_for_maya
