@@ -1,0 +1,21 @@
+parameterValues:
+- name: deadline:priority
+  value: 50
+- name: deadline:targetTaskRunStatus
+  value: READY
+- name: deadline:maxFailedTasksCount
+  value: 20
+- name: deadline:maxRetriesPerTask
+  value: 5
+- name: MayaSceneFile
+  value: /normalized/job/bundle/dir/cube.ma
+- name: Frames
+  value: '537'
+- name: ProjectPath
+  value: /normalized/job/bundle/dir/
+- name: OutputFilePath
+  value: /normalized/job/bundle/dir/images
+- name: RenderSetupIncludeLights
+  value: 'true'
+- name: RezPackages
+  value: mayaIO mtoa deadline_cloud_for_maya

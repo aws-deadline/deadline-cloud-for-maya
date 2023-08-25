@@ -5,8 +5,8 @@ pre-install-commands = [
 
 [envs.default.scripts]
 sync = "pip install -r requirements-testing.txt"
-test = "pytest --cov-config pyproject.toml {args:test/*/unit}"
-typing = "mypy {args:src test}"
+test = "pytest --cov-config pyproject.toml {args:test}"
+typing = "mypy {args:src test maya_submitter_plugin/plug-ins}"
 style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",

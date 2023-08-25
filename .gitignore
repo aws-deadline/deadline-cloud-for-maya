@@ -8,3 +8,6 @@ __pycache__/
 .vscode
 *_version.py
 dependency_bundle
+/wheels/
+**/test_job_bundle/
+**/test-job-bundle-results.txt

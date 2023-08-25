@@ -7,8 +7,8 @@ from unittest.mock import Mock, mock_open, patch
 
 from pytest import raises
 
-import deadline_submitter_for_maya.scripts.aws_deadline.persistent_dataclass as persistent_dataclass  # type: ignore
-from deadline_submitter_for_maya.scripts.aws_deadline.persistent_dataclass import (
+import deadline.maya_submitter.persistent_dataclass as persistent_dataclass  # type: ignore
+from deadline.maya_submitter.persistent_dataclass import (
     PersistentDataclass,
     PersistentDataclassError,
 )

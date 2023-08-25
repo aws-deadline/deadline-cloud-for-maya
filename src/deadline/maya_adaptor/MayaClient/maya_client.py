@@ -1,0 +1,70 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+
+from __future__ import annotations
+
+import os
+from types import FrameType
+from typing import Optional
+
+# The Maya Adaptor adds the `openjobio` namespace directory to PYTHONPATH,
+# so that importing just the adaptor_runtime_client should work.
+try:
+    from adaptor_runtime_client import HTTPClientInterface  # type: ignore[import]
+    from maya_adaptor.MayaClient.render_handlers import (  # type: ignore[import]
+        get_render_handler,
+    )
+except (ImportError, ModuleNotFoundError):
+    from openjobio.adaptor_runtime_client import HTTPClientInterface  # type: ignore[import]
+    from deadline.maya_adaptor.MayaClient.render_handlers import (  # type: ignore[import]
+        get_render_handler,
+    )
+
+
+class MayaClient(HTTPClientInterface):
+    def __init__(self, socket_path: str) -> None:
+        super().__init__(socket_path=socket_path)
+        self.actions.update(
+            {
+                "renderer": self.set_renderer,
+            }
+        )
+        import maya.standalone
+
+        maya.standalone.initialize()
+
+    def set_renderer(self, renderer: dict):
+        render_handler = get_render_handler(renderer["renderer"])
+        self.actions.update(render_handler.action_dict)
+
+    def close(self, args: Optional[dict] = None) -> None:
+        import maya.standalone
+
+        maya.standalone.uninitialize()
+
+    def graceful_shutdown(self, signum: int, frame: FrameType | None):
+        import maya.standalone
+
+        maya.standalone.uninitialize()
+
+
+def main():
+    socket_path = os.environ.get("MAYA_ADAPTOR_SOCKET_PATH")
+    if not socket_path:
+        raise OSError(
+            "MayaClient cannot connect to the Adaptor because the environment variable "
+            "MAYA_ADAPTOR_SOCKET_PATH does not exist"
+        )
+
+    if not os.path.exists(socket_path):
+        raise OSError(
+            "MayaClient cannot connect to the Adaptor because the socket at the path defined by "
+            "the environment variable MAYA_ADAPTOR_SOCKET_PATH does not exist. Got: "
+            f"{os.environ['MAYA_ADAPTOR_SOCKET_PATH']}"
+        )
+
+    client = MayaClient(socket_path)
+    client.poll()
+
+
+if __name__ == "__main__":  # pragma: no cover
+    main()

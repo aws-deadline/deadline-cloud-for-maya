@@ -1,0 +1,234 @@
+specificationVersion: '2022-09-01'
+name: cube.ma
+parameters:
+- name: MayaSceneFile
+  type: PATH
+  objectType: FILE
+  dataFlow: IN
+  userInterface:
+    control: CHOOSE_INPUT_FILE
+    label: Maya Scene File
+    groupLabel: Maya Settings
+    fileFilters:
+    - label: Maya Scene Files
+      patterns:
+      - '*.mb'
+      - '*.ma'
+    - label: All Files
+      patterns:
+      - '*'
+  description: The Maya scene file to render.
+- name: Frames
+  type: STRING
+  userInterface:
+    control: LINE_EDIT
+    label: Frames
+    groupLabel: Maya Settings
+  description: The frames to render. E.g. 1-3,8,11-15
+  minLength: 1
+- name: ProjectPath
+  type: PATH
+  objectType: DIRECTORY
+  dataFlow: NONE
+  userInterface:
+    control: CHOOSE_DIRECTORY
+    label: Project Path
+    groupLabel: Maya Settings
+  description: The Maya project path.
+- name: OutputFilePath
+  type: PATH
+  objectType: DIRECTORY
+  dataFlow: OUT
+  userInterface:
+    control: CHOOSE_DIRECTORY
+    label: Output File Path
+    groupLabel: Maya Settings
+  description: The render output path.
+- name: RenderSetupIncludeLights
+  type: STRING
+  userInterface:
+    control: CHECK_BOX
+    label: Include All Lights
+    groupLabel: Maya Settings
+  description: Include all lights in the render.
+  default: 'true'
+  allowedValues:
+  - 'true'
+  - 'false'
+- name: StrictErrorChecking
+  type: STRING
+  userInterface:
+    control: CHECK_BOX
+    label: Strict Error Checking
+    groupLabel: Maya Settings
+  description: Fail when errors occur.
+  default: 'false'
+  allowedValues:
+  - 'true'
+  - 'false'
+- name: RezPackages
+  type: STRING
+  userInterface:
+    control: LINE_EDIT
+    label: Rez Packages
+    groupLabel: Software Environment
+  description: A space-separated list of Rez packages to install
+  default: mayaIO mtoa deadline_cloud_for_maya
+environments:
+- name: Rez
+  description: Initializes and destroys the Rez environment for the run
+  script:
+    actions:
+      onEnter:
+        command: '{{Env.File.Enter}}'
+      onExit:
+        command: '{{Env.File.Exit}}'
+    embeddedFiles:
+    - name: Enter
+      filename: rez-enter.sh
+      type: TEXT
+      runnable: true
+      data: |
+        #!/bin/env bash
+
+        set -euo pipefail
+
+        if [ ! -z "{{Param.RezPackages}}" ]; then
+            echo "Rez Package List:"
+            echo "   {{Param.RezPackages}}"
+
+            # Create the environment
+            /usr/local/bin/deadline-rez init \
+                -d "{{Session.WorkingDirectory}}" \
+                {{Param.RezPackages}}
+
+            # Capture the environment's vars
+            {{Env.File.InitialVars}}
+            . /usr/local/bin/deadline-rez activate \
+                -d "{{Session.WorkingDirectory}}"
+            {{Env.File.CaptureVars}}
+        else
+            echo "No Rez Packages, skipping environment creation."
+        fi
+    - name: Exit
+      filename: rez-exit.sh
+      type: TEXT
+      runnable: true
+      data: |
+        #!/bin/env bash
+
+        set -euo pipefail
+
+        if [ ! -z "{{Param.RezPackages}}" ]; then
+            echo "Rez Package List:"
+            echo "   {{Param.RezPackages}}"
+
+            /usr/local/bin/deadline-rez destroy \
+                -d "{{ Session.WorkingDirectory }}"
+        else
+            echo "No Rez Packages, skipping environment teardown."
+        fi
+    - name: InitialVars
+      filename: initial-vars.sh
+      type: TEXT
+      runnable: true
+      data: |
+        #!/usr/bin/env python3
+        import os, json
+        envfile = "{{Session.WorkingDirectory}}/.envInitial"
+        with open(envfile, "w", encoding="utf8") as f:
+            json.dump(dict(os.environ), f)
+    - name: CaptureVars
+      filename: capture-vars.sh
+      type: TEXT
+      runnable: true
+      data: |
+        #!/usr/bin/env python3
+        import os, json, sys
+        envfile = "{{Session.WorkingDirectory}}/.envInitial"
+        if os.path.isfile(envfile):
+            with open(envfile, "r", encoding="utf8") as f:
+                before = json.load(f)
+        else:
+            print("No initial environment found, must run Env.File.CaptureVars script first")
+            sys.exit(1)
+        after = dict(os.environ)
+
+        put = {k: v for k, v in after.items() if v != before.get(k)}
+        delete = {k for k in before if k not in after}
+
+        for k, v in put.items():
+            print(f"updating {k}={v}")
+            print(f"openjobio_env: {k}={v}")
+        for k in delete:
+            print(f"openjobio_unset_env: {k}")
+steps:
+- name: masterLayer
+  parameterSpace:
+    parameters:
+    - name: Frame
+      type: INT
+      range: '{{Param.Frames}}'
+    - name: Camera
+      type: STRING
+      range:
+      - persp
+  environments:
+  - name: Maya
+    description: Runs Maya in the background.
+    script:
+      embeddedFiles:
+      - name: initData
+        filename: init-data.yaml
+        type: TEXT
+        data: |
+          renderer: mayaSoftware
+          render_layer: masterLayer
+          scene_file: '{{Param.MayaSceneFile}}'
+          project_path: '{{Param.ProjectPath}}'
+          output_file_path: '{{Param.OutputFilePath}}'
+          render_setup_include_lights: {{Param.RenderSetupIncludeLights}}
+          strict_error_checking: {{Param.StrictErrorChecking}}
+      actions:
+        onEnter:
+          command: MayaAdaptor
+          args:
+          - daemon
+          - start
+          - --path-mapping-rules
+          - file://{{Session.PathMappingRulesFile}}
+          - --connection-file
+          - '{{Session.WorkingDirectory}}/connection.json'
+          - --init-data
+          - file://{{Env.File.initData}}
+          cancelation:
+            mode: NOTIFY_THEN_TERMINATE
+        onExit:
+          command: MayaAdaptor
+          args:
+          - daemon
+          - stop
+          - --connection-file
+          - '{{ Session.WorkingDirectory }}/connection.json'
+          cancelation:
+            mode: NOTIFY_THEN_TERMINATE
+  script:
+    embeddedFiles:
+    - name: runData
+      filename: run-data.yaml
+      type: TEXT
+      data: |
+        frame: {{Task.Param.Frame}}
+        camera: '{{Task.Param.Camera}}'
+    actions:
+      onRun:
+        command: MayaAdaptor
+        args:
+        - daemon
+        - run
+        - --connection-file
+        - '{{ Session.WorkingDirectory }}/connection.json'
+        - --run-data
+        - file://{{ Task.File.runData }}
+        cancelation:
+          mode: NOTIFY_THEN_TERMINATE
