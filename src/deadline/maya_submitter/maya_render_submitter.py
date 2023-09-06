@@ -18,6 +18,7 @@ from PySide2.QtCore import Qt  # pylint: disable=import-error
 
 from . import Animation, Scene  # type: ignore
 from .assets import AssetIntrospector
+from .renderers import get_output_prefix_with_tokens, get_height, get_width
 from .data_classes.render_submitter_settings import (
     RenderSubmitterUISettings,
 )
@@ -47,11 +48,15 @@ class RenderLayerData:
     frame_range: str
     renderable_camera_names: list[str]
     output_directories: set[str]
+    output_file_prefix_parameter_name: Optional[str]
+    output_file_prefix: str
+    image_width_parameter_name: Optional[str]
+    image_height_parameter_name: Optional[str]
+    image_resolution: tuple[int, int]
 
 
 def _get_job_template(
     settings: RenderSubmitterUISettings,
-    per_layer_frames_parameters: bool,
     renderers: set[str],
     render_layers: list[RenderLayerData],
     all_layer_selectable_cameras,
@@ -64,7 +69,7 @@ def _get_job_template(
     job_template["name"] = settings.name
 
     # If there are multiple frame ranges, split up the Frames parameter by layer
-    if per_layer_frames_parameters:
+    if render_layers[0].frames_parameter_name:
         # Extract the Frames parameter
         frame_param = [param for param in job_template["parameters"] if param["name"] == "Frames"][
             0
@@ -79,6 +84,92 @@ def _get_job_template(
             layer_frame_param["name"] = layer_data.frames_parameter_name
             layer_frame_param["userInterface"]["groupLabel"] = layer_data.ui_group_label
             job_template["parameters"].append(layer_frame_param)
+
+    # If there are multiple output image formats, split that up by layer
+    if render_layers[0].output_file_prefix_parameter_name:
+        for layer_data in render_layers:
+            job_template["parameters"].append(
+                {
+                    "name": layer_data.output_file_prefix_parameter_name,
+                    "type": "STRING",
+                    "userInterface": {
+                        "control": "LINE_EDIT",
+                        "label": "Output File Prefix",
+                        "groupLabel": layer_data.ui_group_label,
+                    },
+                    "description": f"The output filename prefix for layer {layer_data.display_name}",
+                }
+            )
+    else:
+        job_template["parameters"].append(
+            {
+                "name": "OutputFilePrefix",
+                "type": "STRING",
+                "userInterface": {
+                    "control": "LINE_EDIT",
+                    "label": "Output File Prefix",
+                    "groupLabel": "Maya Settings",
+                },
+                "description": "The output filename prefix.",
+            }
+        )
+
+    # If there are multiple output image resolutions, split that up by layer
+    if render_layers[0].image_width_parameter_name:
+        for layer_data in render_layers:
+            job_template["parameters"].append(
+                {
+                    "name": layer_data.image_width_parameter_name,
+                    "type": "INT",
+                    "userInterface": {
+                        "control": "SPIN_BOX",
+                        "label": "Image Width",
+                        "groupLabel": layer_data.ui_group_label,
+                    },
+                    "minValue": 1,
+                    "description": f"The image width for layer {layer_data.display_name}.",
+                }
+            )
+            job_template["parameters"].append(
+                {
+                    "name": layer_data.image_height_parameter_name,
+                    "type": "INT",
+                    "userInterface": {
+                        "control": "SPIN_BOX",
+                        "label": "Image Height",
+                        "groupLabel": layer_data.ui_group_label,
+                    },
+                    "minValue": 1,
+                    "description": f"The image height for layer {layer_data.display_name}.",
+                }
+            )
+    else:
+        job_template["parameters"].append(
+            {
+                "name": "ImageWidth",
+                "type": "INT",
+                "userInterface": {
+                    "control": "SPIN_BOX",
+                    "label": "Image Width",
+                    "groupLabel": "Maya Settings",
+                },
+                "minValue": 1,
+                "description": "The image width of the output.",
+            }
+        )
+        job_template["parameters"].append(
+            {
+                "name": "ImageHeight",
+                "type": "INT",
+                "userInterface": {
+                    "control": "SPIN_BOX",
+                    "label": "Image Height",
+                    "groupLabel": "Maya Settings",
+                },
+                "minValue": 1,
+                "description": "The image height of the output.",
+            }
+        )
 
     # If we're rendering a specific camera, add the Camera job parameter
     if settings.camera_selection != ALL_CAMERAS:
@@ -130,6 +221,15 @@ def _get_job_template(
         init_data["data"] = (
             f"renderer: {layer_data.renderer_name}\nrender_layer: {layer_data.display_name}\n"
             + init_data["data"]
+            + "output_file_prefix: '{{Param."
+            + (layer_data.output_file_prefix_parameter_name or "OutputFilePrefix")
+            + "}}'\n"
+            + "image_width: {{Param."
+            + (layer_data.image_width_parameter_name or "ImageWidth")
+            + "}}\n"
+            + "image_height: {{Param."
+            + (layer_data.image_height_parameter_name or "ImageHeight")
+            + "}}\n"
         )
         # If a specific camera is selected, link to the Camera parameter
         if settings.camera_selection != ALL_CAMERAS:
@@ -206,7 +306,6 @@ def _get_job_template(
 
 def _get_parameter_values(
     settings: RenderSubmitterUISettings,
-    per_layer_frames_parameters: bool,
     renderers: set[str],
     render_layers: list[RenderLayerData],
 ) -> dict[str, Any]:
@@ -220,7 +319,7 @@ def _get_parameter_values(
     # Set the Maya scene file value
     parameter_values.append({"name": "MayaSceneFile", "value": Scene.name()})
 
-    if per_layer_frames_parameters:
+    if render_layers[0].frames_parameter_name:
         for layer_data in render_layers:
             parameter_values.append(
                 {
@@ -234,6 +333,47 @@ def _get_parameter_values(
         else:
             frame_list = render_layers[0].frame_range
         parameter_values.append({"name": "Frames", "value": frame_list})
+
+    if render_layers[0].output_file_prefix_parameter_name:
+        for layer_data in render_layers:
+            parameter_values.append(
+                {
+                    "name": layer_data.output_file_prefix_parameter_name,
+                    "value": layer_data.output_file_prefix,
+                }
+            )
+    else:
+        parameter_values.append(
+            {"name": "OutputFilePrefix", "value": render_layers[0].output_file_prefix}
+        )
+
+    if render_layers[0].image_width_parameter_name:
+        for layer_data in render_layers:
+            parameter_values.append(
+                {
+                    "name": layer_data.image_width_parameter_name,
+                    "value": layer_data.image_resolution[0],
+                }
+            )
+            parameter_values.append(
+                {
+                    "name": layer_data.image_height_parameter_name,
+                    "value": layer_data.image_resolution[1],
+                }
+            )
+    else:
+        parameter_values.append(
+            {
+                "name": "ImageWidth",
+                "value": render_layers[0].image_resolution[0],
+            }
+        )
+        parameter_values.append(
+            {
+                "name": "ImageHeight",
+                "value": render_layers[0].image_resolution[1],
+            }
+        )
 
     # If we're rendering a specific camera, set the Camera parameter value
     if settings.camera_selection != ALL_CAMERAS:
@@ -287,6 +427,8 @@ def show_maya_render_submitter(
                 output_directories.update(
                     Scene.get_output_directories(render_layer_name, camera_name)
                 )
+            output_file_prefix = get_output_prefix_with_tokens()
+            image_resolution = (get_width(), get_height())
 
             render_layers.append(
                 RenderLayerData(
@@ -298,6 +440,11 @@ def show_maya_render_submitter(
                     frame_range=str(Animation.frame_list()),
                     renderable_camera_names=renderable_camera_names,
                     output_directories=output_directories,
+                    output_file_prefix_parameter_name=None,
+                    output_file_prefix=output_file_prefix,
+                    image_width_parameter_name=None,
+                    image_height_parameter_name=None,
+                    image_resolution=image_resolution,
                 )
             )
 
@@ -353,19 +500,37 @@ def show_maya_render_submitter(
             for layer_data in submit_render_layers:
                 layer_data.frames_parameter_name = f"{layer_data.display_name}Frames"
 
+        first_output_file_prefix = submit_render_layers[0].output_file_prefix
+        per_layer_output_file_prefix = any(
+            layer.output_file_prefix != first_output_file_prefix for layer in submit_render_layers
+        )
+
+        if per_layer_output_file_prefix:
+            for layer_data in submit_render_layers:
+                layer_data.output_file_prefix_parameter_name = (
+                    f"{layer_data.display_name}OutputFilePrefix"
+                )
+
+        first_image_resolution = submit_render_layers[0].image_resolution
+        per_layer_image_resolution = any(
+            layer.image_resolution != first_image_resolution for layer in submit_render_layers
+        )
+
+        if per_layer_image_resolution:
+            for layer_data in submit_render_layers:
+                layer_data.image_width_parameter_name = f"{layer_data.display_name}ImageWidth"
+                layer_data.image_height_parameter_name = f"{layer_data.display_name}ImageHeight"
+
         renderers: set[str] = {layer_data.renderer_name for layer_data in submit_render_layers}
 
         job_template = _get_job_template(
             settings,
-            per_layer_frames_parameters,
             renderers,
             submit_render_layers,
             all_layer_selectable_cameras,
             current_layer_selectable_cameras,
         )
-        parameter_values = _get_parameter_values(
-            settings, per_layer_frames_parameters, renderers, submit_render_layers
-        )
+        parameter_values = _get_parameter_values(settings, renderers, submit_render_layers)
 
         with open(job_bundle_path / "template.yaml", "w", encoding="utf8") as f:
             deadline_yaml_dump(job_template, f, indent=1)

@@ -59,6 +59,7 @@ class DefaultMayaHandler:
             render_layer_map = {
                 _get_render_layer_display_name(name): name
                 for name in maya.cmds.ls(type="renderLayer")
+                if not maya.cmds.referenceQuery(name, isNodeReferenced=True)
             }
             if display_name in render_layer_map:
                 return render_layer_map[display_name]
@@ -149,7 +150,7 @@ class DefaultMayaHandler:
         """
         prefix = data.get("output_file_prefix")
         if prefix:
-            maya.cmds.setAttr("defaultRenderGlobals.imageFilePrefix", prefix)
+            maya.cmds.setAttr("defaultRenderGlobals.imageFilePrefix", prefix, type="string")
 
     def set_path_mapping(self, data: dict) -> None:
         """
