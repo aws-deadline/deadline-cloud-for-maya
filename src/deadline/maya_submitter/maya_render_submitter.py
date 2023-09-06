@@ -71,11 +71,11 @@ def _get_job_template(
     # If there are multiple frame ranges, split up the Frames parameter by layer
     if render_layers[0].frames_parameter_name:
         # Extract the Frames parameter definition
-        frame_param = [param for param in job_template["parameters"] if param["name"] == "Frames"][
-            0
-        ]
-        job_template["parameters"] = [
-            param for param in job_template["parameters"] if param["name"] != "Frames"
+        frame_param = [
+            param for param in job_template["parameterDefinitions"] if param["name"] == "Frames"
+        ][0]
+        job_template["parameterDefinitions"] = [
+            param for param in job_template["parameterDefinitions"] if param["name"] != "Frames"
         ]
 
         # Create layer-specific Frames parameters
@@ -83,12 +83,12 @@ def _get_job_template(
             layer_frame_param = deepcopy(frame_param)
             layer_frame_param["name"] = layer_data.frames_parameter_name
             layer_frame_param["userInterface"]["groupLabel"] = layer_data.ui_group_label
-            job_template["parameters"].append(layer_frame_param)
+            job_template["parameterDefinitions"].append(layer_frame_param)
 
     # If there are multiple output image formats, split that up by layer
     if render_layers[0].output_file_prefix_parameter_name:
         for layer_data in render_layers:
-            job_template["parameters"].append(
+            job_template["parameterDefinitions"].append(
                 {
                     "name": layer_data.output_file_prefix_parameter_name,
                     "type": "STRING",
@@ -101,7 +101,7 @@ def _get_job_template(
                 }
             )
     else:
-        job_template["parameters"].append(
+        job_template["parameterDefinitions"].append(
             {
                 "name": "OutputFilePrefix",
                 "type": "STRING",
@@ -117,7 +117,7 @@ def _get_job_template(
     # If there are multiple output image resolutions, split that up by layer
     if render_layers[0].image_width_parameter_name:
         for layer_data in render_layers:
-            job_template["parameters"].append(
+            job_template["parameterDefinitions"].append(
                 {
                     "name": layer_data.image_width_parameter_name,
                     "type": "INT",
@@ -130,7 +130,7 @@ def _get_job_template(
                     "description": f"The image width for layer {layer_data.display_name}.",
                 }
             )
-            job_template["parameters"].append(
+            job_template["parameterDefinitions"].append(
                 {
                     "name": layer_data.image_height_parameter_name,
                     "type": "INT",
@@ -144,7 +144,7 @@ def _get_job_template(
                 }
             )
     else:
-        job_template["parameters"].append(
+        job_template["parameterDefinitions"].append(
             {
                 "name": "ImageWidth",
                 "type": "INT",
@@ -157,7 +157,7 @@ def _get_job_template(
                 "description": "The image width of the output.",
             }
         )
-        job_template["parameters"].append(
+        job_template["parameterDefinitions"].append(
             {
                 "name": "ImageHeight",
                 "type": "INT",
@@ -187,7 +187,7 @@ def _get_job_template(
             "description": "Select which camera to render.",
             "allowedValues": selectable_cameras,
         }
-        job_template["parameters"].append(camera_param)
+        job_template["parameterDefinitions"].append(camera_param)
 
     # Replicate the default step, once per render layer, and adjust its settings
     default_step = job_template["steps"][0]
@@ -201,12 +201,12 @@ def _get_job_template(
         parameter_space = step["parameterSpace"]
         # Update the 'Param.Frames' reference in the Frame task parameter
         if layer_data.frames_parameter_name:
-            parameter_space["parameters"][0]["range"] = (
+            parameter_space["taskParameterDefinitions"][0]["range"] = (
                 "{{Param." + layer_data.frames_parameter_name + "}}"
             )
         # If we're submitting all cameras, create another parameter space dimension
         if settings.camera_selection == ALL_CAMERAS:
-            parameter_space["parameters"].append(
+            parameter_space["taskParameterDefinitions"].append(
                 {
                     "name": "Camera",
                     "type": "STRING",
@@ -217,7 +217,7 @@ def _get_job_template(
             run_data["data"] += "camera: '{{Task.Param.Camera}}'\n"
 
         # Update the init data of the step
-        init_data = step["environments"][0]["script"]["embeddedFiles"][0]
+        init_data = step["stepEnvironments"][0]["script"]["embeddedFiles"][0]
         init_data["data"] = (
             f"renderer: {layer_data.renderer_name}\nrender_layer: {layer_data.display_name}\n"
             + init_data["data"]
@@ -243,7 +243,7 @@ def _get_job_template(
 
     # If Arnold is one of the renderers, add Arnold-specific parameters
     if "arnold" in renderers:
-        job_template["parameters"].append(
+        job_template["parameterDefinitions"].append(
             {
                 "name": "ArnoldErrorOnLicenseFailure",
                 "type": "STRING",
@@ -273,28 +273,28 @@ def _get_job_template(
         wheels_path_package_names = {
             path.split("-", 1)[0] for path in os.listdir(wheels_path) if path.endswith(".whl")
         }
-        if wheels_path_package_names != {"openjobio", "deadline", "deadline_cloud_for_maya"}:
+        if wheels_path_package_names != {"openjd", "deadline", "deadline_cloud_for_maya"}:
             raise RuntimeError(
                 "The Developer Option 'Include Adaptor Wheels' is enabled, but the wheels directory contains the wrong wheels:\n"
-                + "Expected: openjobio, deadline, and deadline_cloud_for_maya\n"
+                + "Expected: openjd, deadline, and deadline_cloud_for_maya\n"
                 + f"Actual: {wheels_path_package_names}"
             )
 
         override_adaptor_wheels_param = [
             param
-            for param in override_environment["parameters"]
+            for param in override_environment["parameterDefinitions"]
             if param["name"] == "OverrideAdaptorWheels"
         ][0]
         override_adaptor_wheels_param["default"] = str(wheels_path)
         override_adaptor_name_param = [
             param
-            for param in override_environment["parameters"]
+            for param in override_environment["parameterDefinitions"]
             if param["name"] == "OverrideAdaptorName"
         ][0]
         override_adaptor_name_param["default"] = "MayaAdaptor"
 
         # There are no parameter conflicts between these two templates, so this works
-        job_template["parameters"].extend(override_environment["parameters"])
+        job_template["parameterDefinitions"].extend(override_environment["parameterDefinitions"])
 
         # Add the environment to the end of the template's job environments
         if "environments" not in job_template:
@@ -429,7 +429,9 @@ def show_maya_render_submitter(parent, f=Qt.WindowFlags()) -> "Optional[SubmitJo
 
     # Get the RezPackages parameter definition, and use the default set there
     rez_package_param = [
-        param for param in default_job_template["parameters"] if param["name"] == "RezPackages"
+        param
+        for param in default_job_template["parameterDefinitions"]
+        if param["name"] == "RezPackages"
     ]
     if rez_package_param:
         default_rez_packages = render_settings.rez_packages = rez_package_param[0].get(

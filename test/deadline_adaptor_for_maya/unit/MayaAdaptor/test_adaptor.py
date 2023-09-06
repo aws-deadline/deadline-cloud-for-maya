@@ -11,7 +11,7 @@ from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
 import jsonschema  # type: ignore
-from openjobio.adaptor_runtime_client import PathMappingRule
+from openjd.adaptor_runtime_client import PathMappingRule
 
 import deadline.maya_adaptor.MayaAdaptor.adaptor as adaptor_module
 from deadline.maya_adaptor.MayaAdaptor import MayaAdaptor

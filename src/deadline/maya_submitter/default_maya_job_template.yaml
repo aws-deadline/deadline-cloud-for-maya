@@ -1,6 +1,6 @@
-specificationVersion: '2022-09-01'
+specificationVersion: 'jobtemplate-2023-09'
 name: Default Maya Job Template
-parameters:
+parameterDefinitions:
 - name: MayaSceneFile
   type: PATH
   objectType: FILE
@@ -78,11 +78,11 @@ parameters:
 steps:
 - name: Render
   parameterSpace:
-    parameters:
+    taskParameterDefinitions:
     - name: Frame
       type: INT
       range: '{{Param.Frames}}'
-  environments:
+  stepEnvironments:
   - name: Maya
     description: Runs Maya in the background.
     script:

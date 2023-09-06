@@ -1,10 +1,10 @@
-specificationVersion: '2022-09-01'
-parameters:
+specificationVersion: 'jobtemplate-2023-09'
+parameterDefinitions:
 - name: OverrideAdaptorWheels
   type: PATH
   objectType: DIRECTORY
   dataFlow: IN
-  description: A directory that contains wheels for openjobio, deadline, and the overridden adaptor.
+  description: A directory that contains wheels for openjd, deadline, and the overridden adaptor.
 - name: OverrideAdaptorName
   type: STRING
   description: The name of the adaptor to override, for example NukeAdaptor or MayaAdaptor.
@@ -40,7 +40,7 @@ environment:
         echo ""
 
         echo "Installing adaptor into the venv"
-        pip install {{Param.OverrideAdaptorWheels}}/openjobio*.whl
+        pip install {{Param.OverrideAdaptorWheels}}/openjd*.whl
         pip install {{Param.OverrideAdaptorWheels}}/deadline*.whl
         echo ""
 
@@ -79,6 +79,6 @@ environment:
 
         for k, v in put.items():
             print(f"updating {k}={v}")
-            print(f"openjobio_env: {k}={v}")
+            print(f"openjd_env: {k}={v}")
         for k in delete:
-            print(f"openjobio_unset_env: {k}")
+            print(f"openjd_unset_env: {k}")

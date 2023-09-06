@@ -1,6 +1,6 @@
-specificationVersion: '2022-09-01'
+specificationVersion: jobtemplate-2023-09
 name: layers.ma
-parameters:
+parameterDefinitions:
 - name: MayaSceneFile
   type: PATH
   objectType: FILE
@@ -236,7 +236,7 @@ parameters:
 steps:
 - name: layerDefaultFrames
   parameterSpace:
-    parameters:
+    taskParameterDefinitions:
     - name: Frame
       type: INT
       range: '{{Param.layerDefaultFramesFrames}}'
@@ -244,7 +244,7 @@ steps:
       type: STRING
       range:
       - camera1
-  environments:
+  stepEnvironments:
   - name: Maya
     description: Runs Maya in the background.
     script:
@@ -309,7 +309,7 @@ steps:
           mode: NOTIFY_THEN_TERMINATE
 - name: layerFrameRange1
   parameterSpace:
-    parameters:
+    taskParameterDefinitions:
     - name: Frame
       type: INT
       range: '{{Param.layerFrameRange1Frames}}'
@@ -318,7 +318,7 @@ steps:
       range:
       - camera1
       - persp
-  environments:
+  stepEnvironments:
   - name: Maya
     description: Runs Maya in the background.
     script:
@@ -382,7 +382,7 @@ steps:
           mode: NOTIFY_THEN_TERMINATE
 - name: masterLayer
   parameterSpace:
-    parameters:
+    taskParameterDefinitions:
     - name: Frame
       type: INT
       range: '{{Param.masterLayerFrames}}'
@@ -391,7 +391,7 @@ steps:
       range:
       - camera1
       - persp
-  environments:
+  stepEnvironments:
   - name: Maya
     description: Runs Maya in the background.
     script:
@@ -456,7 +456,7 @@ steps:
           mode: NOTIFY_THEN_TERMINATE
 - name: renderSetupLayer2
   parameterSpace:
-    parameters:
+    taskParameterDefinitions:
     - name: Frame
       type: INT
       range: '{{Param.renderSetupLayer2Frames}}'
@@ -466,7 +466,7 @@ steps:
       - camera1
       - camera2
       - camera3
-  environments:
+  stepEnvironments:
   - name: Maya
     description: Runs Maya in the background.
     script:
@@ -531,7 +531,7 @@ steps:
           mode: NOTIFY_THEN_TERMINATE
 - name: renderSetupLayer4
   parameterSpace:
-    parameters:
+    taskParameterDefinitions:
     - name: Frame
       type: INT
       range: '{{Param.renderSetupLayer4Frames}}'
@@ -540,7 +540,7 @@ steps:
       range:
       - camera1
       - persp
-  environments:
+  stepEnvironments:
   - name: Maya
     description: Runs Maya in the background.
     script:
