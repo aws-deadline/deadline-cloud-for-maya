@@ -19,7 +19,7 @@ from PySide2.QtCore import Qt  # pylint: disable=import-error
 from . import Animation, Scene  # type: ignore
 from .assets import AssetIntrospector
 from .renderers import get_output_prefix_with_tokens, get_height, get_width
-from .data_classes.render_submitter_settings import (
+from .data_classes import (
     RenderSubmitterUISettings,
 )
 from .render_layers import (
@@ -56,21 +56,21 @@ class RenderLayerData:
 
 
 def _get_job_template(
+    default_job_template: dict[str, Any],
     settings: RenderSubmitterUISettings,
     renderers: set[str],
     render_layers: list[RenderLayerData],
     all_layer_selectable_cameras,
     current_layer_selectable_cameras,
 ) -> dict[str, Any]:
-    with open(Path(__file__).parent / "default_maya_job_template.yaml") as f:
-        job_template = yaml.safe_load(f)
+    job_template = deepcopy(default_job_template)
 
     # Set the job's name
     job_template["name"] = settings.name
 
     # If there are multiple frame ranges, split up the Frames parameter by layer
     if render_layers[0].frames_parameter_name:
-        # Extract the Frames parameter
+        # Extract the Frames parameter definition
         frame_param = [param for param in job_template["parameters"] if param["name"] == "Frames"][
             0
         ]
@@ -308,6 +308,7 @@ def _get_parameter_values(
     settings: RenderSubmitterUISettings,
     renderers: set[str],
     render_layers: list[RenderLayerData],
+    default_rez_packages: str,
 ) -> dict[str, Any]:
     parameter_values = [
         {"name": "deadline:priority", "value": settings.priority},
@@ -397,16 +398,49 @@ def _get_parameter_values(
             }
         )
 
-    # Set the RezPackages parameter value
-    if settings.override_rez_packages:
-        parameter_values.append({"name": "RezPackages", "value": settings.rez_packages})
+    # Set the RezPackages parameter value if their overridden or we need
+    # to modify them due to the include_adaptor_wheels setting.
+    if settings.override_rez_packages or settings.include_adaptor_wheels:
+        if settings.override_rez_packages:
+            rez_packages = settings.rez_packages
+        else:
+            rez_packages = default_rez_packages
+        # If the adaptor wheels are included, remove the deadline_cloud_for_maya rez package
+        if settings.include_adaptor_wheels:
+            rez_packages = " ".join(
+                pkg for pkg in rez_packages.split() if not pkg.startswith("deadline_cloud_for_maya")
+            )
+        parameter_values.append({"name": "RezPackages", "value": rez_packages})
 
     return {"parameterValues": parameter_values}
 
 
-def show_maya_render_submitter(
-    parent, render_settings: RenderSubmitterUISettings, f=Qt.WindowFlags()
-) -> "Optional[SubmitJobToDeadlineDialog]":
+def show_maya_render_submitter(parent, f=Qt.WindowFlags()) -> "Optional[SubmitJobToDeadlineDialog]":
+    with open(Path(__file__).parent / "default_maya_job_template.yaml") as fh:
+        default_job_template = yaml.safe_load(fh)
+
+    render_settings = RenderSubmitterUISettings()
+
+    # Set the setting defaults that come from the scene
+    render_settings.name = Path(Scene.name()).name
+    render_settings.frame_list = str(Animation.frame_list())
+    render_settings.project_path = Scene.project_path()
+    render_settings.output_path = Scene.output_path()
+
+    # Get the RezPackages parameter definition, and use the default set there
+    rez_package_param = [
+        param for param in default_job_template["parameters"] if param["name"] == "RezPackages"
+    ]
+    if rez_package_param:
+        default_rez_packages = render_settings.rez_packages = rez_package_param[0].get(
+            "default", ""
+        )
+    else:
+        default_rez_packages = ""
+
+    # Load the sticky settings
+    render_settings.load_sticky_settings(Scene.name())
+
     # Create a dictionary for the layers, and accumulate data about each layer
     render_layer_names = get_all_renderable_render_layer_names()
     if not render_layer_names:
@@ -524,13 +558,16 @@ def show_maya_render_submitter(
         renderers: set[str] = {layer_data.renderer_name for layer_data in submit_render_layers}
 
         job_template = _get_job_template(
+            default_job_template,
             settings,
             renderers,
             submit_render_layers,
             all_layer_selectable_cameras,
             current_layer_selectable_cameras,
         )
-        parameter_values = _get_parameter_values(settings, renderers, submit_render_layers)
+        parameter_values = _get_parameter_values(
+            settings, renderers, submit_render_layers, default_rez_packages
+        )
 
         with open(job_bundle_path / "template.yaml", "w", encoding="utf8") as f:
             deadline_yaml_dump(job_template, f, indent=1)
@@ -547,7 +584,7 @@ def show_maya_render_submitter(
         settings.input_directories = sorted(attachments.input_directories)
         settings.input_filenames = sorted(attachments.input_filenames)
 
-        settings.to_render_submitter_settings().save()
+        settings.save_sticky_settings(Scene.name())
 
     auto_detected_attachments = FlatAssetReferences()
     introspector = AssetIntrospector()
