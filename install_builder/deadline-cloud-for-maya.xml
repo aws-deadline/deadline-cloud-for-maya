@@ -41,7 +41,7 @@
          </folder>
     </folderList>
 	<initializationActionList>
-		<setInstallerVariable name="all_components" value="${all_components} maya_integrated_submitter"/>
+		<setInstallerVariable name="all_components" value="${all_components} deadline_cloud_for_maya"/>
 	</initializationActionList>
 	<readyToInstallActionList>
 		<setInstallerVariable name="maya_installdir" value="${installdir}/Submitters/Maya"/>
