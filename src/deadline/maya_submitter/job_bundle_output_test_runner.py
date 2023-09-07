@@ -25,7 +25,6 @@ from deadline.client.ui import gui_error_handler
 from deadline.client.ui.dialogs import submit_job_to_deadline_dialog
 from deadline.client.exceptions import DeadlineOperationError
 from .maya_render_submitter import show_maya_render_submitter
-from .data_classes.render_submitter_settings import RenderSubmitterUISettings
 
 
 # The following functions expose a DCC interface to the job bundle output test logic.
@@ -95,7 +94,7 @@ def _copy_dcc_scene_file(source_filename: str, dest_filename: str):
 
 def _show_deadline_cloud_submitter(mainwin: Any):
     """Shows the Deadline Cloud Submitter for Maya."""
-    return show_maya_render_submitter(mainwin, RenderSubmitterUISettings())
+    return show_maya_render_submitter(mainwin)
 
 
 # The following functions implement the test logic.
