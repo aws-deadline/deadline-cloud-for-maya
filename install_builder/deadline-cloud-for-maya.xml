@@ -9,7 +9,7 @@
         <folder>
             <description>Maya Plug-in Module</description>
             <destination>${maya_installdir}</destination>
-            <name>maya</name>
+            <name>mayaplugin</name>
             <platforms>all</platforms>
             <distributionFileList>
                 <distributionDirectory allowWildcards="1">
