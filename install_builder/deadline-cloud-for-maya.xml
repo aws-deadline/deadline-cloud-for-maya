@@ -13,7 +13,7 @@
             <platforms>all</platforms>
             <distributionFileList>
                 <distributionDirectory allowWildcards="1">
-                    <origin>components/deadline-cloud-for-maya/maya_submitter_plugin</origin>
+                    <origin>components/deadline-cloud-for-maya/maya_submitter_plugin/*</origin>
                 </distributionDirectory>
             </distributionFileList>
         </folder>
@@ -24,7 +24,7 @@
             <platforms>all</platforms>
             <distributionFileList>
                 <distributionDirectory allowWildcards="1">
-                    <origin>components/deadline-cloud-for-maya/src/deadline/maya_submitter</origin>
+                    <origin>components/deadline-cloud-for-maya/src/deadline/maya_submitter/*</origin>
                 </distributionDirectory>
             </distributionFileList>
         </folder>
