@@ -71,7 +71,7 @@
          </if>
 	</readyToInstallActionList>
 	<parameterList>
-		<stringParameter name="maya_integrated_submitter_summary" ask="0" cliOptionShow="0">
+		<stringParameter name="deadline_cloud_for_maya_summary" ask="0" cliOptionShow="0">
 			<value>Deadline Cloud for Maya
 - Install the integrated Maya submitter files to the installation directory.
 - Register the plug-in with Maya by creating or updating the MAYA_MODULE_PATH environment variable.</value>
