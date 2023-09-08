@@ -193,7 +193,7 @@ def _run_job_bundle_output_test(test_dir: str, dcc_scene_file: str, report_fh, m
             "create_job_history_bundle_dir",
             return_value=temp_job_bundle_dir,
         ), mock.patch.object(submit_job_to_deadline_dialog, "QMessageBox"), mock.patch.object(
-            os, "startfile"
+            os, "startfile", create=True  # only exists on win. Just create to avoid AttributeError
         ):
             submitter.on_save_bundle()
         QApplication.processEvents()
