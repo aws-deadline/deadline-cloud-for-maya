@@ -5,6 +5,6 @@ pytest-cov ~= 4.1
 pytest-xdist ~= 3.3
 twine ~= 4.0
 mypy ~= 1.5
-black ~= 23.7
+black ~= 23.9
 ruff ~= 0.0.287
 moto[s3,sts] ~= 4.1
