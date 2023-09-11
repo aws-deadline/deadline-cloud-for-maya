@@ -22,11 +22,11 @@ WARNING: This workflow installs additional Python packages into your Maya's pyth
 
 1. Create a development location within which to do your git checkouts. For example `~/deadline-clients`.
    Clone packages from this directory with commands like
-   `git clone git@github.com:casillas2/deadline-cloud-for-maya.git`. You'll also want the `deadline-cloud` and `openjobio` repos.
+   `git clone git@github.com:casillas2/deadline-cloud-for-maya.git`. You'll also want the `deadline-cloud` and `openjd` repos.
 2. Switch to your Maya directory, like `cd "C:\Program Files\Autodesk\Maya2023"`.
 3. Run `.\mayapy -m pip install -e C:\Users\<username>\deadline-clients\deadline-cloud` to install the Amazon Deadline Cloud Client
    Library in edit mode.
-4. Run `.\mayapy -m pip install -e C:\Users\<username>\deadline-clients\openjobio` to install the OpenJobIO
+4. Run `.\mayapy -m pip install -e C:\Users\<username>\deadline-clients\openjd` to install the Open Job Description
    Library in edit mode.
 5. Run `.\mayapy -m pip install -e C:\Users\<username>\deadline-clients\deadline-cloud-for-maya` to install the Maya Submtiter
    in edit mode.
@@ -48,21 +48,21 @@ your build of the adaptor for the one in the service.
 
 1. Use the development location from the Submitter Development Workflow.
    Make sure you're running Maya with `set DEADLINE_ENABLE_DEVELOPER_OPTIONS=true` enabled.
-2. Build wheels for `openjobio`, `deadline` and `deadline-cloud-for-maya`.
+2. Build wheels for `openjd`, `deadline` and `deadline-cloud-for-maya`.
    ```
    # If you don't have the build package installed already
    $ pip install build
    ...
    $  mkdir wheels; \
       rm wheels/*; \
-      for dir in ../openjobio ../deadline-cloud ../deadline-cloud-for-maya; \
+      for dir in ../openjd ../deadline-cloud ../deadline-cloud-for-maya; \
         do python -m build --wheel --outdir ./wheels --skip-dependency-check $dir; \
       done
    ...
    $ ls ./wheels
    deadline_cloud_for_maya-<version>-py3-none-any.whl
    deadline-<version>-py3-none-any.whl
-   openjobio-<version>-py3-none-any.whl
+   openjd-<version>-py3-none-any.whl
    ```
 3. Open the Maya integrated submitter, and in the Job-Specific Settings tab, enable the option 'Include Adaptor Wheels'. This
    option is only visible when the environment variable `DEADLINE_ENABLE_DEVELOPER_OPTIONS` is set to `true`.

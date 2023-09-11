@@ -3,7 +3,7 @@
 import logging
 import sys
 
-from openjobio.adaptor_runtime import EntryPoint
+from openjd.adaptor_runtime import EntryPoint
 
 from .adaptor import MayaAdaptor
 

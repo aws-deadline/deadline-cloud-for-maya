@@ -1,6 +1,6 @@
-specificationVersion: '2022-09-01'
+specificationVersion: jobtemplate-2023-09
 name: layers_no_variation.ma
-parameters:
+parameterDefinitions:
 - name: MayaSceneFile
   type: PATH
   objectType: FILE
@@ -112,7 +112,7 @@ parameters:
 steps:
 - name: layerTheFIrst
   parameterSpace:
-    parameters:
+    taskParameterDefinitions:
     - name: Frame
       type: INT
       range: '{{Param.Frames}}'
@@ -120,7 +120,7 @@ steps:
       type: STRING
       range:
       - persp
-  environments:
+  stepEnvironments:
   - name: Maya
     description: Runs Maya in the background.
     script:
@@ -185,7 +185,7 @@ steps:
           mode: NOTIFY_THEN_TERMINATE
 - name: layerTheSecond
   parameterSpace:
-    parameters:
+    taskParameterDefinitions:
     - name: Frame
       type: INT
       range: '{{Param.Frames}}'
@@ -193,7 +193,7 @@ steps:
       type: STRING
       range:
       - persp
-  environments:
+  stepEnvironments:
   - name: Maya
     description: Runs Maya in the background.
     script:
@@ -258,7 +258,7 @@ steps:
           mode: NOTIFY_THEN_TERMINATE
 - name: masterLayer
   parameterSpace:
-    parameters:
+    taskParameterDefinitions:
     - name: Frame
       type: INT
       range: '{{Param.Frames}}'
@@ -266,7 +266,7 @@ steps:
       type: STRING
       range:
       - persp
-  environments:
+  stepEnvironments:
   - name: Maya
     description: Runs Maya in the background.
     script:

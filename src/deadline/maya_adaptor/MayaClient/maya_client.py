@@ -6,7 +6,7 @@ import os
 from types import FrameType
 from typing import Optional
 
-# The Maya Adaptor adds the `openjobio` namespace directory to PYTHONPATH,
+# The Maya Adaptor adds the `openjd` namespace directory to PYTHONPATH,
 # so that importing just the adaptor_runtime_client should work.
 try:
     from adaptor_runtime_client import HTTPClientInterface  # type: ignore[import]
@@ -14,7 +14,7 @@ try:
         get_render_handler,
     )
 except (ImportError, ModuleNotFoundError):
-    from openjobio.adaptor_runtime_client import HTTPClientInterface  # type: ignore[import]
+    from openjd.adaptor_runtime_client import HTTPClientInterface  # type: ignore[import]
     from deadline.maya_adaptor.MayaClient.render_handlers import (  # type: ignore[import]
         get_render_handler,
     )
