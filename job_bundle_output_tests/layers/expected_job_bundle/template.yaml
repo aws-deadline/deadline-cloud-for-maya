@@ -1,0 +1,604 @@
+specificationVersion: '2022-09-01'
+name: layers.ma
+parameters:
+- name: MayaSceneFile
+  type: PATH
+  objectType: FILE
+  dataFlow: IN
+  userInterface:
+    control: CHOOSE_INPUT_FILE
+    label: Maya Scene File
+    groupLabel: Maya Settings
+    fileFilters:
+    - label: Maya Scene Files
+      patterns:
+      - '*.mb'
+      - '*.ma'
+    - label: All Files
+      patterns:
+      - '*'
+  description: The Maya scene file to render.
+- name: ProjectPath
+  type: PATH
+  objectType: DIRECTORY
+  dataFlow: NONE
+  userInterface:
+    control: CHOOSE_DIRECTORY
+    label: Project Path
+    groupLabel: Maya Settings
+  description: The Maya project path.
+- name: OutputFilePath
+  type: PATH
+  objectType: DIRECTORY
+  dataFlow: OUT
+  userInterface:
+    control: CHOOSE_DIRECTORY
+    label: Output File Path
+    groupLabel: Maya Settings
+  description: The render output path.
+- name: RenderSetupIncludeLights
+  type: STRING
+  userInterface:
+    control: CHECK_BOX
+    label: Include All Lights
+    groupLabel: Maya Settings
+  description: Include all lights in the render.
+  default: 'true'
+  allowedValues:
+  - 'true'
+  - 'false'
+- name: StrictErrorChecking
+  type: STRING
+  userInterface:
+    control: CHECK_BOX
+    label: Strict Error Checking
+    groupLabel: Maya Settings
+  description: Fail when errors occur.
+  default: 'false'
+  allowedValues:
+  - 'true'
+  - 'false'
+- name: RezPackages
+  type: STRING
+  userInterface:
+    control: LINE_EDIT
+    label: Rez Packages
+    groupLabel: Software Environment
+  description: A space-separated list of Rez packages to install. Requires a Queue
+    Environment to handle the env creation.
+  default: mayaIO mtoa deadline_cloud_for_maya
+- name: layerDefaultFramesFrames
+  type: STRING
+  userInterface:
+    control: LINE_EDIT
+    label: Frames
+    groupLabel: Layer layerDefaultFrames Settings (arnold renderer)
+  description: The frames to render. E.g. 1-3,8,11-15
+  minLength: 1
+- name: layerFrameRange1Frames
+  type: STRING
+  userInterface:
+    control: LINE_EDIT
+    label: Frames
+    groupLabel: Layer layerFrameRange1 Settings (mayaHardware2 renderer)
+  description: The frames to render. E.g. 1-3,8,11-15
+  minLength: 1
+- name: masterLayerFrames
+  type: STRING
+  userInterface:
+    control: LINE_EDIT
+    label: Frames
+    groupLabel: Layer masterLayer Settings (arnold renderer)
+  description: The frames to render. E.g. 1-3,8,11-15
+  minLength: 1
+- name: renderSetupLayer2Frames
+  type: STRING
+  userInterface:
+    control: LINE_EDIT
+    label: Frames
+    groupLabel: Layer renderSetupLayer2 Settings (arnold renderer)
+  description: The frames to render. E.g. 1-3,8,11-15
+  minLength: 1
+- name: renderSetupLayer4Frames
+  type: STRING
+  userInterface:
+    control: LINE_EDIT
+    label: Frames
+    groupLabel: Layer renderSetupLayer4 Settings (mayaSoftware renderer)
+  description: The frames to render. E.g. 1-3,8,11-15
+  minLength: 1
+- name: layerDefaultFramesOutputFilePrefix
+  type: STRING
+  userInterface:
+    control: LINE_EDIT
+    label: Output File Prefix
+    groupLabel: Layer layerDefaultFrames Settings (arnold renderer)
+  description: The output filename prefix for layer layerDefaultFrames
+- name: layerFrameRange1OutputFilePrefix
+  type: STRING
+  userInterface:
+    control: LINE_EDIT
+    label: Output File Prefix
+    groupLabel: Layer layerFrameRange1 Settings (mayaHardware2 renderer)
+  description: The output filename prefix for layer layerFrameRange1
+- name: masterLayerOutputFilePrefix
+  type: STRING
+  userInterface:
+    control: LINE_EDIT
+    label: Output File Prefix
+    groupLabel: Layer masterLayer Settings (arnold renderer)
+  description: The output filename prefix for layer masterLayer
+- name: renderSetupLayer2OutputFilePrefix
+  type: STRING
+  userInterface:
+    control: LINE_EDIT
+    label: Output File Prefix
+    groupLabel: Layer renderSetupLayer2 Settings (arnold renderer)
+  description: The output filename prefix for layer renderSetupLayer2
+- name: renderSetupLayer4OutputFilePrefix
+  type: STRING
+  userInterface:
+    control: LINE_EDIT
+    label: Output File Prefix
+    groupLabel: Layer renderSetupLayer4 Settings (mayaSoftware renderer)
+  description: The output filename prefix for layer renderSetupLayer4
+- name: layerDefaultFramesImageWidth
+  type: INT
+  userInterface:
+    control: SPIN_BOX
+    label: Image Width
+    groupLabel: Layer layerDefaultFrames Settings (arnold renderer)
+  minValue: 1
+  description: The image width for layer layerDefaultFrames.
+- name: layerDefaultFramesImageHeight
+  type: INT
+  userInterface:
+    control: SPIN_BOX
+    label: Image Height
+    groupLabel: Layer layerDefaultFrames Settings (arnold renderer)
+  minValue: 1
+  description: The image height for layer layerDefaultFrames.
+- name: layerFrameRange1ImageWidth
+  type: INT
+  userInterface:
+    control: SPIN_BOX
+    label: Image Width
+    groupLabel: Layer layerFrameRange1 Settings (mayaHardware2 renderer)
+  minValue: 1
+  description: The image width for layer layerFrameRange1.
+- name: layerFrameRange1ImageHeight
+  type: INT
+  userInterface:
+    control: SPIN_BOX
+    label: Image Height
+    groupLabel: Layer layerFrameRange1 Settings (mayaHardware2 renderer)
+  minValue: 1
+  description: The image height for layer layerFrameRange1.
+- name: masterLayerImageWidth
+  type: INT
+  userInterface:
+    control: SPIN_BOX
+    label: Image Width
+    groupLabel: Layer masterLayer Settings (arnold renderer)
+  minValue: 1
+  description: The image width for layer masterLayer.
+- name: masterLayerImageHeight
+  type: INT
+  userInterface:
+    control: SPIN_BOX
+    label: Image Height
+    groupLabel: Layer masterLayer Settings (arnold renderer)
+  minValue: 1
+  description: The image height for layer masterLayer.
+- name: renderSetupLayer2ImageWidth
+  type: INT
+  userInterface:
+    control: SPIN_BOX
+    label: Image Width
+    groupLabel: Layer renderSetupLayer2 Settings (arnold renderer)
+  minValue: 1
+  description: The image width for layer renderSetupLayer2.
+- name: renderSetupLayer2ImageHeight
+  type: INT
+  userInterface:
+    control: SPIN_BOX
+    label: Image Height
+    groupLabel: Layer renderSetupLayer2 Settings (arnold renderer)
+  minValue: 1
+  description: The image height for layer renderSetupLayer2.
+- name: renderSetupLayer4ImageWidth
+  type: INT
+  userInterface:
+    control: SPIN_BOX
+    label: Image Width
+    groupLabel: Layer renderSetupLayer4 Settings (mayaSoftware renderer)
+  minValue: 1
+  description: The image width for layer renderSetupLayer4.
+- name: renderSetupLayer4ImageHeight
+  type: INT
+  userInterface:
+    control: SPIN_BOX
+    label: Image Height
+    groupLabel: Layer renderSetupLayer4 Settings (mayaSoftware renderer)
+  minValue: 1
+  description: The image height for layer renderSetupLayer4.
+- name: ArnoldErrorOnLicenseFailure
+  type: STRING
+  userInterface:
+    control: CHECK_BOX
+    label: Error on License Failure
+    groupLabel: Arnold Renderer Settings
+  description: Whether to produce an error when there is an Arnold license failure.
+  default: 'false'
+  allowedValues:
+  - 'true'
+  - 'false'
+steps:
+- name: layerDefaultFrames
+  parameterSpace:
+    parameters:
+    - name: Frame
+      type: INT
+      range: '{{Param.layerDefaultFramesFrames}}'
+    - name: Camera
+      type: STRING
+      range:
+      - camera1
+  environments:
+  - name: Maya
+    description: Runs Maya in the background.
+    script:
+      embeddedFiles:
+      - name: initData
+        filename: init-data.yaml
+        type: TEXT
+        data: |
+          renderer: arnold
+          render_layer: layerDefaultFrames
+          scene_file: '{{Param.MayaSceneFile}}'
+          project_path: '{{Param.ProjectPath}}'
+          output_file_path: '{{Param.OutputFilePath}}'
+          render_setup_include_lights: {{Param.RenderSetupIncludeLights}}
+          strict_error_checking: {{Param.StrictErrorChecking}}
+          output_file_prefix: '{{Param.layerDefaultFramesOutputFilePrefix}}'
+          image_width: {{Param.layerDefaultFramesImageWidth}}
+          image_height: {{Param.layerDefaultFramesImageHeight}}
+          error_on_arnold_license_fail: {{Param.ArnoldErrorOnLicenseFailure}}
+      actions:
+        onEnter:
+          command: MayaAdaptor
+          args:
+          - daemon
+          - start
+          - --path-mapping-rules
+          - file://{{Session.PathMappingRulesFile}}
+          - --connection-file
+          - '{{Session.WorkingDirectory}}/connection.json'
+          - --init-data
+          - file://{{Env.File.initData}}
+          cancelation:
+            mode: NOTIFY_THEN_TERMINATE
+        onExit:
+          command: MayaAdaptor
+          args:
+          - daemon
+          - stop
+          - --connection-file
+          - '{{ Session.WorkingDirectory }}/connection.json'
+          cancelation:
+            mode: NOTIFY_THEN_TERMINATE
+  script:
+    embeddedFiles:
+    - name: runData
+      filename: run-data.yaml
+      type: TEXT
+      data: |
+        frame: {{Task.Param.Frame}}
+        camera: '{{Task.Param.Camera}}'
+    actions:
+      onRun:
+        command: MayaAdaptor
+        args:
+        - daemon
+        - run
+        - --connection-file
+        - '{{ Session.WorkingDirectory }}/connection.json'
+        - --run-data
+        - file://{{ Task.File.runData }}
+        cancelation:
+          mode: NOTIFY_THEN_TERMINATE
+- name: layerFrameRange1
+  parameterSpace:
+    parameters:
+    - name: Frame
+      type: INT
+      range: '{{Param.layerFrameRange1Frames}}'
+    - name: Camera
+      type: STRING
+      range:
+      - camera1
+      - persp
+  environments:
+  - name: Maya
+    description: Runs Maya in the background.
+    script:
+      embeddedFiles:
+      - name: initData
+        filename: init-data.yaml
+        type: TEXT
+        data: |
+          renderer: mayaHardware2
+          render_layer: layerFrameRange1
+          scene_file: '{{Param.MayaSceneFile}}'
+          project_path: '{{Param.ProjectPath}}'
+          output_file_path: '{{Param.OutputFilePath}}'
+          render_setup_include_lights: {{Param.RenderSetupIncludeLights}}
+          strict_error_checking: {{Param.StrictErrorChecking}}
+          output_file_prefix: '{{Param.layerFrameRange1OutputFilePrefix}}'
+          image_width: {{Param.layerFrameRange1ImageWidth}}
+          image_height: {{Param.layerFrameRange1ImageHeight}}
+      actions:
+        onEnter:
+          command: MayaAdaptor
+          args:
+          - daemon
+          - start
+          - --path-mapping-rules
+          - file://{{Session.PathMappingRulesFile}}
+          - --connection-file
+          - '{{Session.WorkingDirectory}}/connection.json'
+          - --init-data
+          - file://{{Env.File.initData}}
+          cancelation:
+            mode: NOTIFY_THEN_TERMINATE
+        onExit:
+          command: MayaAdaptor
+          args:
+          - daemon
+          - stop
+          - --connection-file
+          - '{{ Session.WorkingDirectory }}/connection.json'
+          cancelation:
+            mode: NOTIFY_THEN_TERMINATE
+  script:
+    embeddedFiles:
+    - name: runData
+      filename: run-data.yaml
+      type: TEXT
+      data: |
+        frame: {{Task.Param.Frame}}
+        camera: '{{Task.Param.Camera}}'
+    actions:
+      onRun:
+        command: MayaAdaptor
+        args:
+        - daemon
+        - run
+        - --connection-file
+        - '{{ Session.WorkingDirectory }}/connection.json'
+        - --run-data
+        - file://{{ Task.File.runData }}
+        cancelation:
+          mode: NOTIFY_THEN_TERMINATE
+- name: masterLayer
+  parameterSpace:
+    parameters:
+    - name: Frame
+      type: INT
+      range: '{{Param.masterLayerFrames}}'
+    - name: Camera
+      type: STRING
+      range:
+      - camera1
+      - persp
+  environments:
+  - name: Maya
+    description: Runs Maya in the background.
+    script:
+      embeddedFiles:
+      - name: initData
+        filename: init-data.yaml
+        type: TEXT
+        data: |
+          renderer: arnold
+          render_layer: masterLayer
+          scene_file: '{{Param.MayaSceneFile}}'
+          project_path: '{{Param.ProjectPath}}'
+          output_file_path: '{{Param.OutputFilePath}}'
+          render_setup_include_lights: {{Param.RenderSetupIncludeLights}}
+          strict_error_checking: {{Param.StrictErrorChecking}}
+          output_file_prefix: '{{Param.masterLayerOutputFilePrefix}}'
+          image_width: {{Param.masterLayerImageWidth}}
+          image_height: {{Param.masterLayerImageHeight}}
+          error_on_arnold_license_fail: {{Param.ArnoldErrorOnLicenseFailure}}
+      actions:
+        onEnter:
+          command: MayaAdaptor
+          args:
+          - daemon
+          - start
+          - --path-mapping-rules
+          - file://{{Session.PathMappingRulesFile}}
+          - --connection-file
+          - '{{Session.WorkingDirectory}}/connection.json'
+          - --init-data
+          - file://{{Env.File.initData}}
+          cancelation:
+            mode: NOTIFY_THEN_TERMINATE
+        onExit:
+          command: MayaAdaptor
+          args:
+          - daemon
+          - stop
+          - --connection-file
+          - '{{ Session.WorkingDirectory }}/connection.json'
+          cancelation:
+            mode: NOTIFY_THEN_TERMINATE
+  script:
+    embeddedFiles:
+    - name: runData
+      filename: run-data.yaml
+      type: TEXT
+      data: |
+        frame: {{Task.Param.Frame}}
+        camera: '{{Task.Param.Camera}}'
+    actions:
+      onRun:
+        command: MayaAdaptor
+        args:
+        - daemon
+        - run
+        - --connection-file
+        - '{{ Session.WorkingDirectory }}/connection.json'
+        - --run-data
+        - file://{{ Task.File.runData }}
+        cancelation:
+          mode: NOTIFY_THEN_TERMINATE
+- name: renderSetupLayer2
+  parameterSpace:
+    parameters:
+    - name: Frame
+      type: INT
+      range: '{{Param.renderSetupLayer2Frames}}'
+    - name: Camera
+      type: STRING
+      range:
+      - camera1
+      - camera2
+      - camera3
+  environments:
+  - name: Maya
+    description: Runs Maya in the background.
+    script:
+      embeddedFiles:
+      - name: initData
+        filename: init-data.yaml
+        type: TEXT
+        data: |
+          renderer: arnold
+          render_layer: renderSetupLayer2
+          scene_file: '{{Param.MayaSceneFile}}'
+          project_path: '{{Param.ProjectPath}}'
+          output_file_path: '{{Param.OutputFilePath}}'
+          render_setup_include_lights: {{Param.RenderSetupIncludeLights}}
+          strict_error_checking: {{Param.StrictErrorChecking}}
+          output_file_prefix: '{{Param.renderSetupLayer2OutputFilePrefix}}'
+          image_width: {{Param.renderSetupLayer2ImageWidth}}
+          image_height: {{Param.renderSetupLayer2ImageHeight}}
+          error_on_arnold_license_fail: {{Param.ArnoldErrorOnLicenseFailure}}
+      actions:
+        onEnter:
+          command: MayaAdaptor
+          args:
+          - daemon
+          - start
+          - --path-mapping-rules
+          - file://{{Session.PathMappingRulesFile}}
+          - --connection-file
+          - '{{Session.WorkingDirectory}}/connection.json'
+          - --init-data
+          - file://{{Env.File.initData}}
+          cancelation:
+            mode: NOTIFY_THEN_TERMINATE
+        onExit:
+          command: MayaAdaptor
+          args:
+          - daemon
+          - stop
+          - --connection-file
+          - '{{ Session.WorkingDirectory }}/connection.json'
+          cancelation:
+            mode: NOTIFY_THEN_TERMINATE
+  script:
+    embeddedFiles:
+    - name: runData
+      filename: run-data.yaml
+      type: TEXT
+      data: |
+        frame: {{Task.Param.Frame}}
+        camera: '{{Task.Param.Camera}}'
+    actions:
+      onRun:
+        command: MayaAdaptor
+        args:
+        - daemon
+        - run
+        - --connection-file
+        - '{{ Session.WorkingDirectory }}/connection.json'
+        - --run-data
+        - file://{{ Task.File.runData }}
+        cancelation:
+          mode: NOTIFY_THEN_TERMINATE
+- name: renderSetupLayer4
+  parameterSpace:
+    parameters:
+    - name: Frame
+      type: INT
+      range: '{{Param.renderSetupLayer4Frames}}'
+    - name: Camera
+      type: STRING
+      range:
+      - camera1
+      - persp
+  environments:
+  - name: Maya
+    description: Runs Maya in the background.
+    script:
+      embeddedFiles:
+      - name: initData
+        filename: init-data.yaml
+        type: TEXT
+        data: |
+          renderer: mayaSoftware
+          render_layer: renderSetupLayer4
+          scene_file: '{{Param.MayaSceneFile}}'
+          project_path: '{{Param.ProjectPath}}'
+          output_file_path: '{{Param.OutputFilePath}}'
+          render_setup_include_lights: {{Param.RenderSetupIncludeLights}}
+          strict_error_checking: {{Param.StrictErrorChecking}}
+          output_file_prefix: '{{Param.renderSetupLayer4OutputFilePrefix}}'
+          image_width: {{Param.renderSetupLayer4ImageWidth}}
+          image_height: {{Param.renderSetupLayer4ImageHeight}}
+      actions:
+        onEnter:
+          command: MayaAdaptor
+          args:
+          - daemon
+          - start
+          - --path-mapping-rules
+          - file://{{Session.PathMappingRulesFile}}
+          - --connection-file
+          - '{{Session.WorkingDirectory}}/connection.json'
+          - --init-data
+          - file://{{Env.File.initData}}
+          cancelation:
+            mode: NOTIFY_THEN_TERMINATE
+        onExit:
+          command: MayaAdaptor
+          args:
+          - daemon
+          - stop
+          - --connection-file
+          - '{{ Session.WorkingDirectory }}/connection.json'
+          cancelation:
+            mode: NOTIFY_THEN_TERMINATE
+  script:
+    embeddedFiles:
+    - name: runData
+      filename: run-data.yaml
+      type: TEXT
+      data: |
+        frame: {{Task.Param.Frame}}
+        camera: '{{Task.Param.Camera}}'
+    actions:
+      onRun:
+        command: MayaAdaptor
+        args:
+        - daemon
+        - run
+        - --connection-file
+        - '{{ Session.WorkingDirectory }}/connection.json'
+        - --run-data
+        - file://{{ Task.File.runData }}
+        cancelation:
+          mode: NOTIFY_THEN_TERMINATE

@@ -16,20 +16,54 @@ All of the testing and development dependencies are in the `setup.cfg` and are m
 
 `./build.sh` will build and run `pytest`.
 
-# Windows Development Workflow
+# Submitter Development Workflow
 
 WARNING: This workflow installs additional Python packages into your Maya's python distribution.
 
 1. Create a development location within which to do your git checkouts. For example `~/deadline-clients`.
    Clone packages from this directory with commands like
-   `git clone git@github.com:casillas2/deadline-maya.git`. You'll also want the `deadline` repo.
+   `git clone git@github.com:casillas2/deadline-cloud-for-maya.git`. You'll also want the `deadline-cloud` and `openjobio` repos.
 2. Switch to your Maya directory, like `cd "C:\Program Files\Autodesk\Maya2023"`.
-3. Run `.\mayapy -m pip install -e C:\Users\<username>\deadline-clients\deadline` to install the Amazon Deadline Cloud Client
+3. Run `.\mayapy -m pip install -e C:\Users\<username>\deadline-clients\deadline-cloud` to install the Amazon Deadline Cloud Client
    Library in edit mode.
-4. Run `.\mayapy -m pip install -e C:\Users\<username>\deadline-clients\deadline-nuke` to install the Nuke Submtiter
+4. Run `.\mayapy -m pip install -e C:\Users\<username>\deadline-clients\openjobio` to install the OpenJobIO
+   Library in edit mode.
+5. Run `.\mayapy -m pip install -e C:\Users\<username>\deadline-clients\deadline-cloud-for-maya` to install the Maya Submtiter
    in edit mode.
-6. Edit (create if missing) your `~/Documents/maya/2023/Maya.env` file, and add the line
-   `MAYA_MODULE_PATH=C:\Users\<username>\deadline-clients\deadline-maya\src\deadline_submitter_for_maya`
+6. Edit (create if missing) your `~/Documents/maya/2023/Maya.env` file, and add the following lines to it:
+   ```
+   DEADLINE_ENABLE_DEVELOPER_OPTIONS=true
+   MAYA_MODULE_PATH=C:\Users\<username>\deadline-clients\deadline-cloud-for-maya\maya_submitter_plugin
+   ```
+   The developer options add a shelf TEST button you can use to run the tests from the `job_bundle_output_tests` directory.
 7. Run Maya. Go to Windows > Settings/Preferences > Plug-In Manager and you will find that
-   `DeadlineSubmitter.py` is available as a plugin. Check the checkbox to have Maya load
+   `DeadlineCloudForMaya.py` is available as a plugin. Check the checkbox to have Maya load
    the plugin and create the Deadline tray for you. Click the icon on the tray to open the submitter.
+
+# Application Interface Adaptor Development Workflow
+
+You can work on the adaptor alongside your submitter development workflow using a Deadline Cloud
+farm that uses a service-managed fleet. You'll need to perform the following steps to subsititute
+your build of the adaptor for the one in the service.
+
+1. Use the development location from the Submitter Development Workflow.
+   Make sure you're running Maya with `set DEADLINE_ENABLE_DEVELOPER_OPTIONS=true` enabled.
+2. Build wheels for `openjobio`, `deadline` and `deadline-cloud-for-maya`.
+   ```
+   # If you don't have the build package installed already
+   $ pip install build
+   ...
+   $  mkdir wheels; \
+      rm wheels/*; \
+      for dir in ../openjobio ../deadline-cloud ../deadline-cloud-for-maya; \
+        do python -m build --wheel --outdir ./wheels --skip-dependency-check $dir; \
+      done
+   ...
+   $ ls ./wheels
+   deadline_cloud_for_maya-<version>-py3-none-any.whl
+   deadline-<version>-py3-none-any.whl
+   openjobio-<version>-py3-none-any.whl
+   ```
+3. Open the Maya integrated submitter, and in the Job-Specific Settings tab, enable the option 'Include Adaptor Wheels'. This
+   option is only visible when the environment variable `DEADLINE_ENABLE_DEVELOPER_OPTIONS` is set to `true`.
+   Then submit your test job.

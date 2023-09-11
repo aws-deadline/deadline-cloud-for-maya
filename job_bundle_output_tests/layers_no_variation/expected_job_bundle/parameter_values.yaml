@@ -1,0 +1,29 @@
+parameterValues:
+- name: deadline:priority
+  value: 50
+- name: deadline:targetTaskRunStatus
+  value: READY
+- name: deadline:maxFailedTasksCount
+  value: 20
+- name: deadline:maxRetriesPerTask
+  value: 5
+- name: MayaSceneFile
+  value: /normalized/job/bundle/dir/layers_no_variation.ma
+- name: Frames
+  value: 1-10
+- name: OutputFilePrefix
+  value: <Layer>/<Scene>
+- name: ImageWidth
+  value: 960
+- name: ImageHeight
+  value: 540
+- name: ProjectPath
+  value: /normalized/job/bundle/dir/
+- name: OutputFilePath
+  value: /normalized/job/bundle/dir/images
+- name: RenderSetupIncludeLights
+  value: 'true'
+- name: ArnoldErrorOnLicenseFailure
+  value: 'false'
+- name: RezPackages
+  value: mayaIO mtoa deadline_cloud_for_maya

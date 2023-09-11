@@ -6,6 +6,12 @@
 
 ### How was this change tested?
 
+### Did you run the "Job Bundle Output Tests"? If not, why not? If so, paste the test results here.
+
+```
+Required: paste the contents of job_bundle_output_tests/test-job-bundle-results.txt here
+```
+
 ### Was this change documented?
 
 ### Is this a breaking change?

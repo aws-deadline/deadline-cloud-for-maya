@@ -5,7 +5,7 @@ This package has two active branches:
 - `mainline` -- For active development. This branch is not intended to be consumed by other packages. Any commit to this branch may break APIs, dependencies, and so on, and thus break any consumer without notice.
 - `release` -- The official release of the package intended for consumers. Any breaking releases will be accompanied with an increase to this package's interface version.
 
-The deadline_adaptor_for_maya package is an adaptor that renders maya scenes through MayaPy and PyMel. It uses the openjobio_adaptor_runtime and supports job stickiness.
+The deadline.maya_adaptor package is an adaptor that renders maya scenes through MayaPy. It uses the openjobio adaptor_runtime and supports job stickiness.
 
 ## Development
 
@@ -43,4 +43,3 @@ See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more inform
 ## License
 
 This project is licensed under the Apache-2.0 License.
-
