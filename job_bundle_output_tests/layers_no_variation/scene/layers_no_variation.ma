@@ -4,10 +4,10 @@
 //Codeset: 1252
 file -rdi 1 -ns "scene_file_to_reference" -rfn "scene_file_to_referenceRN" -op
 		 "VERS|2023|UVER|undef|MADE|undef|CHNG|Wed, Aug 30, 2023 02:59:28 PM|ICON|undef|INFO|undef|OBJN|21|INCL|undef(|LUNI|cm|TUNI|film|AUNI|deg|TDUR|141120000|"
-		 -typ "mayaBinary" "C:/Users/markw/deadline-clients/deadline-cloud-for-maya/job_bundle_output_tests/layers_no_variation/scene/scene_file_to_reference.mb";
+		 -typ "mayaBinary" "D:/deadline-clients/deadline-cloud-for-maya/job_bundle_output_tests/layers_no_variation/scene/scene_file_to_reference.mb";
 file -r -ns "scene_file_to_reference" -dr 1 -rfn "scene_file_to_referenceRN" -op
 		 "VERS|2023|UVER|undef|MADE|undef|CHNG|Wed, Aug 30, 2023 02:59:28 PM|ICON|undef|INFO|undef|OBJN|21|INCL|undef(|LUNI|cm|TUNI|film|AUNI|deg|TDUR|141120000|"
-		 -typ "mayaBinary" "C:/Users/markw/deadline-clients/deadline-cloud-for-maya/job_bundle_output_tests/layers_no_variation/scene/scene_file_to_reference.mb";
+		 -typ "mayaBinary" "D:/deadline-clients/deadline-cloud-for-maya/job_bundle_output_tests/layers_no_variation/scene/scene_file_to_reference.mb";
 requires maya "2023";
 requires "stereoCamera" "10.0";
 requires -nodeType "aiOptions" -nodeType "aiAOVDriver" -nodeType "aiAOVFilter" "mtoa" "5.1.0";
@@ -202,7 +202,7 @@ createNode script -n "sceneConfigurationScriptNode";
 	setAttr ".st" 6;
 createNode reference -n "scene_file_to_referenceRN";
 	rename -uid "E80FD48A-47F8-9D5B-2E45-52AD9FE11F56";
-	setAttr ".ed" -type "dataReferenceEdits" 
+	setAttr ".ed" -type "dataReferenceEdits"
 		"scene_file_to_referenceRN"
 		"scene_file_to_referenceRN" 0;
 	setAttr ".ptag" -type "string" "";

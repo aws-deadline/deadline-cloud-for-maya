@@ -1,12 +1,4 @@
 parameterValues:
-- name: deadline:priority
-  value: 50
-- name: deadline:targetTaskRunStatus
-  value: READY
-- name: deadline:maxFailedTasksCount
-  value: 20
-- name: deadline:maxRetriesPerTask
-  value: 5
 - name: MayaSceneFile
   value: /normalized/job/bundle/dir/layers.ma
 - name: layerDefaultFramesFrames
@@ -57,5 +49,11 @@ parameterValues:
   value: 'true'
 - name: ArnoldErrorOnLicenseFailure
   value: 'false'
-- name: RezPackages
-  value: mayaIO mtoa deadline_cloud_for_maya
+- name: deadline:targetTaskRunStatus
+  value: READY
+- name: deadline:maxFailedTasksCount
+  value: 20
+- name: deadline:maxRetriesPerTask
+  value: 5
+- name: deadline:priority
+  value: 50
