@@ -48,17 +48,16 @@ your build of the adaptor for the one in the service.
 
 1. Use the development location from the Submitter Development Workflow.
    Make sure you're running Maya with `set DEADLINE_ENABLE_DEVELOPER_OPTIONS=true` enabled.
-2. Build wheels for `openjd`, `deadline` and `deadline-cloud-for-maya`.
+2. Build wheels for `openjd`, `deadline` and `deadline-cloud-for-maya`, place them in a "wheels"
+   folder in `deadline-cloud-for-maya`. A script is provided to do this, just execute from `deadline-cloud-for-maya`:
    ```
    # If you don't have the build package installed already
    $ pip install build
    ...
-   $  mkdir wheels; \
-      rm wheels/*; \
-      for dir in ../openjd ../deadline-cloud ../deadline-cloud-for-maya; \
-        do python -m build --wheel --outdir ./wheels --skip-dependency-check $dir; \
-      done
-   ...
+   $ ./scripts/build_wheels.sh
+   ```
+   Wheels should have been generated in the "wheels" folder:
+   ```
    $ ls ./wheels
    deadline_cloud_for_maya-<version>-py3-none-any.whl
    deadline-<version>-py3-none-any.whl

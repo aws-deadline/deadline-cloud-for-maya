@@ -33,7 +33,7 @@ from .render_layers import (
 )
 from .cameras import get_renderable_camera_names, ALL_CAMERAS
 from .ui.components.scene_settings_tab import SceneSettingsWidget
-from deadline.client.job_bundle.submission import FlatAssetReferences
+from deadline.client.job_bundle.submission import AssetReferences
 
 logger = getLogger(__name__)
 
@@ -297,9 +297,9 @@ def _get_job_template(
         job_template["parameterDefinitions"].extend(override_environment["parameterDefinitions"])
 
         # Add the environment to the end of the template's job environments
-        if "environments" not in job_template:
-            job_template["environments"] = []
-        job_template["environments"].append(override_environment["environment"])
+        if "jobEnvironments" not in job_template:
+            job_template["jobEnvironments"] = []
+        job_template["jobEnvironments"].append(override_environment["environment"])
 
     return job_template
 
@@ -308,14 +308,9 @@ def _get_parameter_values(
     settings: RenderSubmitterUISettings,
     renderers: set[str],
     render_layers: list[RenderLayerData],
-    default_rez_packages: str,
-) -> dict[str, Any]:
-    parameter_values = [
-        {"name": "deadline:priority", "value": settings.priority},
-        {"name": "deadline:targetTaskRunStatus", "value": settings.initial_status},
-        {"name": "deadline:maxFailedTasksCount", "value": settings.max_failed_tasks_count},
-        {"name": "deadline:maxRetriesPerTask", "value": settings.max_retries_per_task},
-    ]
+    queue_parameters: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    parameter_values: list[dict[str, Any]] = []
 
     # Set the Maya scene file value
     parameter_values.append({"name": "MayaSceneFile", "value": Scene.name()})
@@ -398,21 +393,39 @@ def _get_parameter_values(
             }
         )
 
-    # Set the RezPackages parameter value if their overridden or we need
-    # to modify them due to the include_adaptor_wheels setting.
-    if settings.override_rez_packages or settings.include_adaptor_wheels:
-        if settings.override_rez_packages:
-            rez_packages = settings.rez_packages
-        else:
-            rez_packages = default_rez_packages
-        # If the adaptor wheels are included, remove the deadline_cloud_for_maya rez package
-        if settings.include_adaptor_wheels:
-            rez_packages = " ".join(
-                pkg for pkg in rez_packages.split() if not pkg.startswith("deadline_cloud_for_maya")
-            )
-        parameter_values.append({"name": "RezPackages", "value": rez_packages})
+    # Check for any overlap between the job parameters we've defined and the
+    # queue parameters. This is an error, as we weren't synchronizing the values
+    # between the two different tabs where they came from.
+    parameter_names = {param["name"] for param in parameter_values}
+    queue_parameter_names = {param["name"] for param in queue_parameters}
+    parameter_overlap = parameter_names.intersection(queue_parameter_names)
+    if parameter_overlap:
+        raise DeadlineOperationError(
+            "The following queue parameters conflict with the Maya job parameters:\n"
+            + f"{', '.join(parameter_overlap)}"
+        )
 
-    return {"parameterValues": parameter_values}
+    # If we're overriding the adaptor with wheels, remove deadline_cloud_for_maya from the RezPackages
+    if settings.include_adaptor_wheels:
+        rez_param = {}
+        # Find the RezPackages parameter definition
+        for param in queue_parameters:
+            if param["name"] == "RezPackages":
+                rez_param = param
+                break
+        # Remove the deadline_cloud_for_maya rez package
+        if rez_param:
+            rez_param["value"] = " ".join(
+                pkg
+                for pkg in rez_param["value"].split()
+                if not pkg.startswith("deadline_cloud_for_maya")
+            )
+
+    parameter_values.extend(
+        {"name": param["name"], "value": param["value"]} for param in queue_parameters
+    )
+
+    return parameter_values
 
 
 def show_maya_render_submitter(parent, f=Qt.WindowFlags()) -> "Optional[SubmitJobToDeadlineDialog]":
@@ -426,19 +439,6 @@ def show_maya_render_submitter(parent, f=Qt.WindowFlags()) -> "Optional[SubmitJo
     render_settings.frame_list = str(Animation.frame_list())
     render_settings.project_path = Scene.project_path()
     render_settings.output_path = Scene.output_path()
-
-    # Get the RezPackages parameter definition, and use the default set there
-    rez_package_param = [
-        param
-        for param in default_job_template["parameterDefinitions"]
-        if param["name"] == "RezPackages"
-    ]
-    if rez_package_param:
-        default_rez_packages = render_settings.rez_packages = rez_package_param[0].get(
-            "default", ""
-        )
-    else:
-        default_rez_packages = ""
 
     # Load the sticky settings
     render_settings.load_sticky_settings(Scene.name())
@@ -503,11 +503,12 @@ def show_maya_render_submitter(parent, f=Qt.WindowFlags()) -> "Optional[SubmitJo
         all_layer_selectable_cameras
     )
 
-    def job_bundle_callback(
+    def on_create_job_bundle_callback(
         widget: SubmitJobToDeadlineDialog,
-        settings: RenderSubmitterUISettings,
         job_bundle_dir: str,
-        asset_references: FlatAssetReferences,
+        settings: RenderSubmitterUISettings,
+        queue_parameters: list[dict[str, Any]],
+        asset_references: AssetReferences,
     ) -> None:
         job_bundle_path = Path(job_bundle_dir)
 
@@ -568,27 +569,27 @@ def show_maya_render_submitter(parent, f=Qt.WindowFlags()) -> "Optional[SubmitJo
             current_layer_selectable_cameras,
         )
         parameter_values = _get_parameter_values(
-            settings, renderers, submit_render_layers, default_rez_packages
+            settings, renderers, submit_render_layers, queue_parameters
         )
 
         with open(job_bundle_path / "template.yaml", "w", encoding="utf8") as f:
             deadline_yaml_dump(job_template, f, indent=1)
 
         with open(job_bundle_path / "parameter_values.yaml", "w", encoding="utf8") as f:
-            deadline_yaml_dump(parameter_values, f, indent=1)
+            deadline_yaml_dump({"parameterValues": parameter_values}, f, indent=1)
 
         with open(job_bundle_path / "asset_references.yaml", "w", encoding="utf8") as f:
             deadline_yaml_dump(asset_references.to_dict(), f, indent=1)
 
         # Save Sticky Settings
-        attachments: FlatAssetReferences = widget.job_attachments.attachments
+        attachments: AssetReferences = widget.job_attachments.attachments
         settings.input_filenames = sorted(attachments.input_filenames)
         settings.input_directories = sorted(attachments.input_directories)
         settings.input_filenames = sorted(attachments.input_filenames)
 
         settings.save_sticky_settings(Scene.name())
 
-    auto_detected_attachments = FlatAssetReferences()
+    auto_detected_attachments = AssetReferences()
     introspector = AssetIntrospector()
     auto_detected_attachments.input_filenames = set(
         os.path.normpath(path) for path in introspector.parse_scene_assets()
@@ -597,18 +598,19 @@ def show_maya_render_submitter(parent, f=Qt.WindowFlags()) -> "Optional[SubmitJo
     for layer_data in render_layers:
         auto_detected_attachments.output_directories.update(layer_data.output_directories)
 
-    attachments = FlatAssetReferences(
+    attachments = AssetReferences(
         input_filenames=set(render_settings.input_filenames),
         input_directories=set(render_settings.input_directories),
         output_directories=set(render_settings.output_directories),
     )
 
     submitter_dialog = SubmitJobToDeadlineDialog(
-        SceneSettingsWidget,
-        render_settings,
-        auto_detected_attachments,
-        attachments,
-        job_bundle_callback,
+        job_setup_widget_type=SceneSettingsWidget,
+        initial_job_settings=render_settings,
+        initial_shared_parameter_values={"RezPackages": "mayaIO mtoa deadline_cloud_for_maya"},
+        auto_detected_attachments=auto_detected_attachments,
+        attachments=attachments,
+        on_create_job_bundle_callback=on_create_job_bundle_callback,
         parent=parent,
         f=f,
     )
