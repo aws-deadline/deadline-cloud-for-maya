@@ -4,10 +4,10 @@
 //Codeset: 1252
 file -rdi 1 -ns "scene_file_to_reference" -rfn "scene_file_to_referenceRN" -op
 		 "VERS|2023|UVER|undef|MADE|undef|CHNG|Wed, Aug 30, 2023 02:59:28 PM|ICON|undef|INFO|undef|OBJN|21|INCL|undef(|LUNI|cm|TUNI|film|AUNI|deg|TDUR|141120000|"
-		 -typ "mayaBinary" "C:/Users/markw/deadline-clients/deadline-cloud-for-maya/job_bundle_output_tests//cube/scene_file_to_reference.mb";
+		 -typ "mayaBinary" "D:/deadline-clients/deadline-cloud-for-maya/job_bundle_output_tests//cube/scene_file_to_reference.mb";
 file -r -ns "scene_file_to_reference" -dr 1 -rfn "scene_file_to_referenceRN" -op
 		 "VERS|2023|UVER|undef|MADE|undef|CHNG|Wed, Aug 30, 2023 02:59:28 PM|ICON|undef|INFO|undef|OBJN|21|INCL|undef(|LUNI|cm|TUNI|film|AUNI|deg|TDUR|141120000|"
-		 -typ "mayaBinary" "C:/Users/markw/deadline-clients/deadline-cloud-for-maya/job_bundle_output_tests//cube/scene_file_to_reference.mb";
+		 -typ "mayaBinary" "D:/deadline-clients/deadline-cloud-for-maya/job_bundle_output_tests//cube/scene_file_to_reference.mb";
 requires maya "2023";
 requires "stereoCamera" "10.0";
 requires -nodeType "aiOptions" -nodeType "aiAOVDriver" -nodeType "aiAOVFilter" "mtoa" "5.1.0";
@@ -188,13 +188,13 @@ createNode materialInfo -n "materialInfo1";
 	rename -uid "B803D1DE-4EE6-CFD3-DEC1-BD90C863A0EA";
 createNode file -n "file1";
 	rename -uid "1BAA2EE5-46EB-ED01-BE45-9888E95529F2";
-	setAttr ".ftn" -type "string" "C:/Users/markw/deadline-clients/deadline-cloud-for-maya/job_bundle_output_tests//cube/deadline_logo_48x48.png";
+	setAttr ".ftn" -type "string" "D:/deadline-clients/deadline-cloud-for-maya/job_bundle_output_tests//cube/deadline_logo_48x48.png";
 	setAttr ".cs" -type "string" "sRGB";
 createNode place2dTexture -n "place2dTexture1";
 	rename -uid "CEF90DC0-44C4-11AF-47D0-97B5269B63A4";
 createNode reference -n "scene_file_to_referenceRN";
 	rename -uid "9FAAF201-4C9E-4E6C-9DC3-359F06356F1E";
-	setAttr ".ed" -type "dataReferenceEdits" 
+	setAttr ".ed" -type "dataReferenceEdits"
 		"scene_file_to_referenceRN"
 		"scene_file_to_referenceRN" 0;
 	setAttr ".ptag" -type "string" "";

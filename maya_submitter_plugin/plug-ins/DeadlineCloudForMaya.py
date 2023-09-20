@@ -25,6 +25,7 @@ VERSION = "0.6.0"
 
 __log__ = logging.getLogger("Deadline")
 _registered_mel_commands: List[str] = []
+_first_initialization: bool = True
 
 
 def reload_modules(mod):
@@ -50,11 +51,18 @@ def initializePlugin(plugin):
     """
     Initialize the DeadlineSubmitter plugin.
     """
-    global _registered_mel_commands
+    global _registered_mel_commands, _first_initialization
     try:
         plugin_obj = om.MFnPlugin(plugin, VENDOR, VERSION)
 
-        reload_modules(deadline.maya_submitter)
+        if _first_initialization:
+            _first_initialization = False
+        else:
+            # If a user unloaded and then reloaded the plugin, refresh
+            # some key module dependencies.
+            reload_modules(deadline.job_attachments)
+            reload_modules(deadline.client)
+            reload_modules(deadline.maya_submitter)
 
         command_name = "DeadlineCloudSubmitter"
         plugin_obj.registerCommand(command_name, mel_commands.DeadlineCloudSubmitterCmd)

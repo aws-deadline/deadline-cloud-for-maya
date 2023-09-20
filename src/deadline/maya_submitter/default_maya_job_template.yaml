@@ -67,14 +67,6 @@ parameterDefinitions:
   allowedValues:
   - 'true'
   - 'false'
-- name: RezPackages
-  type: STRING
-  userInterface:
-    control: LINE_EDIT
-    label: Rez Packages
-    groupLabel: Software Environment
-  description: A space-separated list of Rez packages to install. Requires a Queue Environment to handle the env creation.
-  default: mayaIO mtoa deadline_cloud_for_maya
 steps:
 - name: Render
   parameterSpace:

@@ -8,3 +8,4 @@ assetReferences:
   outputs:
     directories:
     - /normalized/job/bundle/dir/images
+  referencedPaths: []

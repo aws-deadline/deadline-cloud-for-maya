@@ -4,10 +4,10 @@
 //Codeset: 1252
 file -rdi 1 -ns "scene_file_to_reference" -rfn "scene_file_to_referenceRN" -op
 		 "VERS|2023|UVER|undef|MADE|undef|CHNG|Wed, Aug 30, 2023 02:59:28 PM|ICON|undef|INFO|undef|OBJN|21|INCL|undef(|LUNI|cm|TUNI|film|AUNI|deg|TDUR|141120000|"
-		 -typ "mayaBinary" "C:/Users/markw/deadline-clients/deadline-cloud-for-maya/job_bundle_output_tests/layers/scene/scene_file_to_reference.mb";
+		 -typ "mayaBinary" "D:/deadline-clients/deadline-cloud-for-maya/job_bundle_output_tests/layers/scene/scene_file_to_reference.mb";
 file -r -ns "scene_file_to_reference" -dr 1 -rfn "scene_file_to_referenceRN" -op
 		 "VERS|2023|UVER|undef|MADE|undef|CHNG|Wed, Aug 30, 2023 02:59:28 PM|ICON|undef|INFO|undef|OBJN|21|INCL|undef(|LUNI|cm|TUNI|film|AUNI|deg|TDUR|141120000|"
-		 -typ "mayaBinary" "C:/Users/markw/deadline-clients/deadline-cloud-for-maya/job_bundle_output_tests/layers/scene/scene_file_to_reference.mb";
+		 -typ "mayaBinary" "D:/deadline-clients/deadline-cloud-for-maya/job_bundle_output_tests/layers/scene/scene_file_to_reference.mb";
 requires maya "2023";
 requires "stereoCamera" "10.0";
 requires -nodeType "aiOptions" -nodeType "aiAOVDriver" -nodeType "aiAOVFilter" "mtoa" "5.1.0";
@@ -383,7 +383,7 @@ createNode simpleSelector -n "collection1Selector";
 	setAttr ".tf" 4;
 createNode reference -n "scene_file_to_referenceRN";
 	rename -uid "C918C559-4A3A-DEDF-08EC-F796E312D2DE";
-	setAttr ".ed" -type "dataReferenceEdits" 
+	setAttr ".ed" -type "dataReferenceEdits"
 		"scene_file_to_referenceRN"
 		"scene_file_to_referenceRN" 0;
 	setAttr ".ptag" -type "string" "";
@@ -521,7 +521,7 @@ createNode absOverride -n "renderable5";
 	setAttr ".es" yes;
 createNode absUniqueOverride -n "imageFormat";
 	rename -uid "BF6B15F6-4AF8-A704-31D6-4CB52DCE4F3E";
-	addAttr -ci true -sn "atv" -ln "attrValue" -min 0 -max 63 -en "GIF:SoftImage:RLA:Tiff:Tiff16:SGI:Alias PIX:Maya IFF:JPEG:EPS:Maya16 IFF:Quantel=12:SGI16:Targa=19:Windows Bitmap:SGI Movie:Quicktime:AVI:MacPaint=30:PSD:PNG:QuickDraw:QuickTime Image:DDS:PSD Layered:EXR(exr)=40:IMF plugin=50:Custom Image Format:Macromedia SWF (swf)=60:Adobe Illustrator (ai):SVG (svg):Swift3DImporter (swft)" 
+	addAttr -ci true -sn "atv" -ln "attrValue" -min 0 -max 63 -en "GIF:SoftImage:RLA:Tiff:Tiff16:SGI:Alias PIX:Maya IFF:JPEG:EPS:Maya16 IFF:Quantel=12:SGI16:Targa=19:Windows Bitmap:SGI Movie:Quicktime:AVI:MacPaint=30:PSD:PNG:QuickDraw:QuickTime Image:DDS:PSD Layered:EXR(exr)=40:IMF plugin=50:Custom Image Format:Macromedia SWF (swf)=60:Adobe Illustrator (ai):SVG (svg):Swift3DImporter (swft)"
 		-at "enum";
 	setAttr ".atr" -type "string" "imageFormat";
 	setAttr ".tgName" -type "string" "defaultRenderGlobals";
@@ -564,7 +564,7 @@ createNode simpleSelector -n "RenderSettingsCollection4Selector";
 	setAttr ".tf" 0;
 createNode absUniqueOverride -n "imageFormat1";
 	rename -uid "370CC408-469D-C882-B66D-35B5096546AB";
-	addAttr -ci true -sn "atv" -ln "attrValue" -min 0 -max 63 -en "GIF:SoftImage:RLA:Tiff:Tiff16:SGI:Alias PIX:Maya IFF:JPEG:EPS:Maya16 IFF:Quantel=12:SGI16:Targa=19:Windows Bitmap:SGI Movie:Quicktime:AVI:MacPaint=30:PSD:PNG:QuickDraw:QuickTime Image:DDS:PSD Layered:EXR(exr)=40:IMF plugin=50:Custom Image Format:Macromedia SWF (swf)=60:Adobe Illustrator (ai):SVG (svg):Swift3DImporter (swft)" 
+	addAttr -ci true -sn "atv" -ln "attrValue" -min 0 -max 63 -en "GIF:SoftImage:RLA:Tiff:Tiff16:SGI:Alias PIX:Maya IFF:JPEG:EPS:Maya16 IFF:Quantel=12:SGI16:Targa=19:Windows Bitmap:SGI Movie:Quicktime:AVI:MacPaint=30:PSD:PNG:QuickDraw:QuickTime Image:DDS:PSD Layered:EXR(exr)=40:IMF plugin=50:Custom Image Format:Macromedia SWF (swf)=60:Adobe Illustrator (ai):SVG (svg):Swift3DImporter (swft)"
 		-at "enum";
 	setAttr ".atr" -type "string" "imageFormat";
 	setAttr ".tgName" -type "string" "defaultRenderGlobals";

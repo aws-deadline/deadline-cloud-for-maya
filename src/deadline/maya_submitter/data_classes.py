@@ -19,18 +19,14 @@ class RenderSubmitterUISettings:
     """
 
     submitter_name: str = field(default="Maya")
+
     name: str = field(default="", metadata={"sticky": True})
     description: str = field(default="", metadata={"sticky": True})
-    initial_status: str = field(default="READY", metadata={"sticky": True})
-    max_failed_tasks_count: int = field(default=20, metadata={"sticky": True})
-    max_retries_per_task: int = field(default=5, metadata={"sticky": True})
-    priority: int = field(default=50, metadata={"sticky": True})
+
     override_frame_range: bool = field(default=False, metadata={"sticky": True})
     frame_list: str = field(default="", metadata={"sticky": True})
     project_path: str = field(default="")
     output_path: str = field(default="")
-    override_rez_packages: bool = field(default=True)
-    rez_packages: str = field(default="")
 
     input_filenames: list[str] = field(default_factory=list, metadata={"sticky": True})
     input_directories: list[str] = field(default_factory=list, metadata={"sticky": True})
