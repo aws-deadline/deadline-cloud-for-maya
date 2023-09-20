@@ -5,6 +5,7 @@ Defines the Render submitter command which is registered in Maya.
 """
 import maya.api.OpenMaya as om  # pylint: disable=import-error
 import maya.cmds
+from PySide2.QtCore import Qt  # pylint: disable=import-error
 from PySide2.QtWidgets import (  # pylint: disable=import-error; type: ignore
     QApplication,
 )
@@ -19,6 +20,11 @@ class DeadlineCloudSubmitterCmd(om.MPxCommand):
     """
     Class used to create the DeadlineCloudSubmitter Mel Command.
     """
+
+    # Current submitter dialog if any
+    dialog = None
+    # Scene name at dialog's time of creation
+    dialog_scene_name = None
 
     @staticmethod
     def doIt(_):  # pylint: disable=invalid-name,
@@ -47,7 +53,20 @@ class DeadlineCloudSubmitterCmd(om.MPxCommand):
                     )
                     return
 
-                show_maya_render_submitter(parent=mainwin)
+                # Delete the dialog if the scene has changed
+                if DeadlineCloudSubmitterCmd.dialog_scene_name != scene_name:
+                    if DeadlineCloudSubmitterCmd.dialog:
+                        DeadlineCloudSubmitterCmd.dialog.close()
+                    DeadlineCloudSubmitterCmd.dialog = None
+
+                # Show existing submitter dialog, or create new one if needed
+                if DeadlineCloudSubmitterCmd.dialog:
+                    DeadlineCloudSubmitterCmd.dialog.show()
+                else:
+                    DeadlineCloudSubmitterCmd.dialog = show_maya_render_submitter(
+                        parent=mainwin, f=Qt.Tool
+                    )
+                    DeadlineCloudSubmitterCmd.dialog_scene_name = scene_name
 
 
 class DeadlineCloudJobBundleOutputTestsCmd(om.MPxCommand):
