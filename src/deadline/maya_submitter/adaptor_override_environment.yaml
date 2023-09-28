@@ -28,7 +28,7 @@ environment:
         set -euo pipefail
 
         echo "The adaptor wheels that are attached to the job:"
-        ls {{Param.OverrideAdaptorWheels}}/
+        ls '{{Param.OverrideAdaptorWheels}}'
         echo ""
 
         # Create a venv and activate it in this environment
@@ -40,8 +40,8 @@ environment:
         echo ""
 
         echo "Installing adaptor into the venv"
-        pip install {{Param.OverrideAdaptorWheels}}/openjd*.whl
-        pip install {{Param.OverrideAdaptorWheels}}/deadline*.whl
+        pip install '{{Param.OverrideAdaptorWheels}}'/openjd*.whl
+        pip install '{{Param.OverrideAdaptorWheels}}'/deadline*.whl
         echo ""
 
         if [ ! -f '{{Session.WorkingDirectory}}/venv/bin/{{Param.OverrideAdaptorName}}' ]; then
