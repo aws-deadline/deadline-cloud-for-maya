@@ -87,19 +87,19 @@ def test_initialize_and_uninitialize_plugin(
 )
 def test_initialize_plugin_exc(mock_reload: Mock, mock_confirm_dialog: Mock) -> None:
     # GIVEN
+    with patch.object(DeadlineCloudForMaya, "_first_initialization", False):
+        # WHEN
+        with pytest.raises(Exception) as exc_info:
+            DeadlineCloudForMaya.initializePlugin(Mock())
 
-    # WHEN
-    with pytest.raises(Exception) as exc_info:
-        DeadlineCloudForMaya.initializePlugin(Mock())
-
-    # THEN
-    assert exc_info.value is mock_reload.side_effect
-    mock_confirm_dialog.assert_called_once_with(
-        title="Deadline Cloud For Maya Plugin Failed To Load",
-        message=(
-            "Encountered the following exception while loading the Deadline Cloud Submitter:\n"
-            f"{str(exc_info.value)}"
-        ),
-        button="OK",
-        defaultButton="OK",
-    )
+        # THEN
+        assert exc_info.value is mock_reload.side_effect
+        mock_confirm_dialog.assert_called_once_with(
+            title="Deadline Cloud For Maya Plugin Failed To Load",
+            message=(
+                "Encountered the following exception while loading the Deadline Cloud Submitter:\n"
+                f"{str(exc_info.value)}"
+            ),
+            button="OK",
+            defaultButton="OK",
+        )
