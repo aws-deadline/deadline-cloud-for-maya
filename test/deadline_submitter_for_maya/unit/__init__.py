@@ -28,7 +28,7 @@ for module in mock_modules:
 # Mock the call to DeadlineCredentialsStatus.getInstance that happens at the module level
 # in submit_job_to_deadline_dialog.py. That call is done at the module level to gather the
 # status before the dialog is opened.
-from deadline.client.ui.deadline_credentials_status import DeadlineCredentialsStatus
+from deadline.client.ui.deadline_credentials_status import DeadlineCredentialsStatus  # noqa: E402
 
 DeadlineCredentialsStatus.getInstance = Mock(return_value=None)
 
