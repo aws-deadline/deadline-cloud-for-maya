@@ -225,7 +225,7 @@ class TestMayaAdaptor_on_start:
         mock_actions_queue.__len__.return_value = 0
         mock_rules.return_value = [
             PathMappingRule(
-                source_os="linux",
+                source_path_format="posix",
                 source_path="/source",
                 destination_os="linux",
                 destination_path="/destination",
@@ -277,7 +277,7 @@ class TestMayaAdaptor_on_start:
         mock_actions_queue.__len__.return_value = 0
         mock_rules.return_value = [
             PathMappingRule(
-                source_os="linux",
+                source_path_format="posix",
                 source_path="/source",
                 destination_os="linux",
                 destination_path="/destination",
@@ -324,19 +324,19 @@ class TestMayaAdaptor_on_start:
         # GIVEN
         mock_rules.return_value = [
             PathMappingRule(
-                source_os="linux",
+                source_path_format="posix",
                 source_path="/source",
                 destination_os="linux",
                 destination_path="/destination",
             ),
             PathMappingRule(
-                source_os="windows",
+                source_path_format="windows",
                 source_path="C:\\source",
                 destination_os="linux",
                 destination_path="/destination",
             ),
             PathMappingRule(
-                source_os="mac os",
+                source_path_format="posix",
                 source_path="/mac_source",
                 destination_os="linux",
                 destination_path="/destination",

@@ -273,10 +273,14 @@ def _get_job_template(
         wheels_path_package_names = {
             path.split("-", 1)[0] for path in os.listdir(wheels_path) if path.endswith(".whl")
         }
-        if wheels_path_package_names != {"openjd", "deadline", "deadline_cloud_for_maya"}:
+        if wheels_path_package_names != {
+            "openjd_adaptor_runtime",
+            "deadline",
+            "deadline_cloud_for_maya",
+        }:
             raise RuntimeError(
                 "The Developer Option 'Include Adaptor Wheels' is enabled, but the wheels directory contains the wrong wheels:\n"
-                + "Expected: openjd, deadline, and deadline_cloud_for_maya\n"
+                + "Expected: openjd_adaptor_runtime, deadline, and deadline_cloud_for_maya\n"
                 + f"Actual: {wheels_path_package_names}"
             )
 

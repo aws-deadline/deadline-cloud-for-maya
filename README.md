@@ -1,4 +1,4 @@
-## Amazon Deadline Cloud for Maya
+# Amazon Deadline Cloud for Maya
 
 This package has two active branches:
 
@@ -9,30 +9,37 @@ The deadline.maya_adaptor package is an adaptor that renders maya scenes through
 
 ## Development
 
-# Build / Test / Release
+See [DEVELOPMENT](DEVELOPMENT.md) for more information.
 
-## Build the package.
-```
+## Build / Test / Release
+
+### Build the package
+
+```bash
 hatch build
 ```
 
-## Run tests
-```
+### Run tests
+
+```bash
 hatch run test
 ```
 
-## Run linting
-```
+### Run linting
+
+```bash
 hatch run lint
 ```
 
-## Run formating
-```
+### Run formatting
+
+```bash
 hatch run fmt
 ```
 
-## Run tests for all supported Python versions.
-```
+### Run tests for all supported Python versions
+
+```bash
 hatch run all:test
 ```
 
