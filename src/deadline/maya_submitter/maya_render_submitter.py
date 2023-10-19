@@ -513,6 +513,7 @@ def show_maya_render_submitter(parent, f=Qt.WindowFlags()) -> "Optional[SubmitJo
         settings: RenderSubmitterUISettings,
         queue_parameters: list[dict[str, Any]],
         asset_references: AssetReferences,
+        host_requirements: Optional[dict[str, Any]] = None,
     ) -> None:
         job_bundle_path = Path(job_bundle_dir)
 
@@ -576,6 +577,12 @@ def show_maya_render_submitter(parent, f=Qt.WindowFlags()) -> "Optional[SubmitJo
             settings, renderers, submit_render_layers, queue_parameters
         )
 
+        # If "HostRequirements" is provided, inject it into each of the "Step"
+        if host_requirements:
+            # for each step in the template, append the same host requirements.
+            for step in job_template["steps"]:
+                step["hostRequirements"] = host_requirements
+
         with open(job_bundle_path / "template.yaml", "w", encoding="utf8") as f:
             deadline_yaml_dump(job_template, f, indent=1)
 
@@ -617,6 +624,7 @@ def show_maya_render_submitter(parent, f=Qt.WindowFlags()) -> "Optional[SubmitJo
         on_create_job_bundle_callback=on_create_job_bundle_callback,
         parent=parent,
         f=f,
+        show_host_requirements_tab=True,
     )
 
     submitter_dialog.show()
