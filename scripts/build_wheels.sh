@@ -8,7 +8,9 @@ if [ ! -d wheels ]; then
 fi
 rm -f wheels/*
 
-for dir in ../openjobio ../deadline-cloud ../deadline-cloud-for-maya; do
+for dir in ../openjd-adaptor-runtime-for-python ../deadline-cloud ../deadline-cloud-for-maya; do
     echo "Building $dir..."
-    python -m build --wheel --outdir ./wheels --skip-dependency-check $dir
+    cd $dir
+    hatch build
+    mv dist/*.whl ../deadline-cloud-for-maya/wheels/
 done
