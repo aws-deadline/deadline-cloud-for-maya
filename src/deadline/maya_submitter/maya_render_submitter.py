@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from logging import getLogger
 from pathlib import Path
 from typing import Any, Optional
@@ -13,9 +14,12 @@ from deadline.client.job_bundle._yaml import deadline_yaml_dump
 from deadline.client.ui.dialogs.submit_job_to_deadline_dialog import (  # pylint: disable=import-error
     SubmitJobToDeadlineDialog,
 )
+
+#from deadline_submitter_for_renderman import show_renderman_submitter
 from deadline.client.exceptions import DeadlineOperationError
 from PySide2.QtCore import Qt  # pylint: disable=import-error
 
+from . import logger as deadline_logger  # type: ignore
 from . import Animation, Scene  # type: ignore
 from .assets import AssetIntrospector
 from .renderers import get_output_prefix_with_tokens, get_height, get_width
@@ -35,8 +39,9 @@ from .cameras import get_renderable_camera_names, ALL_CAMERAS
 from .ui.components.scene_settings_tab import SceneSettingsWidget
 from deadline.client.job_bundle.submission import AssetReferences
 
-logger = getLogger(__name__)
+import maya.cmds as cmds
 
+logger = getLogger(__name__)
 
 @dataclass
 class RenderLayerData:
@@ -598,26 +603,57 @@ def show_maya_render_submitter(parent, f=Qt.WindowFlags()) -> "Optional[SubmitJo
     auto_detected_attachments.input_filenames = set(
         os.path.normpath(path) for path in introspector.parse_scene_assets()
     )
+    RendermanRenderer = False
 
     for layer_data in render_layers:
         auto_detected_attachments.output_directories.update(layer_data.output_directories)
+
+    current_renderer = cmds.getAttr('defaultRenderGlobals.currentRenderer')
+    if current_renderer == "renderman":
+        RendermanRenderer = True
 
     attachments = AssetReferences(
         input_filenames=set(render_settings.input_filenames),
         input_directories=set(render_settings.input_directories),
         output_directories=set(render_settings.output_directories),
     )
+    
+    submitter_dialog = None
+    
+    if RendermanRenderer:
+        render_globals_node = 'defaultRenderGlobals'
+        output_file = f"{tempfile.gettempdir()}{os.sep}{tempfile.gettempprefix()}"
+        multipleFrames = 1 if cmds.getAttr(f'{render_globals_node}.animation') else 0
+        startFrame = int(cmds.getAttr(f'{render_globals_node}.startFrame'))
+        endFrame = int(cmds.getAttr(f'{render_globals_node}.endFrame'))
+        step = int(cmds.getAttr(f'{render_globals_node}.byFrameStep'))
+        current_camera = "persp"
+        for camera in cmds.ls(type="camera"):
+            if cmds.getAttr(f"{camera}.renderable"):
+                current_camera = camera.replace("Shape","")
+                break
 
-    submitter_dialog = SubmitJobToDeadlineDialog(
-        job_setup_widget_type=SceneSettingsWidget,
-        initial_job_settings=render_settings,
-        initial_shared_parameter_values={"RezPackages": "mayaIO mtoa deadline_cloud_for_maya"},
-        auto_detected_attachments=auto_detected_attachments,
-        attachments=attachments,
-        on_create_job_bundle_callback=on_create_job_bundle_callback,
-        parent=parent,
-        f=f,
-    )
+        options = f"rmanExportRIBFormat=0;rmanExportMultipleFrames={multipleFrames};rmanExportStartFrame={startFrame};rmanExportEndFrame={endFrame};rmanExportByFrame={step};rmanExportRIBArchive=0;rmanExportRIBOmitDefaultedAttributes=0;rmanExportRIBCamera={current_camera}"
+        cmds.file(output_file, force=True, options=options, type="RIB", pr=True, ea=True)
+        rib_list = []
+        if multipleFrames:
+            for number in range(startFrame, endFrame + 1, step):
+                rib_list.append(f"{tempfile.gettempprefix()}.{number:04}.rib")
+        else:
+            rib_list.append(f"{tempfile.gettempprefix()}.rib")
+        #submitter_dialog = show_renderman_submitter(rib_list)
+    else:
+        submitter_dialog = SubmitJobToDeadlineDialog(
+            job_setup_widget_type=SceneSettingsWidget,
+            initial_job_settings=render_settings,
+            initial_shared_parameter_values={"RezPackages": "mayaIO mtoa deadline_cloud_for_maya"},
+            auto_detected_attachments=auto_detected_attachments,
+            attachments=attachments,
+            on_create_job_bundle_callback=on_create_job_bundle_callback,
+            parent=parent,
+            f=f,
+        )
 
-    submitter_dialog.show()
+        submitter_dialog.show()
+    
     return submitter_dialog

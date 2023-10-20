@@ -15,7 +15,6 @@ from . import logger as deadline_logger  # type: ignore
 from .maya_render_submitter import show_maya_render_submitter
 from .job_bundle_output_test_runner import run_maya_render_submitter_job_bundle_output_test
 
-
 class DeadlineCloudSubmitterCmd(om.MPxCommand):
     """
     Class used to create the DeadlineCloudSubmitter Mel Command.
@@ -25,6 +24,8 @@ class DeadlineCloudSubmitterCmd(om.MPxCommand):
     dialog = None
     # Scene name at dialog's time of creation
     dialog_scene_name = None
+    # Current rendererName
+    rendererName = None
 
     @staticmethod
     def doIt(_):  # pylint: disable=invalid-name,
@@ -53,8 +54,14 @@ class DeadlineCloudSubmitterCmd(om.MPxCommand):
                     )
                     return
 
+                # If renderer has changed behave as if the scene had changed
+                rendererChanged = False
+                currentRenderer = maya.cmds.getAttr('defaultRenderGlobals.currentRenderer')
+                if DeadlineCloudSubmitterCmd.rendererName != currentRenderer:
+                    DeadlineCloudSubmitterCmd.rendererName = currentRenderer
+                    rendererChanged = True
                 # Delete the dialog if the scene has changed
-                if DeadlineCloudSubmitterCmd.dialog_scene_name != scene_name:
+                if DeadlineCloudSubmitterCmd.dialog_scene_name != scene_name or rendererChanged:
                     if DeadlineCloudSubmitterCmd.dialog:
                         DeadlineCloudSubmitterCmd.dialog.close()
                     DeadlineCloudSubmitterCmd.dialog = None
