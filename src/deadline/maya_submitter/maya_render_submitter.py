@@ -15,11 +15,10 @@ from deadline.client.ui.dialogs.submit_job_to_deadline_dialog import (  # pylint
     SubmitJobToDeadlineDialog,
 )
 
-#from deadline_submitter_for_renderman import show_renderman_submitter
+from .deadline_submitter_for_renderman import show_renderman_submitter
 from deadline.client.exceptions import DeadlineOperationError
 from PySide2.QtCore import Qt  # pylint: disable=import-error
 
-from . import logger as deadline_logger  # type: ignore
 from . import Animation, Scene  # type: ignore
 from .assets import AssetIntrospector
 from .renderers import get_output_prefix_with_tokens, get_height, get_width
@@ -638,10 +637,10 @@ def show_maya_render_submitter(parent, f=Qt.WindowFlags()) -> "Optional[SubmitJo
         rib_list = []
         if multipleFrames:
             for number in range(startFrame, endFrame + 1, step):
-                rib_list.append(f"{tempfile.gettempprefix()}.{number:04}.rib")
+                rib_list.append(f"{output_file}.{number:04}.rib")
         else:
-            rib_list.append(f"{tempfile.gettempprefix()}.rib")
-        #submitter_dialog = show_renderman_submitter(rib_list)
+            rib_list.append(f"{output_file}.rib")
+        submitter_dialog = show_renderman_submitter(rib_list)
     else:
         submitter_dialog = SubmitJobToDeadlineDialog(
             job_setup_widget_type=SceneSettingsWidget,

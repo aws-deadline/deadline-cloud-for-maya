@@ -54,14 +54,14 @@ class DeadlineCloudSubmitterCmd(om.MPxCommand):
                     )
                     return
 
-                # If renderer has changed behave as if the scene had changed
-                rendererChanged = False
+                # If renderer is Rendeman behave as if the scene had changed
+                rendererIsRenderman = False
                 currentRenderer = maya.cmds.getAttr('defaultRenderGlobals.currentRenderer')
-                if DeadlineCloudSubmitterCmd.rendererName != currentRenderer:
-                    DeadlineCloudSubmitterCmd.rendererName = currentRenderer
-                    rendererChanged = True
+                logger.info(f"Renderer is {currentRenderer}")
+                if currentRenderer == "renderman":
+                    rendererIsRenderman = True
                 # Delete the dialog if the scene has changed
-                if DeadlineCloudSubmitterCmd.dialog_scene_name != scene_name or rendererChanged:
+                if DeadlineCloudSubmitterCmd.dialog_scene_name != scene_name or rendererIsRenderman:
                     if DeadlineCloudSubmitterCmd.dialog:
                         DeadlineCloudSubmitterCmd.dialog.close()
                     DeadlineCloudSubmitterCmd.dialog = None
