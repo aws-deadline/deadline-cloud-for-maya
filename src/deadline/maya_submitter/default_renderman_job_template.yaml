@@ -1,0 +1,76 @@
+specificationVersion: 'jobtemplate-2023-09'
+name: Default RenderMan Job Template
+parameterDefinitions:
+- name: RibFile
+  type: PATH
+  objectType: FILE
+  dataFlow: IN
+  userInterface:
+    control: CHOOSE_INPUT_FILE
+    label: RenderMan Rib File
+    groupLabel: RenderMan Settings
+    fileFilters:
+    - label: RenderMan Rib Files
+      patterns:
+      - '*.rib'
+    - label: All Files
+      patterns:
+      - '*'
+  description: The RenderMan scene file to render.
+- name: ContinueOnError
+  type: STRING
+  userInterface:
+    control: CHECK_BOX
+    label: Continue On Error
+  description: Continue processing when errors occur.
+  default: 'false'
+  allowedValues:
+  - 'true'
+  - 'false'
+steps:
+- name: Render
+  stepEnvironments:
+  - name: RenderMan
+    description: Runs RenderMan in the background.
+    script:
+      embeddedFiles:
+      - name: initData
+        filename: init-data.yaml
+        type: TEXT
+        data: |
+          rib_file: '{{Param.RibFile}}'
+          continue_on_error: '{{Param.ContinueOnError}}'
+      actions:
+        onEnter:
+          command: RenderManAdaptor
+          args:
+          - daemon
+          - start
+          - --path-mapping-rules
+          - file://{{Session.PathMappingRulesFile}}
+          - --connection-file
+          - '{{Session.WorkingDirectory}}/connection.json'
+          - --init-data
+          - file://{{Env.File.initData}}
+          cancelation:
+            mode: NOTIFY_THEN_TERMINATE
+        onExit:
+          command: RenderManAdaptor
+          args:
+          - daemon
+          - stop
+          - --connection-file
+          - '{{Session.WorkingDirectory}}/connection.json'
+          cancelation:
+            mode: NOTIFY_THEN_TERMINATE
+  script:
+    actions:
+      onRun:
+        command: RenderManAdaptor
+        args:
+        - daemon
+        - run
+        - --connection-file
+        - '{{Session.WorkingDirectory}}/connection.json'
+        cancelation:
+          mode: NOTIFY_THEN_TERMINATE
