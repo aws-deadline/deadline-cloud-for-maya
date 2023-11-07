@@ -1,5 +1,6 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
+import os
 import re
 from collections import namedtuple
 from typing import Any
@@ -36,6 +37,7 @@ def test_reload_modules(mock_reload: Mock) -> None:
 @patch.object(om, "MFnPlugin")
 @patch.object(DeadlineCloudForMaya, "reload")
 @patch.object(deadline.maya_submitter.shelf, "build_shelf")
+@patch.dict(os.environ, {"DEADLINE_ENABLE_DEVELOPER_OPTIONS": "False"})
 def test_initialize_and_uninitialize_plugin(
     mock_build_shelf: Mock,
     mock_reload: Mock,
