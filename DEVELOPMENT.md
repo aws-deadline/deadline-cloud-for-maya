@@ -10,7 +10,7 @@ and straightforward enough that we recommend you read it directly to update/modi
 
 ## Adding Dependencies
 
-All of the testing and development dependencies are in the `setup.cfg` and are meant to be included idiomatically.
+All of the testing and development dependencies are in the `requirements-testing.txt` and are meant to be included idiomatically.
 
 ## Testing
 
@@ -19,6 +19,13 @@ All of the testing and development dependencies are in the `setup.cfg` and are m
 ## Submitter Development Workflow
 
 WARNING: This workflow installs additional Python packages into your Maya's python distribution.
+
+NOTE: If you receieve an error from `mayapy`: 
+```
+ERROR: File "setup.py" or "setup.cfg" not found. Directory cannot be installed in editable mode: C:\Users\<User>\deadline-cloud
+(A "pyproject.toml" file was found, but editable mode currently requires a setuptools-based build.)
+```
+Then first update mayapy's version of pip with `./mayapy -m pip install --upgrade pip`. 
 
 1. Create a development location within which to do your git checkouts. For example `~/deadline-clients`. Clone packages from this directory with commands like `git clone git@github.com:casillas2/deadline-cloud-for-maya.git`. You'll also want the `deadline-cloud` and `openjd` repos.
 2. Switch to your Maya directory, like `cd "C:\Program Files\Autodesk\Maya2023"`.
