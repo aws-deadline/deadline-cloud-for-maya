@@ -9,9 +9,12 @@ import yaml  # type: ignore[import]
 from copy import deepcopy
 from dataclasses import dataclass
 
+import maya.cmds  # pylint: disable=import-error
+
 from deadline.client.job_bundle._yaml import deadline_yaml_dump
 from deadline.client.ui.dialogs.submit_job_to_deadline_dialog import (  # pylint: disable=import-error
     SubmitJobToDeadlineDialog,
+    JobBundlePurpose,
 )
 from deadline.client.exceptions import DeadlineOperationError
 from PySide2.QtCore import Qt  # pylint: disable=import-error
@@ -514,7 +517,23 @@ def show_maya_render_submitter(parent, f=Qt.WindowFlags()) -> "Optional[SubmitJo
         queue_parameters: list[dict[str, Any]],
         asset_references: AssetReferences,
         host_requirements: Optional[dict[str, Any]] = None,
+        purpose: JobBundlePurpose = JobBundlePurpose.SUBMISSION,
     ) -> None:
+        # if submitting, warn if the current scene has been modified
+        scene_modified = maya.cmds.file(q=True, mf=True) == 1
+        if scene_modified and purpose == JobBundlePurpose.SUBMISSION:
+            scene_name = maya.cmds.file(q=True, sn=True)
+            button = maya.cmds.confirmDialog(
+                title="Warning: Scene Changes not Saved",
+                message=("Save scene to %s before submitting?" % scene_name),
+                button=["Yes", "No"],
+                defaultButton="No",
+                cancelButton="No",
+                dismissString="No",
+            )
+            if button == "Yes":
+                maya.cmds.file(save=True)
+
         job_bundle_path = Path(job_bundle_dir)
 
         # If we're only submitting the current layer, filter our list of layers by that
