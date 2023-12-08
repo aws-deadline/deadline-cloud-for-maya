@@ -79,4 +79,6 @@ class DeadlineCloudJobBundleOutputTestsCmd(om.MPxCommand):
         """
         Runs a set of job bundle output tests from a directory.
         """
-        run_maya_render_submitter_job_bundle_output_test()
+        result = run_maya_render_submitter_job_bundle_output_test()
+        if result:
+            DeadlineCloudJobBundleOutputTestsCmd.setResult(result.success)
