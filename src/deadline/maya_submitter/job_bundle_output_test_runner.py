@@ -3,6 +3,8 @@
 """
 Defines the Render submitter command which is registered in Maya.
 """
+from __future__ import annotations
+
 import os
 import tempfile
 from unittest import mock
@@ -10,9 +12,10 @@ import re
 import shutil
 import filecmp
 import difflib
-from typing import Any
+from typing import Any, Optional
 from pathlib import Path
 from datetime import datetime, timezone
+import dataclasses
 
 import maya.cmds
 from PySide2.QtWidgets import (  # pylint: disable=import-error; type: ignore
@@ -100,70 +103,111 @@ def _show_deadline_cloud_submitter(mainwin: Any):
 # The following functions implement the test logic.
 
 
+@dataclasses.dataclass
+class JobBundleOutputTestResult:
+    count_succeeded: int
+    count_failed: int
+    results_file_path: Path
+
+    @property
+    def success(self) -> bool:
+        return self.count_failed == 0
+
+
 def _timestamp_string() -> str:
     return datetime.now(timezone.utc).astimezone().isoformat()
 
 
-def run_maya_render_submitter_job_bundle_output_test():
+def run_maya_render_submitter_job_bundle_output_test() -> Optional[JobBundleOutputTestResult]:
     """
     Runs a set of job bundle output tests from a directory.
     """
     # Get the DCC's main window so we can parent the submitter to it
     mainwin = _get_dcc_main_window()
-    count_succeeded = 0
-    count_failed = 0
-    with gui_error_handler("Error running job bundle output test", mainwin):
-        default_tests_dir = Path(__file__).parent.parent.parent.parent / "job_bundle_output_tests"
 
-        tests_dir = QFileDialog.getExistingDirectory(
-            mainwin, "Select a Directory Containing Maya Job Bundle Tests", str(default_tests_dir)
-        )
-
+    # Automated mode means we do not display dialogs requiring user interaction
+    automated = os.getenv("JOB_BUNDLE_OUTPUT_TESTS_AUTOMATED", "false").lower() == "true"
+    if automated:
+        tests_dir = os.getenv("JOB_BUNDLE_OUTPUT_TESTS_DIR")
         if not tests_dir:
-            return
+            raise Exception(
+                "Environment variable JOB_BUNDLE_OUTPUT_TESTS_DIR is required when "
+                "JOB_BUNDLE_OUTPUT_TESTS_AUTOMATED is true"
+            )
 
-        tests_dir = os.path.normpath(tests_dir)
+        result = _run_job_bundle_output_tests_in_dir(tests_dir, mainwin)
+    else:
+        with gui_error_handler("Error running job bundle output test", mainwin):
+            default_tests_dir = (
+                Path(__file__).parent.parent.parent.parent / "job_bundle_output_tests"
+            )
+            tests_dir = QFileDialog.getExistingDirectory(
+                mainwin,
+                "Select a Directory Containing Maya Job Bundle Tests",
+                str(default_tests_dir),
+            )
+            if not tests_dir:
+                return None
 
-        test_job_bundle_results_file = os.path.join(tests_dir, "test-job-bundle-results.txt")
-        with open(test_job_bundle_results_file, "w", encoding="utf8") as report_fh:
-            for test_name in os.listdir(tests_dir):
-                job_bundle_test = os.path.join(tests_dir, test_name)
-                if not os.path.isdir(job_bundle_test):
-                    continue
-                report_fh.write(f"\nTimestamp: {_timestamp_string()}\n")
-                report_fh.write(f"Running job bundle output test: {job_bundle_test}\n")
+            result = _run_job_bundle_output_tests_in_dir(tests_dir, mainwin)
 
-                dcc_scene_file = os.path.join(job_bundle_test, "scene", f"{test_name}.ma")
-
-                if not (os.path.exists(dcc_scene_file) and os.path.isfile(dcc_scene_file)):
-                    raise DeadlineOperationError(
-                        f"Directory {job_bundle_test} does not contain the expected .ma scene: {dcc_scene_file}."
-                    )
-
-                succeeded = _run_job_bundle_output_test(
-                    job_bundle_test, dcc_scene_file, report_fh, mainwin
-                )
-                if succeeded:
-                    count_succeeded += 1
-                else:
-                    count_failed += 1
-
-            report_fh.write("\n")
-            if count_failed:
-                report_fh.write(f"Failed {count_failed} tests, succeeded {count_succeeded}.\n")
-                QMessageBox.warning(
-                    mainwin,
-                    "Some Job Bundle Tests Failed",
-                    f"Failed {count_failed} tests, succeeded {count_succeeded}.\nSee the file {test_job_bundle_results_file} for a full report.",
-                )
-            else:
-                report_fh.write(f"All tests passed, ran {count_succeeded} total.\n")
+            if result.success:
                 QMessageBox.information(
                     mainwin,
                     "All Job Bundle Tests Passed",
-                    f"Ran {count_succeeded} tests in total.",
+                    f"Ran {result.count_succeeded} tests in total.",
                 )
-            report_fh.write(f"Timestamp: {_timestamp_string()}\n")
+            else:
+                QMessageBox.warning(
+                    mainwin,
+                    "Some Job Bundle Tests Failed",
+                    f"Failed {result.count_failed} tests, succeeded {result.count_succeeded}.\nSee the file {result.results_file_path} for a full report.",
+                )
+
+    return result
+
+
+def _run_job_bundle_output_tests_in_dir(tests_dir: str, mainwin: Any) -> JobBundleOutputTestResult:
+    tests_dir = os.path.normpath(str(tests_dir))
+    test_job_bundle_results_file = os.path.join(tests_dir, "test-job-bundle-results.txt")
+
+    count_succeeded = 0
+    count_failed = 0
+    with open(test_job_bundle_results_file, "w", encoding="utf8") as report_fh:
+        for test_name in os.listdir(tests_dir):
+            job_bundle_test = os.path.join(tests_dir, test_name)
+            if not os.path.isdir(job_bundle_test):
+                continue
+            report_fh.write(f"\nTimestamp: {_timestamp_string()}\n")
+            report_fh.write(f"Running job bundle output test: {job_bundle_test}\n")
+
+            dcc_scene_file = os.path.join(job_bundle_test, "scene", f"{test_name}.ma")
+
+            if not (os.path.exists(dcc_scene_file) and os.path.isfile(dcc_scene_file)):
+                raise DeadlineOperationError(
+                    f"Directory {job_bundle_test} does not contain the expected .ma scene: {dcc_scene_file}."
+                )
+
+            succeeded = _run_job_bundle_output_test(
+                job_bundle_test, dcc_scene_file, report_fh, mainwin
+            )
+            if succeeded:
+                count_succeeded += 1
+            else:
+                count_failed += 1
+
+        report_fh.write("\n")
+        if count_failed:
+            report_fh.write(f"Failed {count_failed} tests, succeeded {count_succeeded}.\n")
+        else:
+            report_fh.write(f"All tests passed, ran {count_succeeded} total.\n")
+        report_fh.write(f"Timestamp: {_timestamp_string()}\n")
+
+    return JobBundleOutputTestResult(
+        count_succeeded=count_succeeded,
+        count_failed=count_failed,
+        results_file_path=Path(test_job_bundle_results_file),
+    )
 
 
 def _run_job_bundle_output_test(test_dir: str, dcc_scene_file: str, report_fh, mainwin: Any):
