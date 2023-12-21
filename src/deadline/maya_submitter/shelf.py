@@ -81,7 +81,7 @@ def build_shelf() -> None:
             label="Submit a render to Deadline Cloud",
             ann="Submit a render to Deadline Cloud",
             command=_BUTTON_COMMAND.format(command=deadline_cloud_submitter_name),
-            image1="deadline_render_submitter.png",
+            image1="deadline_render_submitter.svg",
         )
         job_bundle_tests_name = "DeadlineCloudJobBundleOutputTests"
         if os.environ.get("DEADLINE_ENABLE_DEVELOPER_OPTIONS", "").upper() == "TRUE":
@@ -96,7 +96,7 @@ def build_shelf() -> None:
                 label="Run Maya Submitter Job Bundle Output Tests...",
                 ann="Run Maya Submitter Job Bundle Output Tests...",
                 command=_BUTTON_COMMAND.format(command=job_bundle_tests_name),
-                image1="deadline_cloud_job_bundle_tests.png",
+                image1="deadline_cloud_job_bundle_tests.svg",
             )
         else:
             # Delete the developer option button if it exists
