@@ -21,6 +21,7 @@ class RendererNames(Enum):
 
     mayaSoftware = "mayaSoftware"
     arnold = "arnold"
+    vray = "vray"
 
 
 class Animation:
