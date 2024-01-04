@@ -20,20 +20,23 @@ All of the testing and development dependencies are in the `setup.cfg` and are m
 
 WARNING: This workflow installs additional Python packages into your Maya's python distribution.
 
-1. Create a development location within which to do your git checkouts. For example `~/deadline-clients`. Clone packages from this directory with commands like `git clone git@github.com:casillas2/deadline-cloud-for-maya.git`. You'll also want the `deadline-cloud` and `openjd` repos.
-2. Switch to your Maya directory, like `cd "C:\Program Files\Autodesk\Maya2023"`.
-3. Run `.\mayapy -m pip install -e C:\Users\<username>\deadline-clients\deadline-cloud` to install the Amazon Deadline Cloud Client Library in edit mode.
-4. Run `.\mayapy -m pip install -e C:\Users\<username>\deadline-clients\openjd-adaptor-runtime-for-python` to install the Open Job Description Adaptor Runtime Library in edit mode.
-5. Run `.\mayapy -m pip install -e C:\Users\<username>\deadline-clients\deadline-cloud-for-maya` to install the Maya submitter in edit mode.
+0. Install Maya locally.
+1. Create a development location (e.g a new directory) within which to do your git checkouts. Clone packages the following packages to this directory: `deadline-cloud-for-maya`, `deadline-cloud` and `openjd-adaptor-runtime-for-python` repos.
+2. Switch to your Maya directory, default location is  `cd "C:\Program Files\Autodesk\Maya2023"`.
+3. Run `.\bin\mayapy.exe -m pip install -e <path-to>\deadline-cloud` to install the Amazon Deadline Cloud Client Library in edit mode.
+4. Run `.\bin\mayapy.exe -m pip install -e <path-to>\openjd-adaptor-runtime-for-python` to install the Open Job Description Adaptor Runtime Library in edit mode.
+5. Run `.\bin\mayapy.exe -m pip install -e <path-to>\deadline-cloud-for-maya` to install the Maya submitter in edit mode.
 6. Edit (create if missing) your `~/Documents/maya/2023/Maya.env` file, and add the following lines to it:
 
    ```bash
    DEADLINE_ENABLE_DEVELOPER_OPTIONS=true
-   MAYA_MODULE_PATH=C:\Users\<username>\deadline-clients\deadline-cloud-for-maya\maya_submitter_plugin
+   MAYA_MODULE_PATH=<path-to>\deadline-cloud-for-maya\maya_submitter_plugin
    ```
 
    The developer options add a shelf TEST button you can use to run the tests from the `job_bundle_output_tests` directory.
-7. Run Maya. Go to Windows > Settings/Preferences > Plug-In Manager and you will find that `DeadlineCloudForMaya.py` is available as a plugin. Check the checkbox to have Maya load the plugin and create the Deadline tray for you. Click the icon on the tray to open the submitter.
+7. Run Maya. Go to Windows > Settings/Preferences > Plug-In Manager and you will find that `DeadlineCloudForMaya.py` is available as a plugin. Check the checkbox to have Maya load the plugin and create the Deadline tray for you. 
+8. Go to the tray and click the test icon.
+9. In the popup window navigate to and selecct the directory with your tests (i.e. `<path-to>\deadline-cloud-for-maya\job_bundle_output_test`)
 
 ## Application Interface Adaptor Development Workflow
 
