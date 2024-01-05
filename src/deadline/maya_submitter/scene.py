@@ -80,6 +80,26 @@ class Scene:
     """
 
     @staticmethod
+    def ensure_arnold_options_loaded() -> None:
+        try:
+            maya.cmds.listAttr("defaultArnoldRenderOptions")
+        except ValueError:
+            try:
+                from mtoa.core import createOptions
+
+                createOptions()  # defaultArnoldRenderOptions are not created until this is called
+            except ModuleNotFoundError:
+                # This shouldn't be possible but we should handle it in case a customer figures out
+                # a way of loading an arnold scene without mtoa
+                maya.cmds.confirmDialog(
+                    title="mtoa not loaded",
+                    message=(
+                        "Renderer is set to Arnold but mtoa is not loaded. Please load the mtoa "
+                        "plugin before continuing to ensure all assets are submitted."
+                    ),
+                )
+
+    @staticmethod
     def name() -> str:
         """
         Returns the full path to the Active Scene
@@ -128,6 +148,7 @@ class Scene:
         Returns True if Arnold auto - converts textures to TX
         """
         if Scene.renderer() == RendererNames.arnold.value:
+            Scene.ensure_arnold_options_loaded()
             return maya.cmds.getAttr("defaultArnoldRenderOptions.autotx")
         else:
             return False
@@ -138,11 +159,10 @@ class Scene:
         Returns True if Arnold uses existing TX textures
         """
         if Scene.renderer() == RendererNames.arnold.value:
+            Scene.ensure_arnold_options_loaded()
             return maya.cmds.getAttr("defaultArnoldRenderOptions.use_existing_tiled_textures")
         else:
             return False
-        arnold_options = Scene._get_arnold_options()
-        return arnold_options.use_existing_tiled_textures.get() if arnold_options else False
 
     @staticmethod
     def error_on_arnold_license_fail() -> bool:
@@ -151,6 +171,7 @@ class Scene:
         is not Arnold.
         """
         if Scene.renderer() == RendererNames.arnold.value:
+            Scene.ensure_arnold_options_loaded()
             return maya.cmds.getAttr("defaultArnoldRenderOptions.abortOnLicenseFail")
         else:
             return True
