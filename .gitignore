@@ -2,6 +2,7 @@
 *.egg-info/
 __pycache__/
 .coverage
+.DS_Store
 .tox
 .venv
 /htmlcov
