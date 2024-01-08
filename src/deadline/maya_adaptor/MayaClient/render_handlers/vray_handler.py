@@ -25,13 +25,18 @@ class VRayHandler(DefaultMayaHandler):
             return True
 
         print("MayaClient: vraySettings node not found in the scene!", flush=True)
-        returnResult = False
-        if maya.mel.eval("exists vrayCreateVRaySettingsNode"):
-            maya.mel.eval("vrayCreateVRaySettingsNode")
-            if maya.cmds.objExists("vraySettings"):
-                print("MayaClient: Created default vraySettings node.", flush=True)
-                returnResult = True
-        return returnResult
+
+        if not maya.mel.eval("exists vrayCreateVRaySettingsNode"):
+            # V-Ray is probably not loaded? Wrong version? Unable to create vray node
+            return False
+
+        maya.mel.eval("vrayCreateVRaySettingsNode")
+        if not maya.cmds.objExists("vraySettings"):
+            print("MayaClient: Unable to create vraySettings node.", flush=True)
+            return False
+
+        print("MayaClient: Created default vraySettings node.", flush=True)
+        return True
 
     def start_render(self, data: dict) -> None:
         """
