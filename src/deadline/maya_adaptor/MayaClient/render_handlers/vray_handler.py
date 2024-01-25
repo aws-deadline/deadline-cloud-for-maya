@@ -49,6 +49,11 @@ class VRayHandler(DefaultMayaHandler):
             RuntimeError: If no camera was specified or no renderable camera was found,
             when no frame was specified or when no vraySettings node found in the scene.
         """
+        if not maya.cmds.pluginInfo("vrayformaya", query=True, loaded=True):
+            raise RuntimeError(
+                "MayaClient: The VRay for Maya plugin was not loaded. Please verify that VRay is installed."
+            )
+
         frame = data.get("frame")
         if frame is None:
             raise RuntimeError("MayaClient: start_render called without a frame number.")

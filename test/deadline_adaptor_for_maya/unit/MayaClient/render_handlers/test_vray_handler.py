@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+import maya.cmds
 from unittest.mock import patch
 from deadline.maya_adaptor.MayaClient.render_handlers.vray_handler import VRayHandler
 
@@ -46,3 +47,17 @@ class TestVrayHandler:
 
         # THEN
         mock_cmds.setAttr.assert_called_with("vraySettings.width", args["image_width"])
+
+    @patch.object(maya.cmds, "pluginInfo")
+    def test_no_vray(self, plguinInfo) -> None:
+        """Tests that setting the image width sets the right render kwarg"""
+        # GIVEN
+        handler = VRayHandler()
+        plguinInfo.return_value = False
+
+        # WHEN/THEN
+        with pytest.raises(RuntimeError) as exc_info:
+            handler.start_render([])
+            assert exc_info.message == "MayaClient: The VRay for Maya plugin was not loaded. Please verify that VRay is installed."
+
+        

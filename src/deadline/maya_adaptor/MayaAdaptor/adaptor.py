@@ -280,15 +280,11 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
         Raises:
             RuntimeError: Always raises a runtime error to halt the adaptor.
         """
-        maya_app_dir = os.environ.get("MAYA_APP_DIR")
-        shutil_usage = shutil.disk_usage(maya_app_dir or os.getcwd())
         self._exc_info = RuntimeError(
             f"{match.group(0)}\n"
             "This error is typically associated with a licensing error"
             " when using Vray renderer with MayaIO."
             " Check your licensing configuration.\n"
-            f"Free disc space: {shutil_usage.free//1024//1024}M\n"
-            f"MAYA_APP_DIR: {maya_app_dir}\n"
         )
 
     @property
