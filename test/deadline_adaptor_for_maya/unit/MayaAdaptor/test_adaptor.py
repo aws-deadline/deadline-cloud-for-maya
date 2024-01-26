@@ -254,7 +254,9 @@ class TestMayaAdaptor_on_start:
         assert mapping_call.name == "path_mapping"
         assert mapping_call.args["path_mapping_rules"] == {"/source": "/destination"}
 
-    @pytest.mark.parametrize("renderer, expected", [("mayaSoftware", False), ("arnold", True)])
+    @pytest.mark.parametrize(
+        "renderer, expected", [("mayaSoftware", False), ("arnold", True), ("vray", False)]
+    )
     @patch.object(MayaAdaptor, "_setup_arnold_pathmapping")
     @patch.object(MayaAdaptor, "map_path")
     @patch.object(MayaAdaptor, "path_mapping_rules", new_callable=PropertyMock)

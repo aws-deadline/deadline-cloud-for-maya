@@ -183,6 +183,7 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
             "Please check for sufficient disk space "
             "and necessary write permissions of MAYA_APP_DIR."
         )
+        _vray_license_error = "error: Could not obtain a license"
         callback_list = []
         completed_regexes = [re.compile("MayaClient: Finished Rendering Frame [0-9]+")]
         progress_regexes = [
@@ -206,6 +207,9 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
                     self._handle_error,
                 )
             )
+        callback_list.append(
+            RegexCallback([re.compile(_vray_license_error)], self._handle_vray_license_error)
+        )
         callback_list.append(
             RegexCallback(
                 [re.compile(_maya_license_error)],
@@ -265,6 +269,22 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
             f"Free disc space: {shutil_usage.free//1024//1024}M\n"
             f"MAYA_APP_DIR: {maya_app_dir}\n"
             f"ADSKFLEX_LICENSE_FILE: {license_file}"
+        )
+
+    def _handle_vray_license_error(self, match: re.Match) -> None:
+        """
+        Callback for stdout that indicates an license error with Vray.
+        Args:
+            match (re.Match): The match object from the regex pattern that was matched the message
+
+        Raises:
+            RuntimeError: Always raises a runtime error to halt the adaptor.
+        """
+        self._exc_info = RuntimeError(
+            f"{match.group(0)}\n"
+            "This error is typically associated with a licensing error"
+            " when using Vray renderer with MayaIO."
+            " Check your licensing configuration.\n"
         )
 
     @property
