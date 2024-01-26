@@ -57,7 +57,8 @@ class TestVrayHandler:
 
         # WHEN/THEN
         with pytest.raises(RuntimeError) as exc_info:
-            handler.start_render([])
-            assert exc_info.message == "MayaClient: The VRay for Maya plugin was not loaded. Please verify that VRay is installed."
-
-        
+            handler.start_render({})
+            assert (
+                str(exc_info.value)
+                == "MayaClient: The VRay for Maya plugin was not loaded. Please verify that VRay is installed."
+            )
