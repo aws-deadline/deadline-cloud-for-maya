@@ -7,4 +7,4 @@ twine ~= 4.0
 mypy ~= 1.8
 black ~= 23.12
 ruff ~= 0.1.11
-moto[s3,sts] ~= 4.2
+moto[s3,sts] ~= 5.0
