@@ -39,7 +39,16 @@ from .ui.components.scene_settings_tab import SceneSettingsWidget
 from deadline.client.job_bundle.submission import AssetReferences
 
 logger = getLogger(__name__)
-
+ADC_REZ_PACKAGES = os.environ.get('ADC_REZ_PACKAGES') or ' '.join([
+    os.environ.get('ADC_REZ_MAYA', 'adc_maya'),
+    os.environ.get('ADC_REZ_MTOA', 'adc_mtoa'),
+    os.environ.get('ADC_REZ_MAYA_ADAPTER', 'adc_maya_adapter')
+])
+ADC_CONDA_PACKAGES = os.environ.get('ADC_CONDA_PACKAGES') or ' '.join([
+    os.environ.get('ADC_CONDA_MAYA', 'adc_maya'),
+    os.environ.get('ADC_CONDA_MTOA', 'adc_mtoa'),
+    os.environ.get('ADC_CONDA_MAYA_ADAPTER', 'adc_maya_adapter')
+])
 
 @dataclass
 class RenderLayerData:
@@ -412,7 +421,7 @@ def _get_parameter_values(
             + f"{', '.join(parameter_overlap)}"
         )
 
-    # If we're overriding the adaptor with wheels, remove deadline_cloud_for_maya from the RezPackages
+    # If we're overriding the adaptor with wheels, remove adc_maya_adapter from the RezPackages
     if settings.include_adaptor_wheels:
         rez_param = {}
         # Find the RezPackages parameter definition
@@ -425,7 +434,7 @@ def _get_parameter_values(
             rez_param["value"] = " ".join(
                 pkg
                 for pkg in rez_param["value"].split()
-                if not pkg.startswith("deadline_cloud_for_maya")
+                if not pkg.startswith("adc_maya_adapter")
             )
 
     parameter_values.extend(
@@ -637,7 +646,10 @@ def show_maya_render_submitter(parent, f=Qt.WindowFlags()) -> "Optional[SubmitJo
     submitter_dialog = SubmitJobToDeadlineDialog(
         job_setup_widget_type=SceneSettingsWidget,
         initial_job_settings=render_settings,
-        initial_shared_parameter_values={"RezPackages": "mayaIO mtoa deadline_cloud_for_maya"},
+        initial_shared_parameter_values={
+            "RezPackages": ADC_REZ_PACKAGES,
+            "CondaPackages": ADC_CONDA_PACKAGES
+        },
         auto_detected_attachments=auto_detected_attachments,
         attachments=attachments,
         on_create_job_bundle_callback=on_create_job_bundle_callback,
