@@ -21,8 +21,8 @@ except (ImportError, ModuleNotFoundError):
 
 
 class MayaClient(HTTPClientInterface):
-    def __init__(self, socket_path: str) -> None:
-        super().__init__(socket_path=socket_path)
+    def __init__(self, server_path: str) -> None:
+        super().__init__(server_path=server_path)
         self.actions.update(
             {
                 "renderer": self.set_renderer,
@@ -48,21 +48,21 @@ class MayaClient(HTTPClientInterface):
 
 
 def main():
-    socket_path = os.environ.get("MAYA_ADAPTOR_SOCKET_PATH")
-    if not socket_path:
+    server_path = os.environ.get("MAYA_ADAPTOR_SERVER_PATH")
+    if not server_path:
         raise OSError(
             "MayaClient cannot connect to the Adaptor because the environment variable "
-            "MAYA_ADAPTOR_SOCKET_PATH does not exist"
+            "MAYA_ADAPTOR_SERVER_PATH does not exist"
         )
 
-    if not os.path.exists(socket_path):
+    if not os.path.exists(server_path):
         raise OSError(
             "MayaClient cannot connect to the Adaptor because the socket at the path defined by "
-            "the environment variable MAYA_ADAPTOR_SOCKET_PATH does not exist. Got: "
-            f"{os.environ['MAYA_ADAPTOR_SOCKET_PATH']}"
+            "the environment variable MAYA_ADAPTOR_SERVER_PATH does not exist. Got: "
+            f"{os.environ['MAYA_ADAPTOR_SERVER_PATH']}"
         )
 
-    client = MayaClient(socket_path)
+    client = MayaClient(server_path)
     client.poll()
 
 
