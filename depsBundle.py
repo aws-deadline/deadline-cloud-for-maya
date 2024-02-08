@@ -22,7 +22,7 @@ def _get_project_dict() -> dict[str, Any]:
             sys.path.insert(0, toml_env)
             import toml
     else:
-        import libtoml as toml
+        import tomllib as toml
 
     with open("pyproject.toml") as pyproject_toml:
         return toml.load(pyproject_toml)
