@@ -133,7 +133,6 @@ def test_get_tex_files(
     mock_isdir: Mock,
     mock_pattern_to_regex: Mock,
 ):
-
     # A test that verifies the logic for renderman tex file discovery
 
     # GIVEN
