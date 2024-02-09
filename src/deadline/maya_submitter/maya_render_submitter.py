@@ -66,6 +66,13 @@ def _get_job_template(
     all_layer_selectable_cameras,
     current_layer_selectable_cameras,
 ) -> dict[str, Any]:
+    print("RMV", default_job_template)
+    print("RMV", settings)
+    print("RMV", renderers)
+    print("RMV", render_layers)
+    print("RMV", all_layer_selectable_cameras)
+    print("RMV", current_layer_selectable_cameras)
+
     job_template = deepcopy(default_job_template)
 
     # Set the job's name

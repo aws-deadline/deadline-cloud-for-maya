@@ -44,6 +44,7 @@ def test_initialize_and_uninitialize_plugin(
     mock_MFnPlugin: Mock,
     mock_mayaState: Mock,
 ) -> None:
+
     # GIVEN
     plugin = Mock()
     plugin_obj = Mock()
@@ -105,3 +106,5 @@ def test_initialize_plugin_exc(mock_reload: Mock, mock_confirm_dialog: Mock) -> 
             button="OK",
             defaultButton="OK",
         )
+
+#def test_get_job_template() -> None:
