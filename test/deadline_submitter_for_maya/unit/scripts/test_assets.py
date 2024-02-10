@@ -125,9 +125,9 @@ def test_expand_path_caching(
 @patch("os.path.isdir")
 @patch("os.path.isfile")
 @patch("os.listdir")
-@patch("maya.cmds.filePathEditor")
+@patch("maya.cmds")
 def test_get_tex_files(
-    mock_filePathEditor: Mock,
+    mock_cmds: Mock,
     mock_listdir: Mock,
     mock_isfile: Mock,
     mock_isdir: Mock,
@@ -144,15 +144,17 @@ def test_get_tex_files(
     mock_isdir.return_value = True
     mock_listdir.return_value = [path + basename]
 
-    mock_filePathEditor.side_effect = [
+    # python 3.9 3.10 requires to mock the import of maya.cmds
+    sys.modules["maya.cmds"] = mock_cmds
+    mock_cmds.filePathEditor.side_effect = [
         [path],
         [basename, "skydome_light.map"],
     ]
 
-    mocked_rfm2_txmanager = MagicMock()
     # mock the import of a non existent library (renderman for maya)
-    sys.modules["rfm2.txmanager_maya"] = mocked_rfm2_txmanager
-    mocked_rfm2_txmanager.get_texture_by_path.return_value = path + basename + tex_suffix
+    mock_txmanager = MagicMock()
+    sys.modules["rfm2.txmanager_maya"] = mock_txmanager
+    mock_txmanager.get_texture_by_path.return_value = path + basename + tex_suffix
 
     # WHEN
     asset_introspector = assets_module.AssetIntrospector()
