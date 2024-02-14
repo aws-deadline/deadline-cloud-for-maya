@@ -55,11 +55,8 @@ class AssetIntrospector:
             set[Path]: A set of tex files associated to scene textures
         """
 
-        # import maya.cmds as cmds  # type: ignore
         from maya.cmds import filePathEditor  # type: ignore
         from rfm2.txmanager_maya import get_texture_by_path  # type: ignore
-
-        # cmds.filePathEditor().return_value = ['0', '1']
 
         # We query Maya's file path editor for all referenced external files
         # And then query RenderMan's Tx Manager to get the name for the .tex files
@@ -73,9 +70,11 @@ class AssetIntrospector:
                 full_path = os.path.join(directory, filename)
                 # Expand tags if any are present
                 for expanded_path in self._expand_path(full_path):
+                    # add the original texture
+                    filename_tex_set.add(expanded_path)
                     try:
                         # Returns a key error if the resource is not in tx manager
-                        filename_tex = get_texture_by_path(expanded_path.as_posix(), attribute)
+                        filename_tex = get_texture_by_path(str(expanded_path), attribute)
                         filename_tex_set.add(filename_tex)
                     except KeyError:
                         pass
