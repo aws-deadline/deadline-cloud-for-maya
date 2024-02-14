@@ -75,7 +75,7 @@ class AssetIntrospector:
                     try:
                         # Returns a key error if the resource is not in tx manager
                         filename_tex = get_texture_by_path(str(expanded_path), attribute)
-                        filename_tex_set.add(filename_tex)
+                        filename_tex_set.add(Path(filename_tex))
                     except KeyError:
                         pass
 

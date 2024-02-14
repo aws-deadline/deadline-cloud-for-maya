@@ -161,4 +161,4 @@ def test_get_tex_files(
     result = asset_introspector._get_tex_files()
 
     # THEN
-    assert result == set([path + basename + tex_suffix])
+    assert result == set([Path(path + basename), Path(path + basename + tex_suffix)])
