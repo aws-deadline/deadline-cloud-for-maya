@@ -22,6 +22,7 @@ class RendererNames(Enum):
     mayaSoftware = "mayaSoftware"
     arnold = "arnold"
     vray = "vray"
+    renderman = "renderman"
 
 
 class Animation:
@@ -67,7 +68,7 @@ class Animation:
     @classmethod
     def frame_list(cls) -> "FrameRange":
         """
-        Retursn a FrameRange object representing the full framelist.
+        Returns a FrameRange object representing the full framelist.
         """
         if maya.cmds.getAttr("defaultRenderGlobals.animation"):
             return FrameRange(start=cls.start_frame(), stop=cls.end_frame(), step=cls.frame_step())

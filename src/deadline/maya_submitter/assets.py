@@ -25,7 +25,12 @@ class AssetIntrospector:
         # clear filesystem cache from last run
         self._expand_path.cache_clear()
         # Grab tx files (if we need to)
-        assets: set[Path] = self._get_tx_files()
+        assets: set[Path] = set()
+
+        if Scene.renderer() == RendererNames.arnold.value:
+            assets.update(self._get_tx_files())
+        elif Scene.renderer() == RendererNames.renderman.value:
+            assets.update(self._get_tex_files())
 
         for ref in FilePathEditor.fileRefs():
             normalized_path = os.path.normpath(ref.path)
@@ -42,18 +47,50 @@ class AssetIntrospector:
 
         return assets
 
+    def _get_tex_files(self) -> set[Path]:
+        """
+        Searches for Renderman .tex files
+
+        Returns:
+            set[Path]: A set of tex files associated to scene textures
+        """
+
+        from maya.cmds import filePathEditor  # type: ignore
+        from rfm2.txmanager_maya import get_texture_by_path  # type: ignore
+
+        # We query Maya's file path editor for all referenced external files
+        # And then query RenderMan's Tx Manager to get the name for the .tex files
+        # (needed because the filename can include color space information)
+        filename_tex_set: set[Path] = set()
+        directories = filePathEditor(listDirectories="", query=True)
+
+        for directory in directories:
+            files = filePathEditor(listFiles=directory, withAttribute=True, query=True)
+            for filename, attribute in zip(files[0::2], files[1::2]):
+                full_path = os.path.join(directory, filename)
+                # Expand tags if any are present
+                for expanded_path in self._expand_path(full_path):
+                    # add the original texture
+                    filename_tex_set.add(expanded_path)
+                    try:
+                        # Returns a key error if the resource is not in tx manager
+                        filename_tex = get_texture_by_path(str(expanded_path), attribute)
+                        filename_tex_set.add(Path(filename_tex))
+                    except KeyError:
+                        pass
+
+        return filename_tex_set
+
     def _get_tx_files(self) -> set[Path]:
         """
-        If the renderer is Arnold, searches for both source and tx files
+        Searches for both source and tx files for Arnold
 
         Returns:
             set[Path]: A set of original asset paths and their associated tx files.
         """
 
         arnold_textures_files: set[Path] = set()
-        if not Scene.renderer() == RendererNames.arnold.value or not (
-            Scene.autotx() or Scene.use_existing_tiled_textures()
-        ):
+        if not Scene.autotx() and not Scene.use_existing_tiled_textures():
             return arnold_textures_files
 
         for img_path in self._get_arnold_texture_files():
