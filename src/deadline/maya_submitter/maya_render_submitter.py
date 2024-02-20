@@ -35,6 +35,7 @@ from .render_layers import (
     LayerSelection,
 )
 from .cameras import get_renderable_camera_names, ALL_CAMERAS
+from ._version import version_tuple as adaptor_version_tuple
 from .ui.components.scene_settings_tab import SceneSettingsWidget
 from deadline.client.job_bundle.submission import AssetReferences
 
@@ -412,20 +413,26 @@ def _get_parameter_values(
             + f"{', '.join(parameter_overlap)}"
         )
 
-    # If we're overriding the adaptor with wheels, remove deadline_cloud_for_maya from the RezPackages
+    # If we're overriding the adaptor with wheels, remove the adaptor from the Packages parameters
     if settings.include_adaptor_wheels:
         rez_param = {}
-        # Find the RezPackages parameter definition
+        conda_param = {}
+        # Find the Packages parameter definition
         for param in queue_parameters:
             if param["name"] == "RezPackages":
                 rez_param = param
-                break
-        # Remove the deadline_cloud_for_maya rez package
+            if param["name"] == "CondaPackages":
+                conda_param = param
+        # Remove the deadline_cloud_for_maya/maya-openjd package
         if rez_param:
             rez_param["value"] = " ".join(
                 pkg
                 for pkg in rez_param["value"].split()
                 if not pkg.startswith("deadline_cloud_for_maya")
+            )
+        if conda_param:
+            conda_param["value"] = " ".join(
+                pkg for pkg in conda_param["value"].split() if not pkg.startswith("maya-openjd")
             )
 
     parameter_values.extend(
@@ -509,6 +516,8 @@ def show_maya_render_submitter(parent, f=Qt.WindowFlags()) -> "Optional[SubmitJo
     render_settings.all_layer_selectable_cameras = [ALL_CAMERAS] + sorted(
         all_layer_selectable_cameras
     )
+
+    all_renderers: set[str] = {layer_data.renderer_name for layer_data in render_layers}
 
     def on_create_job_bundle_callback(
         widget: SubmitJobToDeadlineDialog,
@@ -634,10 +643,24 @@ def show_maya_render_submitter(parent, f=Qt.WindowFlags()) -> "Optional[SubmitJo
         output_directories=set(render_settings.output_directories),
     )
 
+    maya_version = maya.cmds.about(version=True)
+    adaptor_version = ".".join(str(v) for v in adaptor_version_tuple[:2])
+
+    # Need Maya and the Maya OpenJD application interface adaptor
+    rez_packages = f"mayaIO-{maya_version} deadline_cloud_for_maya"
+    conda_packages = f"maya={maya_version}.* maya-openjd={adaptor_version}.*"
+    # Add any additional renderers that are used
+    if "arnold" in all_renderers:
+        rez_packages += " mtoa"
+        conda_packages += " maya-mtoa"
+
     submitter_dialog = SubmitJobToDeadlineDialog(
         job_setup_widget_type=SceneSettingsWidget,
         initial_job_settings=render_settings,
-        initial_shared_parameter_values={"RezPackages": "mayaIO mtoa deadline_cloud_for_maya"},
+        initial_shared_parameter_values={
+            "RezPackages": rez_packages,
+            "CondaPackages": conda_packages,
+        },
         auto_detected_attachments=auto_detected_attachments,
         attachments=attachments,
         on_create_job_bundle_callback=on_create_job_bundle_callback,

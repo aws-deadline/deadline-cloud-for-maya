@@ -69,7 +69,7 @@ class TestMayaAdaptor_on_start:
     ) -> None:
         """Tests that on_start completes without error"""
         adaptor = MayaAdaptor(init_data)
-        mock_server.return_value.socket_path = "/tmp/9999"
+        mock_server.return_value.server_path = "/tmp/9999"
         adaptor.on_start()
 
     @patch("time.sleep")
@@ -90,7 +90,7 @@ class TestMayaAdaptor_on_start:
         socket_mock = PropertyMock(
             side_effect=[None, None, None, "/tmp/9999", "/tmp/9999", "/tmp/9999"]
         )
-        type(mock_server.return_value).socket_path = socket_mock
+        type(mock_server.return_value).server_path = socket_mock
 
         # WHEN
         adaptor.on_start()
@@ -133,7 +133,7 @@ class TestMayaAdaptor_on_start:
         """
         # GIVEN
         adaptor = MayaAdaptor(init_data)
-        mock_server.return_value.socket_path = "/tmp/9999"
+        mock_server.return_value.server_path = "/tmp/9999"
         new_timeout = 0.01
 
         with patch.object(adaptor, "_MAYA_START_TIMEOUT_SECONDS", new_timeout), pytest.raises(
@@ -165,7 +165,7 @@ class TestMayaAdaptor_on_start:
         """
         # GIVEN
         adaptor = MayaAdaptor(init_data)
-        mock_server.return_value.socket_path = "/tmp/9999"
+        mock_server.return_value.server_path = "/tmp/9999"
 
         with pytest.raises(RuntimeError) as exc_info:
             # WHEN
@@ -198,7 +198,7 @@ class TestMayaAdaptor_on_start:
             }
         )
 
-        mock_server.return_value.socket_path = "/tmp/9999"
+        mock_server.return_value.server_path = "/tmp/9999"
 
         adaptor.on_start()
 
@@ -243,7 +243,7 @@ class TestMayaAdaptor_on_start:
             }
         )
 
-        mock_server.return_value.socket_path = "/tmp/9999"
+        mock_server.return_value.server_path = "/tmp/9999"
 
         adaptor.on_start()
 
@@ -285,7 +285,7 @@ class TestMayaAdaptor_on_start:
                 destination_path="/destination",
             )
         ]
-        mock_server.return_value.socket_path = "/tmp/9999"
+        mock_server.return_value.server_path = "/tmp/9999"
         adaptor = MayaAdaptor(
             {
                 "renderer": renderer,
@@ -421,7 +421,7 @@ class TestMayaAdaptor_on_run:
         """Tests that on_run completes without error, and waits"""
         # GIVEN
         adaptor = MayaAdaptor(init_data)
-        mock_server.return_value.socket_path = "/tmp/9999"
+        mock_server.return_value.server_path = "/tmp/9999"
         # First side_effect value consumed by setter
         is_rendering_mock = PropertyMock(side_effect=[None, True, False])
         MayaAdaptor._is_rendering = is_rendering_mock
@@ -462,7 +462,7 @@ class TestMayaAdaptor_on_run:
         mock_maya_is_running.side_effect = [True, True, True, False, False]
         mock_logging_subprocess.return_value.returncode = 1
         adaptor = MayaAdaptor(init_data)
-        mock_server.return_value.socket_path = "/tmp/9999"
+        mock_server.return_value.server_path = "/tmp/9999"
         adaptor.on_start()
 
         # WHEN
@@ -491,7 +491,7 @@ class TestMayaAdaptor_on_run:
         """Tests that on_run completes without error, and waits"""
         # GIVEN
         adaptor = MayaAdaptor(init_data)
-        mock_server.return_value.socket_path = "/tmp/9999"
+        mock_server.return_value.server_path = "/tmp/9999"
         # First side_effect value consumed by setter
         is_rendering_mock = PropertyMock(side_effect=[None, True, False])
         MayaAdaptor._is_rendering = is_rendering_mock
@@ -526,7 +526,7 @@ class TestMayaAdaptor_on_stop:
         """Tests that on_stop completes without error"""
         # GIVEN
         adaptor = MayaAdaptor(init_data)
-        mock_server.return_value.socket_path = "/tmp/9999"
+        mock_server.return_value.server_path = "/tmp/9999"
         is_rendering_mock = PropertyMock(return_value=False)
         MayaAdaptor._is_rendering = is_rendering_mock
         adaptor.on_start()
@@ -605,7 +605,7 @@ class TestMayaAdaptor_on_cleanup:
         """Tests that on_stop completes without error"""
         # GIVEN
         adaptor = MayaAdaptor(init_data)
-        mock_server.return_value.socket_path = "/tmp/9999"
+        mock_server.return_value.server_path = "/tmp/9999"
         is_rendering_mock = PropertyMock(return_value=False)
         MayaAdaptor._is_rendering = is_rendering_mock
 

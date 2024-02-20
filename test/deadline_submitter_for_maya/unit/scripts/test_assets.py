@@ -6,7 +6,7 @@ import sys
 from collections import namedtuple
 from os.path import normpath, split
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -69,6 +69,10 @@ class TestSceneIntrospection:
         """mimics maya.app.general.fileTexturePathResolver._patternToRegex for our known test cases"""
         return pattern.replace("<f>", r"\d+").replace("<UDIM>", r"(?:1001|1010|1011)")
 
+    @classmethod
+    def get_texture_by_path(cls, path) -> str:
+        return "/my/texture.tex"
+
 
 @patch.object(utils_module, "_patternToRegex")
 @patch("os.path.isdir")
@@ -115,3 +119,46 @@ def test_expand_path_caching(
 
     # THEN
     assert next(third_result) == path
+
+
+@patch.object(utils_module, "_patternToRegex")
+@patch("os.path.isdir")
+@patch("os.path.isfile")
+@patch("os.listdir")
+@patch("maya.cmds")
+def test_get_tex_files(
+    mock_cmds: Mock,
+    mock_listdir: Mock,
+    mock_isfile: Mock,
+    mock_isdir: Mock,
+    mock_pattern_to_regex: Mock,
+):
+    # A test that verifies the logic for renderman tex file discovery
+
+    # GIVEN
+    path = "/tmp/"
+    basename = "mytexture1.exr"
+    tex_suffix = ".srgb_acescg.tex"
+    mock_pattern_to_regex.return_value = path + basename
+    mock_isfile.return_value = True
+    mock_isdir.return_value = True
+    mock_listdir.return_value = [path + basename]
+
+    # python 3.9 3.10 requires to mock the import of maya.cmds
+    sys.modules["maya.cmds"] = mock_cmds
+    mock_cmds.filePathEditor.side_effect = [
+        [path],
+        [basename, "skydome_light.map"],
+    ]
+
+    # mock the import of a non existent library (renderman for maya)
+    mock_txmanager = MagicMock()
+    sys.modules["rfm2.txmanager_maya"] = mock_txmanager
+    mock_txmanager.get_texture_by_path.return_value = path + basename + tex_suffix
+
+    # WHEN
+    asset_introspector = assets_module.AssetIntrospector()
+    result = asset_introspector._get_tex_files()
+
+    # THEN
+    assert result == set([Path(path + basename), Path(path + basename + tex_suffix)])
