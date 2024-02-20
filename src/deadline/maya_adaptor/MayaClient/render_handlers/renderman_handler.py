@@ -44,22 +44,7 @@ class RenderManHandler(DefaultMayaHandler):
             raise RuntimeError("MayaClient: start_render called without a frame number.")
         self.render_kwargs["seq"] = frame
 
-        self.render_kwargs["camera"] = self.get_camera_to_render(data)
-
-        if "width" not in self.render_kwargs:
-            self.render_kwargs["width"] = maya.cmds.getAttr("defaultResolution.width")
-            print(
-                f"No width was specified, defaulting to {self.render_kwargs['width']}",
-                flush=True,
-            )
-        if "height" not in self.render_kwargs:
-            self.render_kwargs["height"] = maya.cmds.getAttr("defaultResolution.height")
-            print(
-                f"No height was specified, defaulting to {self.render_kwargs['height']}",
-                flush=True,
-            )
-
-        # some overrides are currently not implemented
+        # Note that some overrides are currently not implemented (camera, resolution, etc...)
 
         import rfm2
 
