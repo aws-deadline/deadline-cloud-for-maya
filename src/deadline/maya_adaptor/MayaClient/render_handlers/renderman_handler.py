@@ -1,6 +1,6 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
-from .default_maya_handler import RenderManHandler
+from .default_maya_handler import DefaultMayaHandler
 
 import maya.cmds
 
