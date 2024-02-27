@@ -41,8 +41,9 @@ test = "pytest --no-cov {args:test/*/integ}"
 test = "pytest --no-cov {args:test/*/e2e}"
 
 [envs.release]
-pre-install-commands = [
-  "pip install -r requirements-release.txt"
+detached = true
+dependencies = [
+  "python-semantic-release == 8.7.*"
 ]
 
 [envs.release.scripts]
