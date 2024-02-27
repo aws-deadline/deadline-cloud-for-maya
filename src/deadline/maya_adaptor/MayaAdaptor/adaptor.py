@@ -184,13 +184,15 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
             "and necessary write permissions of MAYA_APP_DIR."
         )
         _vray_license_error = "error: Could not obtain a license"
+        _renderman_license_error = "SEVERE.*icense"
         callback_list = []
         completed_regexes = [re.compile("MayaClient: Finished Rendering Frame [0-9]+")]
         progress_regexes = [
             re.compile("\\[PROGRESS\\] ([0-9]+) percent"),
             re.compile("([0-9]+)% done"),  # arnold
+            re.compile("R90000\\s+([0-9]+)%"),  # renderman
         ]
-        error_regexes = [re.compile(".*Exception:.*|.*Error:.*|.*Warning.*")]
+        error_regexes = [re.compile(".*Exception:.*|.*Error:.*|.*Warning.*|.*SEVERE.*")]
 
         callback_list.append(RegexCallback(completed_regexes, self._handle_complete))
         callback_list.append(RegexCallback(progress_regexes, self._handle_progress))
@@ -207,6 +209,11 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
                     self._handle_error,
                 )
             )
+        callback_list.append(
+            RegexCallback(
+                [re.compile(_renderman_license_error)], self._handle_renderman_license_error
+            )
+        )
         callback_list.append(
             RegexCallback([re.compile(_vray_license_error)], self._handle_vray_license_error)
         )
@@ -284,6 +291,22 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
             f"{match.group(0)}\n"
             "This error is typically associated with a licensing error"
             " when using Vray renderer with MayaIO."
+            " Check your licensing configuration.\n"
+        )
+
+    def _handle_renderman_license_error(self, match: re.Match) -> None:
+        """
+        Callback for stdout that indicates an license error with RenderMan.
+        Args:
+            match (re.Match): The match object from the regex pattern that was matched the message
+
+        Raises:
+            RuntimeError: Always raises a runtime error to halt the adaptor.
+        """
+        self._exc_info = RuntimeError(
+            f"{match.group(0)}\n"
+            "This error is typically associated with a licensing error"
+            " when using RenderMan with MayaIO."
             " Check your licensing configuration.\n"
         )
 

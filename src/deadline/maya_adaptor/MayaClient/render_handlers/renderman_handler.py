@@ -29,6 +29,26 @@ class RenderManHandler(DefaultMayaHandler):
         if rl:
             self.render_layer = rl
 
+    def set_image_height(self, data: dict) -> None:
+        """
+        Sets the image height.
+
+        Args:
+            data (dict): The data given from the Adaptor. Keys expected: ['image_height']
+        """
+        yresolution = int(data.get("image_height", 0))
+        maya.cmds.setAttr("defaultResolution.height", yresolution)
+
+    def set_image_width(self, data: dict) -> None:
+        """
+        Sets the image width.
+
+        Args:
+            data (dict): The data given from the Adaptor. Keys expected: ['image_width']
+        """
+        xresolution = int(data.get("image_width", 0))
+        maya.cmds.setAttr("defaultResolution.width", xresolution)
+
     def start_render(self, data: dict) -> None:
         """
         Starts a render.
@@ -37,8 +57,14 @@ class RenderManHandler(DefaultMayaHandler):
             data (dict): The data given from the Adaptor. Keys expected: ['frame']
 
         Raises:
-            RuntimeError: If no camera was specified and no renderable camera was found
+            RuntimeError: If Renderman for Maya was not loaded
         """
+
+        if not maya.cmds.pluginInfo("RenderManForMaya.py", query=True, loaded=True):
+            raise RuntimeError(
+                "MayaClient: The RenderMan for Maya plugin was not loaded. Please verify that it is installed."
+            )
+
         frame = data.get("frame")
         if frame is None:
             raise RuntimeError("MayaClient: start_render called without a frame number.")

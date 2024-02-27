@@ -255,7 +255,8 @@ class TestMayaAdaptor_on_start:
         assert mapping_call.args["path_mapping_rules"] == {"/source": "/destination"}
 
     @pytest.mark.parametrize(
-        "renderer, expected", [("mayaSoftware", False), ("arnold", True), ("vray", False)]
+        "renderer, expected",
+        [("mayaSoftware", False), ("arnold", True), ("vray", False), ("renderman", False)],
     )
     @patch.object(MayaAdaptor, "_setup_arnold_pathmapping")
     @patch.object(MayaAdaptor, "map_path")
@@ -737,7 +738,7 @@ class TestMayaAdaptor_on_cleanup:
         # GIVEN
         init_data["strict_error_checking"] = strict_error_checking
         adaptor = MayaAdaptor(init_data)
-        error_regexes = [re.compile(".*Exception:.*|.*Error:.*|.*Warning.*")]
+        error_regexes = [re.compile(".*Exception:.*|.*Error:.*|.*Warning.*|.*SEVERE.*")]
 
         # WHEN
         callbacks = adaptor._get_regex_callbacks()
