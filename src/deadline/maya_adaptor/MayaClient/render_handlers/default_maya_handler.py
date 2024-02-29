@@ -6,6 +6,7 @@ import os
 from typing import Any, Dict, List, Optional
 
 import maya.cmds
+import maya.mel
 
 from ..dir_map import DirectoryMapping
 
@@ -218,3 +219,10 @@ class DefaultMayaHandler:
         if not os.path.isfile(file_path):
             raise FileNotFoundError(f"The scene file '{file_path}' does not exist")
         maya.cmds.file(file_path, open=True, force=True)
+
+        pre_render_mel = maya.cmds.getAttr("defaultRenderGlobals.preMel")
+        if pre_render_mel:
+            try:
+                maya.mel.eval(pre_render_mel)
+            except Exception as e:
+                print("Warning: preMel Failed: %s" % e)
