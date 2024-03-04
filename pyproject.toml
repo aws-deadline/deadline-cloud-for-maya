@@ -10,8 +10,8 @@ license = ""
 requires-python = ">=3.7"
 
 dependencies = [
-    "deadline == 0.37.*",
-    "openjd-adaptor-runtime == 0.4.*",
+    "deadline == 0.38.*",
+    "openjd-adaptor-runtime == 0.5.*",
 ]
 
 [project.scripts]
@@ -72,15 +72,13 @@ mypy_path = "src"
 module = ["maya.*","PySide2.*"]
 
 [tool.ruff]
-ignore = [
-  "E501",
-]
 line-length = 100
 
-[tool.ruff.isort]
-known-first-party = [
-  "deadline_worker_agent"
-]
+[tool.ruff.lint]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["deadline_worker_agent"]
 
 [tool.black]
 line-length = 100
