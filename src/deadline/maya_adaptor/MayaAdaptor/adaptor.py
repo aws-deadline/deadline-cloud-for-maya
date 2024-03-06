@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from openjd.adaptor_runtime.adaptors import Adaptor, AdaptorDataValidators
+from openjd.adaptor_runtime.adaptors import Adaptor, AdaptorDataValidators, SemanticVersion
 from openjd.adaptor_runtime_client import Action
 from openjd.adaptor_runtime.adaptors.configuration import AdaptorConfiguration
 from openjd.adaptor_runtime.process import LoggingSubprocess
@@ -79,6 +79,10 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
     # If a thread raises an exception we will update this to raise in the main thread
     _exc_info: Exception | None = None
     _performing_cleanup = False
+
+    @property
+    def integration_data_interface_version(self) -> SemanticVersion:
+        return SemanticVersion(major=0, minor=1)
 
     @staticmethod
     def _get_timer(timeout: int | float) -> Callable[[], bool]:
@@ -330,9 +334,9 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
         deadline_namespace_dir = os.path.dirname(os.path.dirname(deadline.maya_adaptor.__file__))
         python_path_addition = f"{openjd_namespace_dir}{os.pathsep}{deadline_namespace_dir}"
         if "PYTHONPATH" in os.environ:
-            os.environ[
-                "PYTHONPATH"
-            ] = f"{os.environ['PYTHONPATH']}{os.pathsep}{python_path_addition}"
+            os.environ["PYTHONPATH"] = (
+                f"{os.environ['PYTHONPATH']}{os.pathsep}{python_path_addition}"
+            )
         else:
             os.environ["PYTHONPATH"] = python_path_addition
 
