@@ -7,4 +7,4 @@ twine == 5.*
 mypy == 1.*
 black == 24.*
 ruff == 0.3.*
-moto[s3,sts] == 4.*
+moto[s3,sts] == 5.*
