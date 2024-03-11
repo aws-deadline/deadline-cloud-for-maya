@@ -43,6 +43,16 @@ hatch run fmt
 hatch run all:test
 ```
 
+## Use development Submitter in Maya
+
+```bash
+hatch run install
+hatch shell
+```
+Then launch Maya from that terminal.
+
+A development version of deadline-cloud-for-maya is then available to be loaded.
+
 ## Compatibility
 
 This library requires:
