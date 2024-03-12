@@ -188,7 +188,7 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
             "and necessary write permissions of MAYA_APP_DIR."
         )
         _vray_license_error = "error: Could not obtain a license"
-        _renderman_license_error = "SEVERE.*icense"
+        _renderman_license_error = ".*{SEVERE}\s+License.*"
         callback_list = []
         completed_regexes = [re.compile("MayaClient: Finished Rendering Frame [0-9]+")]
         progress_regexes = [
@@ -307,11 +307,14 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
         Raises:
             RuntimeError: Always raises a runtime error to halt the adaptor.
         """
+        pixar_license_file = os.environ.get("PIXAR_LICENSE_FILE")
+        rmantree = os.environ.get("RMANTREE")
         self._exc_info = RuntimeError(
             f"{match.group(0)}\n"
-            "This error is typically associated with a licensing error"
-            " when using RenderMan with MayaIO."
-            " Check your licensing configuration.\n"
+            "This error is typically associated with a licensing error "
+            "when using RenderMan. Check your licensing configuration.\n"
+            f"RMANTREE: {rmantree}\n"
+            f"PIXAR_LICENSE_FILE: {pixar_license_file}\n"
         )
 
     @property
@@ -357,9 +360,9 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
         deadline_namespace_dir = os.path.dirname(os.path.dirname(deadline.maya_adaptor.__file__))
         python_path_addition = f"{openjd_namespace_dir}{os.pathsep}{deadline_namespace_dir}"
         if "PYTHONPATH" in os.environ:
-            os.environ["PYTHONPATH"] = (
-                f"{os.environ['PYTHONPATH']}{os.pathsep}{python_path_addition}"
-            )
+            os.environ[
+                "PYTHONPATH"
+            ] = f"{os.environ['PYTHONPATH']}{os.pathsep}{python_path_addition}"
         else:
             os.environ["PYTHONPATH"] = python_path_addition
 
