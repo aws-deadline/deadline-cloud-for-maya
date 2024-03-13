@@ -12,3 +12,4 @@ dependency_bundle
 /wheels/
 **/test_job_bundle/
 **/test-job-bundle-results.txt
+plugin_env

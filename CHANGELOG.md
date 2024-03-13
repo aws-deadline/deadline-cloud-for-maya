@@ -1,3 +1,14 @@
+## 0.13.0 (2024-03-08)
+
+### BREAKING CHANGES
+* **deps**: update openjd-adaptor-runtime to 0.5 (#108) ([`cc119f6`](https://github.com/casillas2/deadline-cloud-for-maya/commit/cc119f659294fb5440474ea579b14231a5d031f7))
+
+### Features
+* Adding Yeti support (#101) ([`cffda91`](https://github.com/casillas2/deadline-cloud-for-maya/commit/cffda91211b7e2b6b72c7ba607c40e8929b56eef))
+
+### Bug Fixes
+* properly fill out allowed values for camera job parameter (#103) ([`3c2d42f`](https://github.com/casillas2/deadline-cloud-for-maya/commit/3c2d42f102025ec9c06f7b0f64fb29941e31aed7))
+
 ## 0.12.0 (2024-02-21)
 
 ### BREAKING CHANGES
