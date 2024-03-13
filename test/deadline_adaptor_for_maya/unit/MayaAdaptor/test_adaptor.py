@@ -255,7 +255,8 @@ class TestMayaAdaptor_on_start:
         assert mapping_call.args["path_mapping_rules"] == {"/source": "/destination"}
 
     @pytest.mark.parametrize(
-        "renderer, expected", [("mayaSoftware", False), ("arnold", True), ("vray", False)]
+        "renderer, expected",
+        [("mayaSoftware", False), ("arnold", True), ("vray", False), ("renderman", False)],
     )
     @patch.object(MayaAdaptor, "_setup_arnold_pathmapping")
     @patch.object(MayaAdaptor, "map_path")
@@ -641,9 +642,13 @@ class TestMayaAdaptor_on_cleanup:
         assert match is not None
         mock_update_status.assert_called_once_with(progress=100)
 
-    handle_progess_params = [(0, "[PROGRESS] 99 percent", 99), (1, " 45% done - 11 rays/pixel", 45)]
+    handle_progress_params = [
+        (0, "[PROGRESS] 99 percent", 99),
+        (1, " 45% done - 11 rays/pixel", 45),
+        (2, "R90000   24%", 24),
+    ]
 
-    @pytest.mark.parametrize("regex_index, stdout, expected_progress", handle_progess_params)
+    @pytest.mark.parametrize("regex_index, stdout, expected_progress", handle_progress_params)
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor.update_status")
     def test_handle_progress(
         self,
@@ -680,6 +685,10 @@ class TestMayaAdaptor_on_cleanup:
                 "Warning: file: somefile.mel line 1: filePathEditor: Attribute 'aiVolume.filename'"
                 " is invalid or is not designated 'usedAsFilename'.",
                 re.compile(".*Warning:.*"),
+            ),
+            (
+                "G32001	{SEVERE}  Out of memory allocating tessellation cache.",
+                re.compile(".*SEVERE.*"),
             ),
         ],
     )
@@ -737,7 +746,7 @@ class TestMayaAdaptor_on_cleanup:
         # GIVEN
         init_data["strict_error_checking"] = strict_error_checking
         adaptor = MayaAdaptor(init_data)
-        error_regexes = [re.compile(".*Exception:.*|.*Error:.*|.*Warning.*")]
+        error_regexes = [re.compile(".*Exception:.*|.*Error:.*|.*Warning.*|.*SEVERE.*")]
 
         # WHEN
         callbacks = adaptor._get_regex_callbacks()

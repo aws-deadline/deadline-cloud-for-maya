@@ -1,0 +1,25 @@
+parameterValues:
+- name: MayaSceneFile
+  value: /normalized/job/bundle/dir/renderman.ma
+- name: Frames
+  value: '537'
+- name: OutputFilePrefix
+  value: <Scene>
+- name: ImageWidth
+  value: 960
+- name: ImageHeight
+  value: 540
+- name: ProjectPath
+  value: /normalized/job/bundle/dir/
+- name: OutputFilePath
+  value: /normalized/job/bundle/dir/images
+- name: RenderSetupIncludeLights
+  value: 'true'
+- name: deadline:targetTaskRunStatus
+  value: READY
+- name: deadline:maxFailedTasksCount
+  value: 20
+- name: deadline:maxRetriesPerTask
+  value: 5
+- name: deadline:priority
+  value: 50

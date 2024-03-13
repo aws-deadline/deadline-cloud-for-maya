@@ -162,6 +162,11 @@ def run_maya_render_submitter_job_bundle_output_test():
                         f"Directory {job_bundle_test} does not contain the expected .ma scene: {dcc_scene_file}."
                     )
 
+                # skip renderman tests if rfm is not available
+                if "renderman" in dcc_scene_file:
+                    if not maya.cmds.pluginInfo("RenderMan_for_Maya.py", query=True, loaded=True):
+                        continue
+
                 succeeded = _run_job_bundle_output_test(
                     job_bundle_test, dcc_scene_file, report_fh, mainwin
                 )
