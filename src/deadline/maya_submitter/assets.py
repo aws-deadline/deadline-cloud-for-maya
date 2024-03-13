@@ -87,14 +87,16 @@ class AssetIntrospector:
                 full_path = os.path.join(directory, filename)
                 # Expand tags if any are present
                 for expanded_path in self._expand_path(full_path):
-                    # add the original texture
-                    filename_tex_set.add(expanded_path)
-                    try:
-                        # Returns a key error if the resource is not in tx manager
-                        filename_tex = get_texture_by_path(str(expanded_path), attribute)
-                        filename_tex_set.add(Path(filename_tex))
-                    except KeyError:
-                        pass
+                    # get_texture_by_path expects an attribute, not a node
+                    if "." in attribute:
+                        # add the original texture
+                        filename_tex_set.add(expanded_path)
+                        try:
+                            # Returns a key error if the resource is not in tx manager
+                            filename_tex = get_texture_by_path(str(expanded_path), attribute)
+                            filename_tex_set.add(Path(filename_tex))
+                        except KeyError:
+                            pass
 
         return filename_tex_set
 
