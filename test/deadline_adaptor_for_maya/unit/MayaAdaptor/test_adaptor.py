@@ -7,10 +7,11 @@ import re
 from collections import namedtuple
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import Mock, PropertyMock, patch
+from unittest.mock import ANY, Mock, PropertyMock, patch
 
 import pytest
 import jsonschema  # type: ignore
+from openjd.adaptor_runtime.adaptors import SemanticVersion
 from openjd.adaptor_runtime_client import PathMappingRule
 
 import deadline.maya_adaptor.MayaAdaptor.adaptor as adaptor_module
@@ -57,6 +58,7 @@ def run_data() -> dict:
 
 
 class TestMayaAdaptor_on_start:
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._get_deadline_telemetry_client")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.ActionsQueue.__len__", return_value=0)
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
@@ -65,6 +67,7 @@ class TestMayaAdaptor_on_start:
         mock_server: Mock,
         mock_logging_subprocess: Mock,
         mock_actions_queue: Mock,
+        mock_telemetry_client: Mock,
         init_data: dict,
     ) -> None:
         """Tests that on_start completes without error"""
@@ -73,6 +76,7 @@ class TestMayaAdaptor_on_start:
         adaptor.on_start()
 
     @patch("time.sleep")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._get_deadline_telemetry_client")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.ActionsQueue.__len__", return_value=0)
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
@@ -81,6 +85,7 @@ class TestMayaAdaptor_on_start:
         mock_server: Mock,
         mock_logging_subprocess: Mock,
         mock_actions_queue: Mock,
+        mock_telemetry_client: Mock,
         mock_sleep: Mock,
         init_data: dict,
     ) -> None:
@@ -117,6 +122,7 @@ class TestMayaAdaptor_on_start:
             == "Could not find a socket path because the server did not finish initializing"
         )
 
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._get_deadline_telemetry_client")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.ActionsQueue.__len__", return_value=1)
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
@@ -125,6 +131,7 @@ class TestMayaAdaptor_on_start:
         mock_server: Mock,
         mock_logging_subprocess: Mock,
         mock_actions_queue: Mock,
+        mock_telemetry_client: Mock,
         init_data: dict,
     ) -> None:
         """
@@ -150,6 +157,7 @@ class TestMayaAdaptor_on_start:
         assert str(exc_info.value) == error_msg
 
     @patch.object(MayaAdaptor, "_maya_is_running", False)
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._get_deadline_telemetry_client")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.ActionsQueue.__len__", return_value=1)
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
@@ -158,6 +166,7 @@ class TestMayaAdaptor_on_start:
         mock_server: Mock,
         mock_logging_subprocess: Mock,
         mock_actions_queue: Mock,
+        mock_telemetry_client: Mock,
         init_data: dict,
     ) -> None:
         """
@@ -176,12 +185,14 @@ class TestMayaAdaptor_on_start:
         assert str(exc_info.value) == error_msg
 
     @patch.object(MayaAdaptor, "_action_queue")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._get_deadline_telemetry_client")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
     def test_populate_action_queue_required_keys(
         self,
         mock_server: Mock,
         mock_logging_subprocess: Mock,
+        mock_telemetry_client: Mock,
         mock_actions_queue: Mock,
     ) -> None:
         """Tests that on_start completes without error"""
@@ -211,12 +222,14 @@ class TestMayaAdaptor_on_start:
     @patch.object(MayaAdaptor, "map_path")
     @patch.object(MayaAdaptor, "path_mapping_rules", new_callable=PropertyMock)
     @patch.object(MayaAdaptor, "_action_queue")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._get_deadline_telemetry_client")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
     def test_populate_action_queue_test_mapping(
         self,
         mock_server: Mock,
         mock_logging_subprocess: Mock,
+        mock_telemetry_client: Mock,
         mock_actions_queue: Mock,
         mock_rules: Mock,
         mock_map: Mock,
@@ -262,12 +275,14 @@ class TestMayaAdaptor_on_start:
     @patch.object(MayaAdaptor, "map_path")
     @patch.object(MayaAdaptor, "path_mapping_rules", new_callable=PropertyMock)
     @patch.object(MayaAdaptor, "_action_queue")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._get_deadline_telemetry_client")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
     def test_arnold_pathmapping_called(
         self,
         mock_server: Mock,
         mock_logging_subprocess: Mock,
+        mock_telemetry_client: Mock,
         mock_actions_queue: Mock,
         mock_rules: Mock,
         mock_map: Mock,
@@ -404,9 +419,60 @@ class TestMayaAdaptor_on_start:
         error_msg = " is a required property"
         assert error_msg in exc_info.value.message
 
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.get_deadline_cloud_library_telemetry_client")
+    def test_get_deadline_telemetry_client(
+        self,
+        mock_deadline_telemetry_client: Mock,
+        init_data: dict,
+    ) -> None:
+        """
+        Tests that the telemetry client is updated with common details when called the first time.
+        """
+        # GIVEN
+        mock_internal_client = Mock()
+        mock_deadline_telemetry_client.return_value = mock_internal_client
+        adaptor = MayaAdaptor(init_data)
+        assert adaptor._telemetry_client is None
+
+        # WHEN
+        client = adaptor._get_deadline_telemetry_client()
+
+        # THEN
+        assert client is not None
+        assert client == adaptor._telemetry_client
+        assert client == mock_internal_client
+        mock_internal_client.update_common_details.assert_called_once_with(
+            {
+                "deadline-cloud-for-maya-adaptor-version": ANY,
+                "maya-version": ANY,
+                "open-jd-adaptor-runtime-version": ANY,
+            }
+        )
+        mock_deadline_telemetry_client.assert_called_once()
+
+    @patch("sys.path")
+    def test_maya_client_path_file_not_found_error(
+        self, syspath_mock: Mock, init_data: dict
+    ) -> None:
+        """Tests that a file not found error is raised if not maya path is found"""
+        with pytest.raises(FileNotFoundError) as exc_info:
+            adaptor = MayaAdaptor(init_data)
+            adaptor.maya_client_path
+
+        assert (
+            "Could not find maya_client.py. Check that the MayaClient package is in one of the following directories"
+            in str(exc_info.value)
+        )
+
+    def test_semantic_version(self, init_data: dict) -> None:
+        """Tests that the adaptor semantic version is in the expected format"""
+        adaptor = MayaAdaptor(init_data)
+        assert adaptor.integration_data_interface_version == SemanticVersion(major=0, minor=1)
+
 
 class TestMayaAdaptor_on_run:
     @patch("time.sleep")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._get_deadline_telemetry_client")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.ActionsQueue.__len__", return_value=0)
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
@@ -415,6 +481,7 @@ class TestMayaAdaptor_on_run:
         mock_server: Mock,
         mock_logging_subprocess: Mock,
         mock_actions_queue: Mock,
+        mock_telemetry_client: Mock,
         mock_sleep: Mock,
         init_data: dict,
         run_data: dict,
@@ -443,6 +510,7 @@ class TestMayaAdaptor_on_run:
         "deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._maya_is_running",
         new_callable=PropertyMock,
     )
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._get_deadline_telemetry_client")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.ActionsQueue.__len__", return_value=0)
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
@@ -451,6 +519,7 @@ class TestMayaAdaptor_on_run:
         mock_server: Mock,
         mock_logging_subprocess: Mock,
         mock_actions_queue: Mock,
+        mock_telemetry_client: Mock,
         mock_maya_is_running: Mock,
         mock_is_rendering: Mock,
         mock_sleep: Mock,
@@ -478,6 +547,7 @@ class TestMayaAdaptor_on_run:
         )
 
     @patch("time.sleep")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._get_deadline_telemetry_client")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.ActionsQueue.__len__", return_value=0)
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
@@ -486,6 +556,7 @@ class TestMayaAdaptor_on_run:
         mock_server: Mock,
         mock_logging_subprocess: Mock,
         mock_actions_queue: Mock,
+        mock_telemetry_client: Mock,
         mock_sleep: Mock,
         init_data: dict,
     ) -> None:
@@ -511,6 +582,7 @@ class TestMayaAdaptor_on_run:
 class TestMayaAdaptor_on_stop:
     @patch.object(MayaAdaptor, "_cleanup_arnold_dir")
     @patch("time.sleep")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._get_deadline_telemetry_client")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.ActionsQueue.__len__", return_value=0)
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
@@ -519,6 +591,7 @@ class TestMayaAdaptor_on_stop:
         mock_server: Mock,
         mock_logging_subprocess: Mock,
         mock_actions_queue: Mock,
+        mock_telemetry_client: Mock,
         mock_sleep: Mock,
         mock_cleanup_arnold: Mock,
         init_data: dict,
@@ -590,6 +663,7 @@ class TestMayaAdaptor_on_cleanup:
 
     @patch.object(MayaAdaptor, "_cleanup_arnold_dir")
     @patch("time.sleep")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._get_deadline_telemetry_client")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.ActionsQueue.__len__", return_value=0)
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
@@ -598,6 +672,7 @@ class TestMayaAdaptor_on_cleanup:
         mock_server: Mock,
         mock_logging_subprocess: Mock,
         mock_actions_queue: Mock,
+        mock_telemetry_client: Mock,
         mock_sleep: Mock,
         mock_cleanup_arnold: Mock,
         init_data: dict,
@@ -705,6 +780,22 @@ class TestMayaAdaptor_on_cleanup:
         # THEN
         assert match is not None
         assert str(adaptor._exc_info) == f"Maya Encountered an Error: {stdout}"
+
+    def test_handle_version(self, init_data: dict):
+        """Tests that the _handle_maya_version method returns the version correctly"""
+        # GIVEN
+        VERSION_CALLBACK_INDEX = 6
+        adaptor = MayaAdaptor(init_data)
+        regex_callbacks = adaptor._get_regex_callbacks()
+        complete_regex = regex_callbacks[VERSION_CALLBACK_INDEX].regex_list[0]
+
+        # WHEN
+        match = complete_regex.search("MayaClient: Maya Version 2023")
+        assert match is not None
+        adaptor._handle_maya_version(match)
+
+        # THEN
+        assert adaptor._maya_version == "2023"
 
     @patch.object(adaptor_module.shutil, "disk_usage")
     def test_license_handle_error(self, mock_disk_usage: Mock, init_data: dict) -> None:

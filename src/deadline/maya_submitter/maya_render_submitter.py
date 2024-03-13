@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 import maya.cmds  # pylint: disable=import-error
 
+from deadline.client.api import get_deadline_cloud_library_telemetry_client
 from deadline.client.job_bundle._yaml import deadline_yaml_dump
 from deadline.client.ui.dialogs.submit_job_to_deadline_dialog import (  # pylint: disable=import-error
     SubmitJobToDeadlineDialog,
@@ -35,7 +36,7 @@ from .render_layers import (
     LayerSelection,
 )
 from .cameras import get_renderable_camera_names, ALL_CAMERAS
-from ._version import version_tuple as adaptor_version_tuple
+from ._version import version, version_tuple as adaptor_version_tuple
 from .ui.components.scene_settings_tab import SceneSettingsWidget
 from deadline.client.job_bundle.submission import AssetReferences
 
@@ -650,6 +651,13 @@ def show_maya_render_submitter(parent, f=Qt.WindowFlags()) -> "Optional[SubmitJo
     # Need Maya and the Maya OpenJD application interface adaptor
     rez_packages = f"mayaIO-{maya_version} deadline_cloud_for_maya"
     conda_packages = f"maya={maya_version}.* maya-openjd={adaptor_version}.*"
+    # Initialize telemetry client, opt-out is respected
+    get_deadline_cloud_library_telemetry_client().update_common_details(
+        {
+            "deadline-cloud-for-maya-submitter-version": version,
+            "maya-version": maya_version,
+        }
+    )
     # Add any additional renderers that are used
     if "arnold" in all_renderers:
         rez_packages += " mtoa"
