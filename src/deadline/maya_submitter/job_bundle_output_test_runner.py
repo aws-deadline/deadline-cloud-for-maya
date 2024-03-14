@@ -208,7 +208,7 @@ def _run_job_bundle_output_test(test_dir: str, dcc_scene_file: str, report_fh, m
         _open_dcc_scene_file(temp_dcc_scene_file)
         QApplication.processEvents()
 
-        # Open the Amazon Deadline Cloud submitter
+        # Open the AWS Deadline Cloud submitter
         submitter = _show_deadline_cloud_submitter(mainwin)
         QApplication.processEvents()
 

@@ -1,4 +1,4 @@
-# Amazon Deadline Cloud for Maya
+# AWS Deadline Cloud for Maya
 
 This package has two active branches:
 
