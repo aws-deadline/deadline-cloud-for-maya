@@ -1,3 +1,12 @@
+## 0.13.1 (2024-03-15)
+
+
+### Features
+* add Renderman Handler (#98) ([`bca84a2`](https://github.com/casillas2/deadline-cloud-for-maya/commit/bca84a2afc92188e01d6556dc0bd54ed114268d3))
+
+### Chores
+* update deps deadline-cloud 0.40 (#116) ([`4d4da99`](https://github.com/casillas2/deadline-cloud-for-maya/commit/4d4da996352d66f5e53eb1a71cf78103811e9cc8))
+
 ## 0.13.0 (2024-03-08)
 
 ### BREAKING CHANGES
