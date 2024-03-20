@@ -62,7 +62,7 @@ def test_initialize_and_uninitialize_plugin(
         def __eq__(self, other: Any) -> bool:
             return bool(VersionMatcher.VERSION_REGEX.match(other))
 
-    mock_MFnPlugin.assert_called_once_with(plugin, "AWS Thinkbox", VersionMatcher())
+    mock_MFnPlugin.assert_called_once_with(plugin, "AWS", VersionMatcher())
 
     plugin_obj.registerCommand.assert_called_once_with(
         "DeadlineCloudSubmitter", mel_commands.DeadlineCloudSubmitterCmd
