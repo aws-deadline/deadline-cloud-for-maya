@@ -2,7 +2,9 @@
 
 import re
 
-from deadline.maya_submitter.utils import timed_func
+import pytest
+
+from deadline.maya_submitter.utils import join_paths, timed_func
 
 
 def test_timed_func(capsys):
@@ -33,3 +35,28 @@ def test_timed_func(capsys):
     )
     match = re.search(expected_re, output.out)
     assert match is not None
+
+
+@pytest.mark.parametrize(
+    ("first_path, second_path, expected_output"),
+    [
+        (
+            "test\\path",
+            "path\\",
+            "test/path/path/",
+        ),
+        (
+            "test",
+            "path",
+            "test/path",
+        ),
+        (
+            "test/path",
+            "path",
+            "test/path/path",
+        ),
+    ],
+)
+def test_join_paths(first_path: str, second_path: str, expected_output: str):
+    """Basic test to ensure backslash paths are replaced"""
+    assert join_paths(first_path, second_path) == expected_output

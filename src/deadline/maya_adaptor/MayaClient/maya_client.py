@@ -29,8 +29,10 @@ class MayaClient(HTTPClientInterface):
             }
         )
         import maya.standalone
+        import maya.cmds
 
         maya.standalone.initialize()
+        print(f"MayaClient: Maya Version {maya.cmds.about(version=True)}")
 
     def set_renderer(self, renderer: dict):
         render_handler = get_render_handler(renderer["renderer"])
