@@ -20,7 +20,7 @@ from deadline.maya_submitter import mel_commands, shelf  # type: ignore[import, 
 
 # Tells maya which version of their api to use.
 maya_useNewAPI = True
-VENDOR = "AWS Thinkbox"
+VENDOR = "AWS"
 VERSION = "0.6.0"
 
 __log__ = logging.getLogger("Deadline")
