@@ -20,6 +20,10 @@ mock_modules = [
     "PySide2.QtGui",
     "PySide2.QtWidgets",
     "mtoa.core",
+    "qtpy",
+    "qtpy.QtCore",
+    "qtpy.QtWidgets",
+    "qtpy.QtGui",
     "deadline.maya_submitter.ui.render_submitter",
 ]
 
