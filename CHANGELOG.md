@@ -1,3 +1,12 @@
+## 0.13.2 (2024-03-26)
+
+
+### Features
+* Add telemetry data to submitter and adaptor (#114) ([`d853496`](https://github.com/casillas2/deadline-cloud-for-maya/commit/d853496ce18659ef4cd041e8662274a57d0c2c40))
+
+### Bug Fixes
+* include deadline-cloud in the adaptor packaging script (#125) ([`fdd491d`](https://github.com/casillas2/deadline-cloud-for-maya/commit/fdd491dcadabf03edef9ed2e01ed9ad81b4f9227))
+
 ## 0.13.1 (2024-03-15)
 
 
