@@ -117,7 +117,8 @@ omit = [
   "**/__main__.py",
   "**/_version.py",
   "*/deadline/maya_submitter/ui/*",
-  "*/deadline/maya_submitter/shelf.py"
+  "*/deadline/maya_submitter/shelf.py",
+  "job_bundle_output_test_runner.py"
 ]
 
 

@@ -131,7 +131,7 @@ def run_maya_render_submitter_job_bundle_output_test():
     mainwin = _get_dcc_main_window()
     count_succeeded = 0
     count_failed = 0
-
+    test_job_bundle_results_file = ""
     with gui_error_handler(
         "Error running job bundle output test", mainwin
     ), _consistent_machine_settings():
@@ -178,11 +178,6 @@ def run_maya_render_submitter_job_bundle_output_test():
             report_fh.write("\n")
             if count_failed:
                 report_fh.write(f"Failed {count_failed} tests, succeeded {count_succeeded}.\n")
-                QMessageBox.warning(
-                    mainwin,
-                    "Some Job Bundle Tests Failed",
-                    f"Failed {count_failed} tests, succeeded {count_succeeded}.\nSee the file {test_job_bundle_results_file} for a full report.",
-                )
             else:
                 report_fh.write(f"All tests passed, ran {count_succeeded} total.\n")
                 QMessageBox.information(
@@ -191,6 +186,20 @@ def run_maya_render_submitter_job_bundle_output_test():
                     f"Success! Ran {count_succeeded} tests in total.",
                 )
             report_fh.write(f"Timestamp: {_timestamp_string()}\n")
+
+    # Repeat title info in body since macos does not show the window title
+    if count_failed:
+        QMessageBox.warning(
+            mainwin,
+            "Some Job Bundle Tests Failed",
+            f"Job Bundle Tests: Failed {count_failed}, succeeded {count_succeeded}.\nSee the file {test_job_bundle_results_file} for a full report.",
+        )
+    else:
+        QMessageBox.information(
+            mainwin,
+            "All Job Bundle Tests Passed",
+            f"Job Bundle Tests: All {count_succeeded} tests passed.",
+        )
 
 
 def _run_job_bundle_output_test(test_dir: str, dcc_scene_file: str, report_fh, mainwin: Any):
