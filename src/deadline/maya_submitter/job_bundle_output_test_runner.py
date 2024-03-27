@@ -213,10 +213,6 @@ def _run_job_bundle_output_test(test_dir: str, dcc_scene_file: str, report_fh, m
         # internal paths as necessary.
         _copy_dcc_scene_file(dcc_scene_file, temp_dcc_scene_file)
 
-        # this is saved with global prefs not the scene file, set it to default value
-        original_optionVar = maya.cmds.optionVar(query="renderSetup_includeAllLights")
-        maya.cmds.optionVar(intValue=("renderSetup_includeAllLights", 1))
-
         # Open the DCC scene file
         _open_dcc_scene_file(temp_dcc_scene_file)
         QApplication.processEvents()
@@ -239,9 +235,6 @@ def _run_job_bundle_output_test(test_dir: str, dcc_scene_file: str, report_fh, m
 
         # Close the DCC scene file
         _close_dcc_scene_file()
-
-        # set original optionVar value
-        maya.cmds.optionVar(intValue=("renderSetup_includeAllLights", original_optionVar))
 
         # Process every file in the job bundle to replace the temp dir with a standardized path
         for filename in os.listdir(temp_job_bundle_dir):
