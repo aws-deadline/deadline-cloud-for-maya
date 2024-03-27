@@ -42,7 +42,7 @@ class DeadlineCloudSubmitterCmd(om.MPxCommand):
             with gui_error_handler("Error opening the Deadline Cloud Submitter", mainwin):
                 logger = deadline_logger()
 
-                logger.info("Opening Amazon Deadline Cloud Submitter")
+                logger.info("Opening AWS Deadline Cloud Submitter")
                 scene_name = maya.cmds.file(query=True, sceneName=True)
                 if not scene_name:
                     maya.cmds.confirmDialog(

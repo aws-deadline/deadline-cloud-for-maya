@@ -8,7 +8,7 @@ sync = "pip install -r requirements-testing.txt"
 test = "pytest --cov-config pyproject.toml {args:test}"
 typing = "mypy {args:src test maya_submitter_plugin/plug-ins}"
 style = [
-  "ruff {args:.}",
+  "ruff check {args:.}",
   "black --check --diff {args:.}",
 ]
 fmt = [
@@ -19,6 +19,7 @@ lint = [
   "style",
   "typing",
 ]
+install = "python {root}/scripts/install_dev_submitter.py {args:}"
 
 [[envs.all.matrix]]
 python = ["3.7", "3.8", "3.9", "3.10", "3.11"]
@@ -26,6 +27,7 @@ python = ["3.7", "3.8", "3.9", "3.10", "3.11"]
 [envs.default.env-vars]
 PIP_INDEX_URL="https://aws:{env:CODEARTIFACT_AUTH_TOKEN}@{env:CODEARTIFACT_DOMAIN}-{env:CODEARTIFACT_ACCOUNT_ID}.d.codeartifact.{env:CODEARTIFACT_REGION}.amazonaws.com/pypi/{env:CODEARTIFACT_REPOSITORY}/simple/"
 SKIP_BOOTSTRAP_TEST_RESOURCES="True"
+MAYA_ENV_DIR="{root}/plugin_env"
 
 [envs.codebuild.scripts]
 build = "hatch build"
@@ -41,8 +43,9 @@ test = "pytest --no-cov {args:test/*/integ}"
 test = "pytest --no-cov {args:test/*/e2e}"
 
 [envs.release]
-pre-install-commands = [
-  "pip install -r requirements-release.txt"
+detached = true
+dependencies = [
+  "python-semantic-release == 8.7.*"
 ]
 
 [envs.release.scripts]

@@ -19,7 +19,8 @@
                 "mayaHardware2",
                 "mayaSoftware",
                 "mayaVector",
-                "vray"
+                "vray",
+                "renderman"
             ]
         },
         "scene_file": { "type": "string" },

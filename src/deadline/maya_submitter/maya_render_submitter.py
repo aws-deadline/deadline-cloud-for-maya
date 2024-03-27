@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 import maya.cmds  # pylint: disable=import-error
 
+from deadline.client.api import get_deadline_cloud_library_telemetry_client
 from deadline.client.job_bundle._yaml import deadline_yaml_dump
 from deadline.client.ui.dialogs.submit_job_to_deadline_dialog import (  # pylint: disable=import-error
     SubmitJobToDeadlineDialog,
@@ -35,7 +36,7 @@ from .render_layers import (
     LayerSelection,
 )
 from .cameras import get_renderable_camera_names, ALL_CAMERAS
-from ._version import version_tuple as adaptor_version_tuple
+from ._version import version, version_tuple as adaptor_version_tuple
 from .ui.components.scene_settings_tab import SceneSettingsWidget
 from deadline.client.job_bundle.submission import AssetReferences
 
@@ -64,8 +65,8 @@ def _get_job_template(
     settings: RenderSubmitterUISettings,
     renderers: set[str],
     render_layers: list[RenderLayerData],
-    all_layer_selectable_cameras,
-    current_layer_selectable_cameras,
+    all_layer_selectable_cameras: list[str],
+    current_layer_selectable_cameras: list[str],
 ) -> dict[str, Any]:
     job_template = deepcopy(default_job_template)
 
@@ -177,10 +178,12 @@ def _get_job_template(
 
     # If we're rendering a specific camera, add the Camera job parameter
     if settings.camera_selection != ALL_CAMERAS:
+        selectable_cameras: list[str]
         if settings.render_layer_selection == LayerSelection.ALL:
             selectable_cameras = all_layer_selectable_cameras
         else:
             selectable_cameras = current_layer_selectable_cameras
+
         camera_param = {
             "name": "Camera",
             "type": "STRING",
@@ -502,20 +505,19 @@ def show_maya_render_submitter(parent, f=Qt.WindowFlags()) -> "Optional[SubmitJo
     render_layers.sort(key=lambda layer: layer.display_name)
 
     # Tell the settings tab the selectable cameras when only the current layer is in the job
-    current_layer_selectable_cameras = get_renderable_camera_names()
+    current_layer_selectable_cameras: list[str] = get_renderable_camera_names()
     render_settings.current_layer_selectable_cameras = [ALL_CAMERAS] + sorted(
         current_layer_selectable_cameras
     )
 
     # Tell the settings tab the selectable cameras when all layers are in the job
-    all_layer_selectable_cameras = set(render_layers[0].renderable_camera_names)
+    all_layer_selectable_cameras_set: set[str] = set(render_layers[0].renderable_camera_names)
     for layer in render_layers:
-        all_layer_selectable_cameras = all_layer_selectable_cameras.intersection(
+        all_layer_selectable_cameras_set = all_layer_selectable_cameras_set.intersection(
             layer.renderable_camera_names
         )
-    render_settings.all_layer_selectable_cameras = [ALL_CAMERAS] + sorted(
-        all_layer_selectable_cameras
-    )
+    all_layer_selectable_cameras: list[str] = list(sorted(all_layer_selectable_cameras_set))
+    render_settings.all_layer_selectable_cameras = [ALL_CAMERAS] + all_layer_selectable_cameras
 
     all_renderers: set[str] = {layer_data.renderer_name for layer_data in render_layers}
 
@@ -594,12 +596,12 @@ def show_maya_render_submitter(parent, f=Qt.WindowFlags()) -> "Optional[SubmitJo
         renderers: set[str] = {layer_data.renderer_name for layer_data in submit_render_layers}
 
         job_template = _get_job_template(
-            default_job_template,
-            settings,
-            renderers,
-            submit_render_layers,
-            all_layer_selectable_cameras,
-            current_layer_selectable_cameras,
+            default_job_template=default_job_template,
+            settings=settings,
+            renderers=renderers,
+            render_layers=submit_render_layers,
+            all_layer_selectable_cameras=all_layer_selectable_cameras,
+            current_layer_selectable_cameras=current_layer_selectable_cameras,
         )
         parameter_values = _get_parameter_values(
             settings, renderers, submit_render_layers, queue_parameters
@@ -649,6 +651,13 @@ def show_maya_render_submitter(parent, f=Qt.WindowFlags()) -> "Optional[SubmitJo
     # Need Maya and the Maya OpenJD application interface adaptor
     rez_packages = f"mayaIO-{maya_version} deadline_cloud_for_maya"
     conda_packages = f"maya={maya_version}.* maya-openjd={adaptor_version}.*"
+    # Initialize telemetry client, opt-out is respected
+    get_deadline_cloud_library_telemetry_client().update_common_details(
+        {
+            "deadline-cloud-for-maya-submitter-version": version,
+            "maya-version": maya_version,
+        }
+    )
     # Add any additional renderers that are used
     if "arnold" in all_renderers:
         rez_packages += " mtoa"

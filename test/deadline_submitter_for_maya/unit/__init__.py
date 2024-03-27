@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 # we must mock maya and UI code
 mock_modules = [
-    "deadline.client.ui.deadline_credentials_status",
+    "deadline.client.ui.deadline_authentication_status",
     "maya",
     "maya.api",
     "maya.api.OpenMaya",
@@ -20,6 +20,10 @@ mock_modules = [
     "PySide2.QtGui",
     "PySide2.QtWidgets",
     "mtoa.core",
+    "qtpy",
+    "qtpy.QtCore",
+    "qtpy.QtWidgets",
+    "qtpy.QtGui",
     "deadline.maya_submitter.ui.render_submitter",
 ]
 

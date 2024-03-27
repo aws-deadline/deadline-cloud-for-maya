@@ -1,4 +1,4 @@
-# Amazon Deadline Cloud for Maya
+# AWS Deadline Cloud for Maya
 
 This package has two active branches:
 
@@ -43,9 +43,52 @@ hatch run fmt
 hatch run all:test
 ```
 
+## Use development Submitter in Maya
+
+```bash
+hatch run install
+hatch shell
+```
+Then launch Maya from that terminal.
+
+A development version of deadline-cloud-for-maya is then available to be loaded.
+
+## Compatibility
+
+This library requires:
+
+1. Python 3.9 or higher; and
+2. Linux, MacOS, or Windows operating system.
+
+## Versioning
+
+This package's version follows [Semantic Versioning 2.0](https://semver.org/), but is still considered to be in its 
+initial development, thus backwards incompatible versions are denoted by minor version bumps. To help illustrate how
+versions will increment during this initial development stage, they are described below:
+
+1. The MAJOR version is currently 0, indicating initial development. 
+2. The MINOR version is currently incremented when backwards incompatible changes are introduced to the public API. 
+3. The PATCH version is currently incremented when bug fixes or backwards compatible changes are introduced to the public API. 
+
+## Downloading
+
+You can download this package from:
+- [GitHub releases](https://github.com/casillas2/deadline-cloud-for-maya/releases)
+
 ## Security
 
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
+
+## Telemetry
+
+This library collects telemetry data by default. Telemetry events contain non-personally-identifiable information that helps us understand how users interact with our software so we know what features our customers use, and/or what existing pain points are.
+
+You can opt out of telemetry data collection by either:
+
+1. Setting the environment variable: `DEADLINE_CLOUD_TELEMETRY_OPT_OUT=true`
+2. Setting the config file: `deadline config set telemetry.opt_out true`
+
+Note that setting the environment variable supersedes the config file setting.
 
 ## License
 

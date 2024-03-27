@@ -3,6 +3,7 @@
 from .default_maya_handler import DefaultMayaHandler
 from .arnold_handler import ArnoldHandler
 from .vray_handler import VRayHandler
+from .renderman_handler import RenderManHandler
 
 __all__ = ["DefaultMayaHandler", "get_render_handler"]
 
@@ -21,5 +22,7 @@ def get_render_handler(renderer: str = "mayaSoftware") -> DefaultMayaHandler:
         return ArnoldHandler()
     elif renderer == "vray":
         return VRayHandler()
+    elif renderer == "renderman":
+        return RenderManHandler()
     else:
         return DefaultMayaHandler()

@@ -14,13 +14,17 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from openjd.adaptor_runtime.adaptors import Adaptor, AdaptorDataValidators
+from deadline.client.api import get_deadline_cloud_library_telemetry_client, TelemetryClient
+from openjd.adaptor_runtime._version import version as openjd_adaptor_version
+from openjd.adaptor_runtime.adaptors import Adaptor, AdaptorDataValidators, SemanticVersion
 from openjd.adaptor_runtime_client import Action
 from openjd.adaptor_runtime.adaptors.configuration import AdaptorConfiguration
 from openjd.adaptor_runtime.process import LoggingSubprocess
 from openjd.adaptor_runtime.app_handlers import RegexCallback, RegexHandler
 from openjd.adaptor_runtime.application_ipc import ActionsQueue, AdaptorServer
 from openjd.adaptor_runtime._utils import secure_open
+
+from .._version import version as adaptor_version
 
 _logger = logging.getLogger(__name__)
 
@@ -79,6 +83,12 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
     # If a thread raises an exception we will update this to raise in the main thread
     _exc_info: Exception | None = None
     _performing_cleanup = False
+    _maya_version: str = ""
+    _telemetry_client: TelemetryClient | None = None
+
+    @property
+    def integration_data_interface_version(self) -> SemanticVersion:
+        return SemanticVersion(major=0, minor=1)
 
     @staticmethod
     def _get_timer(timeout: int | float) -> Callable[[], bool]:
@@ -184,13 +194,16 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
             "and necessary write permissions of MAYA_APP_DIR."
         )
         _vray_license_error = "error: Could not obtain a license"
+        _renderman_license_error = ".*{SEVERE}\s+License.*"
         callback_list = []
         completed_regexes = [re.compile("MayaClient: Finished Rendering Frame [0-9]+")]
         progress_regexes = [
             re.compile("\\[PROGRESS\\] ([0-9]+) percent"),
             re.compile("([0-9]+)% done"),  # arnold
+            re.compile("R90000\\s+([0-9]+)%"),  # renderman
         ]
-        error_regexes = [re.compile(".*Exception:.*|.*Error:.*|.*Warning.*")]
+        error_regexes = [re.compile(".*Exception:.*|.*Error:.*|.*Warning.*|.*SEVERE.*")]
+        version_regexes = [re.compile("MayaClient: Maya Version ([0-9]+)")]
 
         callback_list.append(RegexCallback(completed_regexes, self._handle_complete))
         callback_list.append(RegexCallback(progress_regexes, self._handle_progress))
@@ -208,6 +221,11 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
                 )
             )
         callback_list.append(
+            RegexCallback(
+                [re.compile(_renderman_license_error)], self._handle_renderman_license_error
+            )
+        )
+        callback_list.append(
             RegexCallback([re.compile(_vray_license_error)], self._handle_vray_license_error)
         )
         callback_list.append(
@@ -216,6 +234,7 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
                 self._handle_license_error,
             )
         )
+        callback_list.append(RegexCallback(version_regexes, self._handle_maya_version))
 
         return callback_list
 
@@ -287,6 +306,33 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
             " Check your licensing configuration.\n"
         )
 
+    def _handle_renderman_license_error(self, match: re.Match) -> None:
+        """
+        Callback for stdout that indicates an license error with RenderMan.
+        Args:
+            match (re.Match): The match object from the regex pattern that was matched the message
+
+        Raises:
+            RuntimeError: Always raises a runtime error to halt the adaptor.
+        """
+        pixar_license_file = os.environ.get("PIXAR_LICENSE_FILE")
+        rmantree = os.environ.get("RMANTREE")
+        self._exc_info = RuntimeError(
+            f"{match.group(0)}\n"
+            "This error is typically associated with a licensing error "
+            "when using RenderMan. Check your licensing configuration.\n"
+            f"RMANTREE: {rmantree}\n"
+            f"PIXAR_LICENSE_FILE: {pixar_license_file}\n"
+        )
+
+    def _handle_maya_version(self, match: re.Match) -> None:
+        """
+        Callback for stdout that indicates the Maya version in use.
+        Args:
+            match (re.Match): The match object from the regex pattern that was matched the message
+        """
+        self._maya_version = match.groups()[0]
+
     @property
     def maya_client_path(self) -> str:
         """
@@ -330,9 +376,9 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
         deadline_namespace_dir = os.path.dirname(os.path.dirname(deadline.maya_adaptor.__file__))
         python_path_addition = f"{openjd_namespace_dir}{os.pathsep}{deadline_namespace_dir}"
         if "PYTHONPATH" in os.environ:
-            os.environ[
-                "PYTHONPATH"
-            ] = f"{os.environ['PYTHONPATH']}{os.pathsep}{python_path_addition}"
+            os.environ["PYTHONPATH"] = (
+                f"{os.environ['PYTHONPATH']}{os.pathsep}{python_path_addition}"
+            )
         else:
             os.environ["PYTHONPATH"] = python_path_addition
 
@@ -407,6 +453,10 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
         ):
             time.sleep(0.1)  # busy wait for maya to finish initialization
 
+        self._get_deadline_telemetry_client().record_event(
+            event_type="com.amazon.rum.deadline.adaptor.runtime.start", event_details={}
+        )
+
         if len(self._action_queue) > 0:
             if is_not_timed_out():
                 raise RuntimeError(
@@ -439,6 +489,9 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
             #  This is always an error case because the Maya Client should still be running and
             #  waiting for the next command. If the thread finished, then we cannot continue
             exit_code = self._maya_client.returncode
+            self._get_deadline_telemetry_client().record_error(
+                {"exit_code": exit_code, "exception_scope": "on_run"}, str(RuntimeError)
+            )
             raise RuntimeError(
                 "Maya exited early and did not render successfully, please check render logs. "
                 f"Exit code {exit_code}"
@@ -546,3 +599,18 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
         if self._arnold_temp_dir is not None:
             self._arnold_temp_dir.cleanup()
         self._arnold_temp_dir = None
+
+    def _get_deadline_telemetry_client(self):
+        """
+        Wrapper around the Deadline Client Library telemetry client, in order to set package-specific information
+        """
+        if not self._telemetry_client:
+            self._telemetry_client = get_deadline_cloud_library_telemetry_client()
+            self._telemetry_client.update_common_details(
+                {
+                    "deadline-cloud-for-maya-adaptor-version": adaptor_version,
+                    "maya-version": self._maya_version,
+                    "open-jd-adaptor-runtime-version": openjd_adaptor_version,
+                }
+            )
+        return self._telemetry_client

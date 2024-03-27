@@ -3,6 +3,7 @@
 """
 Defines the Render submitter command which is registered in Maya.
 """
+from contextlib import contextmanager
 import os
 import tempfile
 from unittest import mock
@@ -28,6 +29,24 @@ from .maya_render_submitter import show_maya_render_submitter
 
 
 # The following functions expose a DCC interface to the job bundle output test logic.
+
+
+@contextmanager
+def _consistent_machine_settings():
+    """Set all machine level options to be consistent across users performing job bundle test runs.
+    Re-apply old options on exit"""
+    try:
+        # setting renderSetup_includeAllLights to True, unless you know better
+        old_render_setup_include_all_lights: int = maya.mel.eval(
+            "optionVar -q renderSetup_includeAllLights"
+        )
+        maya.cmds.optionVar(intValue=("renderSetup_includeAllLights", int(True)))
+
+        yield
+    finally:
+        maya.cmds.optionVar(
+            intValue=("renderSetup_includeAllLights", old_render_setup_include_all_lights)
+        )
 
 
 def _get_dcc_main_window() -> Any:
@@ -113,7 +132,9 @@ def run_maya_render_submitter_job_bundle_output_test():
     count_succeeded = 0
     count_failed = 0
     test_job_bundle_results_file = ""
-    with gui_error_handler("Error running job bundle output test", mainwin):
+    with gui_error_handler(
+        "Error running job bundle output test", mainwin
+    ), _consistent_machine_settings():
         default_tests_dir = Path(__file__).parent.parent.parent.parent / "job_bundle_output_tests"
 
         tests_dir = QFileDialog.getExistingDirectory(
@@ -141,6 +162,11 @@ def run_maya_render_submitter_job_bundle_output_test():
                         f"Directory {job_bundle_test} does not contain the expected .ma scene: {dcc_scene_file}."
                     )
 
+                # skip renderman tests if rfm is not available
+                if "renderman" in dcc_scene_file:
+                    if not maya.cmds.pluginInfo("RenderMan_for_Maya.py", query=True, loaded=True):
+                        continue
+
                 succeeded = _run_job_bundle_output_test(
                     job_bundle_test, dcc_scene_file, report_fh, mainwin
                 )
@@ -154,6 +180,11 @@ def run_maya_render_submitter_job_bundle_output_test():
                 report_fh.write(f"Failed {count_failed} tests, succeeded {count_succeeded}.\n")
             else:
                 report_fh.write(f"All tests passed, ran {count_succeeded} total.\n")
+                QMessageBox.information(
+                    mainwin,
+                    "All Job Bundle Tests Passed",
+                    f"Success! Ran {count_succeeded} tests in total.",
+                )
             report_fh.write(f"Timestamp: {_timestamp_string()}\n")
 
     # Repeat title info in body since macos does not show the window title
@@ -190,7 +221,7 @@ def _run_job_bundle_output_test(test_dir: str, dcc_scene_file: str, report_fh, m
         _open_dcc_scene_file(temp_dcc_scene_file)
         QApplication.processEvents()
 
-        # Open the Amazon Deadline Cloud submitter
+        # Open the AWS Deadline Cloud submitter
         submitter = _show_deadline_cloud_submitter(mainwin)
         QApplication.processEvents()
 

@@ -1,7 +1,7 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
 """
-Creates or updates the Deadline shelf.
+Creates or updates the AWS Deadline shelf.
 """
 import os
 from contextlib import contextmanager
@@ -60,7 +60,7 @@ def build_shelf() -> None:
     """
     Builds the Deadline Maya Shelf.
     """
-    shelf_name = "Deadline"
+    shelf_name = "AWSDeadline"
 
     with _saved_shelf_selection() as g_shelf_top_level:
         # Create the Deadline shelf tab if it doesn't exist

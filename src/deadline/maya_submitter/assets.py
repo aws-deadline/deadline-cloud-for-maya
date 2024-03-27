@@ -27,6 +27,9 @@ class AssetIntrospector:
         # Grab tx files (if we need to)
         assets: set[Path] = set()
 
+        # Grab any yeti files
+        assets.update(self._get_yeti_files())
+
         if Scene.renderer() == RendererNames.arnold.value:
             assets.update(self._get_tx_files())
         elif Scene.renderer() == RendererNames.renderman.value:
@@ -46,6 +49,20 @@ class AssetIntrospector:
         assets.add(Path(Scene.name()))
 
         return assets
+
+    def _get_yeti_files(self) -> set[Path]:
+        """
+        If Yeti plugin nodes are in the scene, searches for fur cache files
+        Returns:
+            set[Path]: A set of yeti files
+        """
+        yeti_files: set[Path] = set()
+        cache_files = Scene.yeti_cache_files()
+        for cache_path in cache_files:
+            for expanded_path in self._expand_path(cache_path):
+                yeti_files.add(expanded_path)
+
+        return yeti_files
 
     def _get_tex_files(self) -> set[Path]:
         """
@@ -70,14 +87,16 @@ class AssetIntrospector:
                 full_path = os.path.join(directory, filename)
                 # Expand tags if any are present
                 for expanded_path in self._expand_path(full_path):
-                    # add the original texture
-                    filename_tex_set.add(expanded_path)
-                    try:
-                        # Returns a key error if the resource is not in tx manager
-                        filename_tex = get_texture_by_path(str(expanded_path), attribute)
-                        filename_tex_set.add(Path(filename_tex))
-                    except KeyError:
-                        pass
+                    # get_texture_by_path expects an attribute, not a node
+                    if "." in attribute:
+                        # add the original texture
+                        filename_tex_set.add(expanded_path)
+                        try:
+                            # Returns a key error if the resource is not in tx manager
+                            filename_tex = get_texture_by_path(str(expanded_path), attribute)
+                            filename_tex_set.add(Path(filename_tex))
+                        except KeyError:
+                            pass
 
         return filename_tex_set
 

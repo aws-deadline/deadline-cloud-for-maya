@@ -178,6 +178,16 @@ class Scene:
         else:
             return True
 
+    @staticmethod
+    def yeti_cache_files() -> list[str]:
+        files = []
+        nodes = maya.cmds.ls(type="pgYetiMaya")
+        for node in nodes:
+            cache_file = maya.cmds.getAttr("%s.cacheFileName" % node)
+            if cache_file:
+                files.append(cache_file)
+        return files
+
 
 @dataclass
 class FrameRange:

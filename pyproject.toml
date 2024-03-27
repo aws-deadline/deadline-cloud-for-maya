@@ -10,8 +10,8 @@ license = ""
 requires-python = ">=3.7"
 
 dependencies = [
-    "deadline == 0.37.*",
-    "openjd-adaptor-runtime == 0.4.*",
+    "deadline == 0.45.*",
+    "openjd-adaptor-runtime == 0.6.*",
 ]
 
 [project.scripts]
@@ -72,15 +72,13 @@ mypy_path = "src"
 module = ["maya.*","PySide2.*"]
 
 [tool.ruff]
-ignore = [
-  "E501",
-]
 line-length = 100
 
-[tool.ruff.isort]
-known-first-party = [
-  "deadline_worker_agent"
-]
+[tool.ruff.lint]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["deadline_worker_agent"]
 
 [tool.black]
 line-length = 100
@@ -137,7 +135,29 @@ fail_under = 44
 [tool.semantic_release]
 # Can be removed or set to true once we are v1
 major_on_zero = false
-tag_format = "v{version}"
+tag_format = "{version}"
+
+
+[tool.semantic_release.commit_parser_options]
+allowed_tags = [
+    "build",
+    "chore",
+    "ci",
+    "docs",
+    "feat",
+    "fix",
+    "perf",
+    "style",
+    "refactor",
+    "test",
+]
+minor_tags = []
+patch_tags = [
+  "chore",
+  "feat",
+  "fix",
+  "refactor",
+]
 
 [tool.semantic_release.publish]
 upload_to_vcs_release = false
