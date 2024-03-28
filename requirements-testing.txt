@@ -1,7 +1,7 @@
 deadline-cloud-test-fixtures == 0.5.*
 coverage[toml] == 7.*
 pytest == 8.*
-pytest-cov == 4.*
+pytest-cov == 5.*
 pytest-xdist == 3.*
 twine == 5.*
 mypy == 1.*
