@@ -114,7 +114,7 @@ else
         --platform $PYPI_PLATFORM \
         --python-version $PYTHON_VERSION \
         --ignore-installed \
-        --only-binary=:all: \
+        --no-deps \
         $RUNTIME_INSTALLABLE
 
     # Install these two at the same time otherwise they overwrite eachother
@@ -122,8 +122,8 @@ else
         --target $PACKAGEDIR \
         --platform $PYPI_PLATFORM \
         --python-version $PYTHON_VERSION \
+        --only-binary=:all: \
         --ignore-installed \
-        --no-deps \
         $ADAPTOR_INSTALLABLE $CLIENT_INSTALLABLE
 fi
 
