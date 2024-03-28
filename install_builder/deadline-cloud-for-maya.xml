@@ -1,7 +1,7 @@
 <component>
     <name>deadline_cloud_for_maya</name>
-    <description>Deadline Cloud for Maya 2023-2024</description>
-	<detailedDescription>Maya plugin for submitting jobs to AWS Deadline Cloud. Compatible with Maya 2023-2024.</detailedDescription>
+    <description>Deadline Cloud for Maya 2024</description>
+	<detailedDescription>Maya plugin for submitting jobs to AWS Deadline Cloud. Compatible with Maya 2024.</detailedDescription>
     <canBeEdited>1</canBeEdited>
     <selected>0</selected>
     <show>1</show>
@@ -72,8 +72,8 @@
 	</readyToInstallActionList>
 	<parameterList>
 		<stringParameter name="deadline_cloud_for_maya_summary" ask="0" cliOptionShow="0">
-			<value>Deadline Cloud for Maya 2023-2024
-- Compatible with Maya 2023-2024.
+			<value>Deadline Cloud for Maya 2024
+- Compatible with Maya 2024.
 - Install the integrated Maya submitter files to the installation directory.
 - Register the plug-in with Maya by creating or updating the MAYA_MODULE_PATH environment variable.</value>
 		</stringParameter>

@@ -6,8 +6,8 @@ build-backend = "hatchling.build"
 name = "deadline-cloud-for-maya"
 dynamic = ["version"]
 readme = "README.md"
-license = ""
-requires-python = ">=3.7"
+license = "Apache-2.0"
+requires-python = ">=3.9"
 
 dependencies = [
     "deadline == 0.45.*",
@@ -69,7 +69,11 @@ explicit_package_bases = true
 mypy_path = "src"
 
 [[tool.mypy.overrides]]
-module = ["maya.*","PySide2.*"]
+module = [
+  "maya.*",
+  "PySide2.*",
+  "qtpy.*"
+]
 
 [tool.ruff]
 line-length = 100
