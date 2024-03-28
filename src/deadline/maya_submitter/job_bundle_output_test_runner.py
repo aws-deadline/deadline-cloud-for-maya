@@ -132,9 +132,10 @@ def run_maya_render_submitter_job_bundle_output_test():
     count_succeeded = 0
     count_failed = 0
 
-    with gui_error_handler(
-        "Error running job bundle output test", mainwin
-    ), _consistent_machine_settings():
+    with (
+        gui_error_handler("Error running job bundle output test", mainwin),
+        _consistent_machine_settings(),
+    ):
         default_tests_dir = Path(__file__).parent.parent.parent.parent / "job_bundle_output_tests"
 
         tests_dir = QFileDialog.getExistingDirectory(
@@ -214,12 +215,18 @@ def _run_job_bundle_output_test(test_dir: str, dcc_scene_file: str, report_fh, m
 
         # Save the Job Bundle
         # Use patching to set the job bundle directory and skip the success messagebox
-        with mock.patch.object(
-            submit_job_to_deadline_dialog,
-            "create_job_history_bundle_dir",
-            return_value=temp_job_bundle_dir,
-        ), mock.patch.object(submit_job_to_deadline_dialog, "QMessageBox"), mock.patch.object(
-            os, "startfile", create=True  # only exists on win. Just create to avoid AttributeError
+        with (
+            mock.patch.object(
+                submit_job_to_deadline_dialog,
+                "create_job_history_bundle_dir",
+                return_value=temp_job_bundle_dir,
+            ),
+            mock.patch.object(submit_job_to_deadline_dialog, "QMessageBox"),
+            mock.patch.object(
+                os,
+                "startfile",
+                create=True,  # only exists on win. Just create to avoid AttributeError
+            ),
         ):
             submitter.on_export_bundle()
         QApplication.processEvents()
@@ -260,11 +267,10 @@ def _run_job_bundle_output_test(test_dir: str, dcc_scene_file: str, report_fh, m
                 if dcmp.right_only:
                     report_fh.write(f"Extra files: {dcmp.right_only}\n")
                 for file in dcmp.diff_files:
-                    with open(
-                        os.path.join(expected_job_bundle_dir, file), encoding="utf8"
-                    ) as fleft, open(
-                        os.path.join(test_job_bundle_dir, file), encoding="utf8"
-                    ) as fright:
+                    with (
+                        open(os.path.join(expected_job_bundle_dir, file), encoding="utf8") as fleft,
+                        open(os.path.join(test_job_bundle_dir, file), encoding="utf8") as fright,
+                    ):
                         diff = "".join(
                             difflib.unified_diff(
                                 list(fleft), list(fright), "expected/" + file, "test/" + file

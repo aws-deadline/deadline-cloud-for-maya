@@ -110,9 +110,10 @@ class TestMayaAdaptor_on_start:
         # GIVEN
         adaptor = MayaAdaptor(init_data)
 
-        with patch.object(adaptor, "_SERVER_START_TIMEOUT_SECONDS", 0.01), pytest.raises(
-            RuntimeError
-        ) as exc_info:
+        with (
+            patch.object(adaptor, "_SERVER_START_TIMEOUT_SECONDS", 0.01),
+            pytest.raises(RuntimeError) as exc_info,
+        ):
             # WHEN
             adaptor.on_start()
 
@@ -143,9 +144,10 @@ class TestMayaAdaptor_on_start:
         mock_server.return_value.server_path = "/tmp/9999"
         new_timeout = 0.01
 
-        with patch.object(adaptor, "_MAYA_START_TIMEOUT_SECONDS", new_timeout), pytest.raises(
-            TimeoutError
-        ) as exc_info:
+        with (
+            patch.object(adaptor, "_MAYA_START_TIMEOUT_SECONDS", new_timeout),
+            pytest.raises(TimeoutError) as exc_info,
+        ):
             # WHEN
             adaptor.on_start()
 
@@ -623,12 +625,14 @@ class TestMayaAdaptor_on_cleanup:
         # GIVEN
         adaptor = MayaAdaptor(init_data)
 
-        with patch(
-            "deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._maya_is_running",
-            new_callable=lambda: True,
-        ), patch.object(adaptor, "_MAYA_END_TIMEOUT_SECONDS", 0.01), patch.object(
-            adaptor, "_maya_client"
-        ) as mock_client:
+        with (
+            patch(
+                "deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._maya_is_running",
+                new_callable=lambda: True,
+            ),
+            patch.object(adaptor, "_MAYA_END_TIMEOUT_SECONDS", 0.01),
+            patch.object(adaptor, "_maya_client") as mock_client,
+        ):
             # WHEN
             adaptor.on_cleanup()
 
@@ -647,12 +651,14 @@ class TestMayaAdaptor_on_cleanup:
         # GIVEN
         adaptor = MayaAdaptor(init_data)
 
-        with patch(
-            "deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._maya_is_running",
-            new_callable=lambda: False,
-        ), patch.object(adaptor, "_SERVER_END_TIMEOUT_SECONDS", 0.01), patch.object(
-            adaptor, "_server_thread"
-        ) as mock_server_thread:
+        with (
+            patch(
+                "deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._maya_is_running",
+                new_callable=lambda: False,
+            ),
+            patch.object(adaptor, "_SERVER_END_TIMEOUT_SECONDS", 0.01),
+            patch.object(adaptor, "_server_thread") as mock_server_thread,
+        ):
             mock_server_thread.is_alive.return_value = True
             # WHEN
             adaptor.on_cleanup()
@@ -790,12 +796,12 @@ class TestMayaAdaptor_on_cleanup:
         complete_regex = regex_callbacks[VERSION_CALLBACK_INDEX].regex_list[0]
 
         # WHEN
-        match = complete_regex.search("MayaClient: Maya Version 2023")
+        match = complete_regex.search("MayaClient: Maya Version 2024")
         assert match is not None
         adaptor._handle_maya_version(match)
 
         # THEN
-        assert adaptor._maya_version == "2023"
+        assert adaptor._maya_version == "2024"
 
     @patch.object(adaptor_module.shutil, "disk_usage")
     def test_license_handle_error(self, mock_disk_usage: Mock, init_data: dict) -> None:
