@@ -15,9 +15,6 @@ from importlib import reload
 import maya.api.OpenMaya as om  # pylint: disable=import-error
 import maya.cmds
 
-import deadline.maya_submitter
-from deadline.maya_submitter import mel_commands, shelf  # type: ignore[import, no-redef]
-
 # Tells maya which version of their api to use.
 maya_useNewAPI = True
 VENDOR = "AWS"
@@ -53,6 +50,9 @@ def initializePlugin(plugin):
     """
     global _registered_mel_commands, _first_initialization
     try:
+        import deadline.maya_submitter
+        from deadline.maya_submitter import mel_commands, shelf  # type: ignore[import, no-redef]
+
         plugin_obj = om.MFnPlugin(plugin, VENDOR, VERSION)
 
         if _first_initialization:
@@ -80,12 +80,23 @@ def initializePlugin(plugin):
             shelf.build_shelf()
 
     except Exception as e:
-        maya.cmds.confirmDialog(
-            title="Deadline Cloud For Maya Plugin Failed To Load",
-            message=(
+        if isinstance(
+            e, ImportError
+        ) and "cannot import name 'ssl' from 'urllib3.util.ssl_'" in str(e.msg):
+            message = (
+                "Deadline Cloud Submitter could not load due to a known issue where Maya does not "
+                "link libssl and libcrypto on some operating systems. Please see the following link"
+                " for more information:\n"
+                "https://github.com/aws-deadline/deadline-cloud-for-maya/issues/133"
+            )
+        else:
+            message = (
                 "Encountered the following exception while loading the Deadline Cloud Submitter:\n"
                 f"{str(e)}"
-            ),
+            )
+        maya.cmds.confirmDialog(
+            title="Deadline Cloud For Maya Plugin Failed To Load",
+            message=message,
             button="OK",
             defaultButton="OK",
         )
@@ -98,10 +109,11 @@ def uninitializePlugin(plugin):
     """
     plugin_obj = om.MFnPlugin(plugin)
 
-    __log__ = deadline.maya_submitter.logger()
-
     for command_name in _registered_mel_commands:
         try:
+            import deadline.maya_submitter
+
+            __log__ = deadline.maya_submitter.logger()
             plugin_obj.deregisterCommand(command_name)
         except Exception:
             __log__.error(f"Failed to deregister command: {command_name}\n")

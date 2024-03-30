@@ -13,6 +13,7 @@ import pytest
 import deadline
 from deadline.maya_submitter import maya_render_submitter
 from deadline.maya_submitter import mel_commands
+from deadline.maya_submitter import shelf
 import DeadlineCloudForMaya
 
 Command = namedtuple("Command", ["name", "cmdCreator"])  # Mock Command Class
@@ -36,7 +37,7 @@ def test_reload_modules(mock_reload: Mock) -> None:
 @patch.object(om.MGlobal, "mayaState")
 @patch.object(om, "MFnPlugin")
 @patch.object(DeadlineCloudForMaya, "reload")
-@patch.object(deadline.maya_submitter.shelf, "build_shelf")
+@patch.object(shelf, "build_shelf")
 @patch.dict(os.environ, {"DEADLINE_ENABLE_DEVELOPER_OPTIONS": "False"})
 def test_initialize_and_uninitialize_plugin(
     mock_build_shelf: Mock,
