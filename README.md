@@ -7,7 +7,7 @@
 AWS Deadline Cloud for Maya is a python package that allows users to create [AWS Deadline Cloud][deadline-cloud] jobs from within Maya. Using the [Open Job Description (OpenJD) Adaptor Runtime][openjd-adaptor-runtime] this package also provides a command line application that adapts Maya's command line interface to support the [OpenJD specification][openjd].
 
 [deadline-cloud]: https://docs.aws.amazon.com/deadline-cloud/latest/userguide/what-is-deadline-cloud.html
-[deadline-cloud-client]: https://github.com/casillas2/deadline-cloud
+[deadline-cloud-client]: https://github.com/aws-deadline/deadline-cloud
 [openjd]: https://github.com/OpenJobDescription/openjd-specifications/wiki
 [openjd-adaptor-runtime]: https://github.com/OpenJobDescription/openjd-adaptor-runtime-for-python
 [openjd-adaptor-runtime-lifecycle]: https://github.com/OpenJobDescription/openjd-adaptor-runtime-for-python/blob/release/README.md#adaptor-lifecycle
