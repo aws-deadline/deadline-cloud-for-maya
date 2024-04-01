@@ -4,11 +4,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "deadline-cloud-for-maya"
+authors = [
+  {name = "Amazon Web Services"},
+]
+description = "The submitter and adaptor to enable Maya support for AWS Deadline Cloud"
 dynamic = ["version"]
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.9"
-description = "The submitter and adaptor to enable Maya support for AWS Deadline Cloud"
 # https://pypi.org/classifiers/
 classifiers = [
   "Development Status :: 5 - Production/Stable",
