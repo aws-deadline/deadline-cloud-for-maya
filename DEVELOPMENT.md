@@ -1,20 +1,51 @@
-# AWS Deadline Cloud for Maya Development
+# Development documentation
 
-**You will need to have your runtimes set up via `asdf` or `pyenv` to match your build platform to
-use `./build.sh` similarly to your build platform**
+This package has two active branches:
 
-## Building
+- `mainline` -- For active development. This branch is not intended to be consumed by other packages. Any commit to this branch may break APIs, dependencies, and so on, and thus break any consumer without notice.
+- `release` -- The official release of the package intended for consumers. Any breaking releases will be accompanied with an increase to this package's interface version.
 
-The build logic runs in `build.sh` which is relatively short
-and straightforward enough that we recommend you read it directly to update/modify your build process.
+## Build / Test / Release
 
-## Adding Dependencies
+### Build the package
 
-All of the testing and development dependencies are in the `setup.cfg` and are meant to be included idiomatically.
+```bash
+hatch build
+```
 
-## Testing
+### Run tests
 
-`./build.sh` will build and run `pytest`.
+```bash
+hatch run test
+```
+
+### Run linting
+
+```bash
+hatch run lint
+```
+
+### Run formatting
+
+```bash
+hatch run fmt
+```
+
+### Run tests for all supported Python versions
+
+```bash
+hatch run all:test
+```
+
+## Use development Submitter in Maya
+
+```bash
+hatch run install
+hatch shell
+```
+Then launch Maya from that terminal.
+
+A development version of deadline-cloud-for-maya is then available to be loaded.
 
 ## Submitter Development Workflow
 
