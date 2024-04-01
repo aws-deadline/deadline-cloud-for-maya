@@ -1,3 +1,16 @@
+## 0.14.0 (2024-04-01)
+
+### BREAKING CHANGES
+* publish release (#132) ([`cee87da`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/cee87dafd1af6afe3e076d9bf9f764df7f1f1e11))
+* set python 3.8 to minimum python version in hatch testing matrix (#132) ([`cee87da`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/cee87dafd1af6afe3e076d9bf9f764df7f1f1e11))
+
+
+### Bug Fixes
+* catch import errors, link to libssl issue (#134) ([`af79694`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/af79694799661ee9abbaae50c8e4d32981b3dda8))
+* include deps with openjd adaptor package (#129) ([`bb6882e`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/bb6882e83a8607245cf43fc1487b5182a941823c))
+* incorrect package name in create adaptor script (#128) ([`c616bf7`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/c616bf7edb0d14a1f16eec2d79486115831eaf2d))
+* include the adaptor deps in the package (#127) ([`d926ecf`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/d926ecf5911600e85f99964779c23e0e72135bd9))
+
 ## 0.13.2 (2024-03-26)
 
 
