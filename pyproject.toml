@@ -4,6 +4,9 @@ build-backend = "hatchling.build"
 
 [project]
 name = "deadline-cloud-for-maya"
+authors = [
+  {name = "Amazon Web Services"},
+]
 dynamic = ["version"]
 readme = "README.md"
 license = "Apache-2.0"
