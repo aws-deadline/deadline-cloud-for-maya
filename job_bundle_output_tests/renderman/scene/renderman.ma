@@ -4,10 +4,10 @@
 //Codeset: UTF-8
 file -rdi 1 -ns "scene_file_to_reference" -rfn "scene_file_to_referenceRN" -op
 		 "VERS|2023|UVER|undef|MADE|undef|CHNG|Wed, Aug 30, 2023 02:59:28 PM|ICON|undef|INFO|undef|OBJN|21|INCL|undef(|LUNI|cm|TUNI|film|AUNI|deg|TDUR|141120000|"
-		 -typ "mayaBinary" "/Users/rmvh/work/bealine/deadline-cloud-for-maya/job_bundle_output_tests/renderman/scene/scene_file_to_reference.mb";
+		 -typ "mayaBinary" "/Users/rmvh/work/deadline/deadline-cloud-for-maya/job_bundle_output_tests/renderman/scene/scene_file_to_reference.mb";
 file -r -ns "scene_file_to_reference" -dr 1 -rfn "scene_file_to_referenceRN" -op
 		 "VERS|2023|UVER|undef|MADE|undef|CHNG|Wed, Aug 30, 2023 02:59:28 PM|ICON|undef|INFO|undef|OBJN|21|INCL|undef(|LUNI|cm|TUNI|film|AUNI|deg|TDUR|141120000|"
-		 -typ "mayaBinary" "/Users/rmvh/work/bealine/deadline-cloud-for-maya/job_bundle_output_tests/renderman/scene/scene_file_to_reference.mb";
+		 -typ "mayaBinary" "/Users/rmvh/work/deadline/deadline-cloud-for-maya/job_bundle_output_tests/renderman/scene/scene_file_to_reference.mb";
 requires maya "2023";
 requires "stereoCamera" "10.0";
 requires -nodeType "rmanVolumeAggregateSet" "rfm_volume_aggregate_set.py" "1.0";
@@ -339,7 +339,7 @@ createNode materialInfo -n "materialInfo1";
 	rename -uid "B803D1DE-4EE6-CFD3-DEC1-BD90C863A0EA";
 createNode file -n "file1";
 	rename -uid "1BAA2EE5-46EB-ED01-BE45-9888E95529F2";
-	setAttr ".ftn" -type "string" "/Users/rmvh/work/bealine/deadline-cloud-for-maya/job_bundle_output_tests/renderman/scene/deadline_logo_48x48.png";
+	setAttr ".ftn" -type "string" "/Users/rmvh/work/deadline/deadline-cloud-for-maya/job_bundle_output_tests/renderman/scene/deadline_logo_48x48.png";
 	setAttr ".cs" -type "string" "sRGB";
 createNode place2dTexture -n "place2dTexture1";
 	rename -uid "CEF90DC0-44C4-11AF-47D0-97B5269B63A4";
@@ -1038,7 +1038,7 @@ createNode PxrTexture -n "PxrTexture1";
 	setAttr ".fzn" no;
 	setAttr ".ihi" 2;
 	setAttr ".nds" 0;
-	setAttr ".filename" -type "string" "/Users/rmvh/work/bealine/deadline-cloud-for-maya/job_bundle_output_tests/renderman/scene/deadline_logo_48x48.png";
+	setAttr ".filename" -type "string" "/Users/rmvh/work/deadline/deadline-cloud-for-maya/job_bundle_output_tests/renderman/scene/deadline_logo_48x48.png";
 	setAttr ".firstChannel" 0;
 	setAttr ".atlasStyle" 0;
 	setAttr ".invertT" yes;
