@@ -1,3 +1,9 @@
+## 0.14.1 (2024-05-01)
+
+### Dependencies
+* Update deadline requirement from ==0.47.* to ==0.48.* (#149) ([`2de6f48`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/2de6f48bc8eb57c85e14515af04528e5f0715485))
+
+
 ## 0.14.0 (2024-04-01)
 
 ### BREAKING CHANGES
