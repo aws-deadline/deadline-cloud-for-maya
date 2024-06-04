@@ -92,3 +92,7 @@ your build of the adaptor for the one in the service.
    ```
 
 3. Open the Maya integrated submitter, and in the Job-Specific Settings tab, enable the option 'Include Adaptor Wheels'. This option is only visible when the environment variable `DEADLINE_ENABLE_DEVELOPER_OPTIONS` is set to `true`. Then submit your test job.
+
+
+
+NOTE: The MayaAdaptor expects that the MayaPY executable is named `mayapy` and is set on the PATH. If this is not the case, you can set the `MAYA_ADAPTOR_MAYAPY_EXECUTABLE` environment variable to the path to the MayaPy executable.
