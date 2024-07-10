@@ -291,12 +291,6 @@ def _get_job_template(
                 + f"Actual: {wheels_path_package_names}"
             )
 
-        override_adaptor_wheels_param = [
-            param
-            for param in override_environment["parameterDefinitions"]
-            if param["name"] == "OverrideAdaptorWheels"
-        ][0]
-        override_adaptor_wheels_param["default"] = str(wheels_path)
         override_adaptor_name_param = [
             param
             for param in override_environment["parameterDefinitions"]
@@ -418,6 +412,9 @@ def _get_parameter_values(
 
     # If we're overriding the adaptor with wheels, remove the adaptor from the Packages parameters
     if settings.include_adaptor_wheels:
+        wheels_path = str(Path(__file__).parent.parent.parent.parent / "wheels")
+        parameter_values.append({"name": "OverrideAdaptorWheels", "value": wheels_path})
+
         rez_param = {}
         conda_param = {}
         # Find the Packages parameter definition
