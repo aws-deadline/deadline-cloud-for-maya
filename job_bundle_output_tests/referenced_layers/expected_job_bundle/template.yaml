@@ -1,0 +1,176 @@
+specificationVersion: jobtemplate-2023-09
+name: referenced_layers.ma
+parameterDefinitions:
+- name: MayaSceneFile
+  type: PATH
+  objectType: FILE
+  dataFlow: IN
+  userInterface:
+    control: CHOOSE_INPUT_FILE
+    label: Maya Scene File
+    groupLabel: Maya Settings
+    fileFilters:
+    - label: Maya Scene Files
+      patterns:
+      - '*.mb'
+      - '*.ma'
+    - label: All Files
+      patterns:
+      - '*'
+  description: The Maya scene file to render.
+- name: Frames
+  type: STRING
+  userInterface:
+    control: LINE_EDIT
+    label: Frames
+    groupLabel: Maya Settings
+  description: The frames to render. E.g. 1-3,8,11-15
+  minLength: 1
+- name: ProjectPath
+  type: PATH
+  objectType: DIRECTORY
+  dataFlow: NONE
+  userInterface:
+    control: CHOOSE_DIRECTORY
+    label: Project Path
+    groupLabel: Maya Settings
+  description: The Maya project path.
+- name: OutputFilePath
+  type: PATH
+  objectType: DIRECTORY
+  dataFlow: OUT
+  userInterface:
+    control: CHOOSE_DIRECTORY
+    label: Output File Path
+    groupLabel: Maya Settings
+  description: The render output path.
+- name: RenderSetupIncludeLights
+  type: STRING
+  userInterface:
+    control: CHECK_BOX
+    label: Include All Lights
+    groupLabel: Maya Settings
+  description: Include all lights in the render.
+  default: 'true'
+  allowedValues:
+  - 'true'
+  - 'false'
+- name: StrictErrorChecking
+  type: STRING
+  userInterface:
+    control: CHECK_BOX
+    label: Strict Error Checking
+    groupLabel: Maya Settings
+  description: Fail when errors occur.
+  default: 'false'
+  allowedValues:
+  - 'true'
+  - 'false'
+- name: OutputFilePrefix
+  type: STRING
+  userInterface:
+    control: LINE_EDIT
+    label: Output File Prefix
+    groupLabel: Maya Settings
+  description: The output filename prefix.
+- name: ImageWidth
+  type: INT
+  userInterface:
+    control: SPIN_BOX
+    label: Image Width
+    groupLabel: Maya Settings
+  minValue: 1
+  description: The image width of the output.
+- name: ImageHeight
+  type: INT
+  userInterface:
+    control: SPIN_BOX
+    label: Image Height
+    groupLabel: Maya Settings
+  minValue: 1
+  description: The image height of the output.
+- name: ArnoldErrorOnLicenseFailure
+  type: STRING
+  userInterface:
+    control: CHECK_BOX
+    label: Error on License Failure
+    groupLabel: Arnold Renderer Settings
+  description: Whether to produce an error when there is an Arnold license failure.
+  default: 'false'
+  allowedValues:
+  - 'true'
+  - 'false'
+steps:
+- name: masterLayer
+  parameterSpace:
+    taskParameterDefinitions:
+    - name: Frame
+      type: INT
+      range: '{{Param.Frames}}'
+    - name: Camera
+      type: STRING
+      range:
+      - persp
+  stepEnvironments:
+  - name: Maya
+    description: Runs Maya in the background.
+    script:
+      embeddedFiles:
+      - name: initData
+        filename: init-data.yaml
+        type: TEXT
+        data: |
+          renderer: arnold
+          render_layer: masterLayer
+          scene_file: '{{Param.MayaSceneFile}}'
+          project_path: '{{Param.ProjectPath}}'
+          output_file_path: '{{Param.OutputFilePath}}'
+          render_setup_include_lights: {{Param.RenderSetupIncludeLights}}
+          strict_error_checking: {{Param.StrictErrorChecking}}
+          output_file_prefix: '{{Param.OutputFilePrefix}}'
+          image_width: {{Param.ImageWidth}}
+          image_height: {{Param.ImageHeight}}
+          error_on_arnold_license_fail: {{Param.ArnoldErrorOnLicenseFailure}}
+      actions:
+        onEnter:
+          command: MayaAdaptor
+          args:
+          - daemon
+          - start
+          - --path-mapping-rules
+          - file://{{Session.PathMappingRulesFile}}
+          - --connection-file
+          - '{{Session.WorkingDirectory}}/connection.json'
+          - --init-data
+          - file://{{Env.File.initData}}
+          cancelation:
+            mode: NOTIFY_THEN_TERMINATE
+        onExit:
+          command: MayaAdaptor
+          args:
+          - daemon
+          - stop
+          - --connection-file
+          - '{{ Session.WorkingDirectory }}/connection.json'
+          cancelation:
+            mode: NOTIFY_THEN_TERMINATE
+  script:
+    embeddedFiles:
+    - name: runData
+      filename: run-data.yaml
+      type: TEXT
+      data: |
+        frame: {{Task.Param.Frame}}
+        camera: '{{Task.Param.Camera}}'
+    actions:
+      onRun:
+        command: MayaAdaptor
+        args:
+        - daemon
+        - run
+        - --connection-file
+        - '{{ Session.WorkingDirectory }}/connection.json'
+        - --run-data
+        - file://{{ Task.File.runData }}
+        cancelation:
+          mode: NOTIFY_THEN_TERMINATE

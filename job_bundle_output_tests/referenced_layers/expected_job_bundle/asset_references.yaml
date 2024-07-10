@@ -1,0 +1,11 @@
+assetReferences:
+  inputs:
+    directories: []
+    filenames:
+    - /normalized/job/bundle/dir/ref.ma
+    - /normalized/job/bundle/dir/referenced_layers.ma
+    - /normalized/job/bundle/dir/scene_file_to_reference.mb
+  outputs:
+    directories:
+    - /normalized/job/bundle/dir/images
+  referencedPaths: []
