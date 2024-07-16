@@ -57,12 +57,8 @@ class DefaultMayaHandler:
     def get_render_layer_to_render(self, data: dict) -> Optional[str]:
         display_name = data.get("render_layer")
         if display_name:
-            # get render manager
-            filter = maya.cmds.itemFilter(byType="renderLayerManager")
-            render_manager = maya.cmds.lsThroughFilter(filter)[0]
-            maya.cmds.delete(filter)
-
             # ignore referenced and disconnected layers
+            render_manager = maya.cmds.ls("renderLayerManager")[0]
             render_layer_map = {
                 _get_render_layer_display_name(name): name
                 for name in maya.cmds.ls(type="renderLayer")

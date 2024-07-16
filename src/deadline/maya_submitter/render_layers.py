@@ -26,12 +26,8 @@ def get_all_renderable_render_layer_names() -> List[str]:
     # Filter out any render layers that are referenced in other files,
     # because they cannot be set as the current render layer.
 
-    # get render manager
-    filter = maya.cmds.itemFilter(byType="renderLayerManager")
-    render_manager = maya.cmds.lsThroughFilter(filter)[0]
-    maya.cmds.delete(filter)
-
     # ignore referenced and disconnected layers
+    render_manager = maya.cmds.ls("renderLayerManager")[0]
     render_layer_names = [
         name
         for name in render_layer_names
