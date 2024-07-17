@@ -87,10 +87,10 @@ def _copy_dcc_scene_file(source_filename: str, dest_filename: str):
     # Find the internal scene path. Because Maya doesn't embed the absolute path of the
     # scene, we do this by requiring the following:
     # * Every <scene>.ma for a job bundle output test must contain a reference to a
-    #   file called `scene_file_to_reference.mb`, that can be an empty Maya scene.
+    #   file called `scene_file_to_reference.m?`, that can be an empty Maya scene.
     original_scene_dirname = None
     for line in scene_contents.splitlines():
-        match = re.match(r'.*"(.*)[/\\]scene_file_to_reference.mb".*', line)
+        match = re.match(r'.*"(.*)[/\\]scene_file_to_reference.m[ab]".*', line)
         if match:
             original_scene_dirname = match.group(1)
             break
