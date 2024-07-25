@@ -80,9 +80,14 @@ def _resolve_dependencies(local_deps: list[Path]) -> dict[str, str]:
     args = [
         "pipgrip",
         "--json",
-        *[dep.for_pip() for dep in flattened_dependency_list],
+        *[dep.spec for dep in flattened_dependency_list],
     ]
-    result = subprocess.run(args, check=True, capture_output=True, text=True)
+    try:
+        result = subprocess.run(args, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as e:
+        print(e.stderr)
+        print(e.stdout)
+        raise
     return json.loads(result.stdout)
 
 
