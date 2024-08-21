@@ -37,6 +37,7 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/aws-deadline/deadline-cloud-for-maya"
 Source = "https://github.com/aws-deadline/deadline-cloud-for-maya"
+Changelog = "https://github.com/aws-deadline/deadline-cloud-for-maya/blob/release/CHANGELOG.md"
 
 [project.scripts]
 maya-openjd = "deadline.maya_adaptor.MayaAdaptor:main"
