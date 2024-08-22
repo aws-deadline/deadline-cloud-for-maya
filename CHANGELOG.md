@@ -1,3 +1,11 @@
+## 0.14.2 (2024-08-22)
+
+
+
+### Bug Fixes
+* when listing layers make sure referenced layers are active. (#164) ([`bf16897`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/bf16897360018100e5ad5bb4b12781d9d72682c3))
+* adaptor wheel override (#162) ([`4ef10ce`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/4ef10ce306d231a6dc927165df5e70e1649338c6))
+
 ## 0.14.1 (2024-05-01)
 
 ### Dependencies
