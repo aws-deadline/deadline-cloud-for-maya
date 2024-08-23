@@ -32,26 +32,15 @@ def get_project_dict(project_path: Optional[Path] = None) -> dict[str, Any]:
 
 class Dependency:
     name: str
-    operator: Optional[str]
-    version: Optional[str]
+    spec: str
 
     def __init__(self, dep: str):
         components = dep.split(" ")
         self.name = components[0]
-        if len(components) > 2:
-            self.operator = components[1]
-            self.version = components[2]
-        else:
-            self.operator = None
-            self.version = None
-
-    def for_pip(self) -> str:
-        if self.operator is not None and self.version is not None:
-            return f"{self.name}{self.operator}{self.version}"
-        return self.name
+        self.spec = dep
 
     def __repr__(self) -> str:
-        return self.for_pip()
+        return self.spec
 
 
 def get_dependencies(pyproject_dict: dict[str, Any], include_adaptor=True) -> list[Dependency]:
