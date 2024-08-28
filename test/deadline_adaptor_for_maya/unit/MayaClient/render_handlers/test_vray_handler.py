@@ -32,8 +32,7 @@ class TestVrayHandler:
         handler.set_image_height(args)
 
         # THEN
-        assert mock_cmds.mock_calls
-        mock_cmds.setAttr.assert_called_with("vraySettings.height", args["image_height"])
+        assert handler.image_height == args["image_height"]
 
     @pytest.mark.parametrize("args", [{"image_width": 1500}])
     @patch("deadline.maya_adaptor.MayaClient.render_handlers.vray_handler.maya.cmds")
@@ -46,7 +45,7 @@ class TestVrayHandler:
         handler.set_image_width(args)
 
         # THEN
-        mock_cmds.setAttr.assert_called_with("vraySettings.width", args["image_width"])
+        assert handler.image_width == args["image_width"]
 
     @patch.object(maya.cmds, "pluginInfo")
     def test_no_vray(self, plguinInfo) -> None:

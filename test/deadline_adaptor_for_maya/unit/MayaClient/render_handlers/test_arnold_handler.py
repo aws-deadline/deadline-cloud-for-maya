@@ -34,7 +34,7 @@ class TestArnoldHandler:
         handler.set_image_height(args)
 
         # THEN
-        assert handler.render_kwargs["height"] == args["image_height"]
+        assert handler.image_height == args["image_height"]
 
     @pytest.mark.parametrize("args", [{"image_width": 1500}])
     def test_set_image_width(self, args: dict[str, Any]) -> None:
@@ -46,4 +46,4 @@ class TestArnoldHandler:
         handler.set_image_width(args)
 
         # THEN
-        assert handler.render_kwargs["width"] == args["image_width"]
+        assert handler.image_width == args["image_width"]

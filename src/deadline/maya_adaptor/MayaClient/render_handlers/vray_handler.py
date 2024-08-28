@@ -63,6 +63,29 @@ class VRayHandler(DefaultMayaHandler):
             raise RuntimeError("MayaClient: start_render called without a valid camera.")
         self.render_kwargs["camera"] = self.camera_name
 
+        # In order of preference, use the task's output_file_prefix, the step's output_file_prefix, or the scene file setting.
+        output_file_prefix = data.get("output_file_prefix", self.output_file_prefix)
+        if output_file_prefix:
+            maya.cmds.setAttr(
+                "defaultRenderGlobals.imageFilePrefix", output_file_prefix, type="string"
+            )
+
+        if self.image_width is not None:
+            maya.cmds.setAttr("vraySettings.width", self.image_width)
+            print(f"Set image width to {self.image_width}", flush=True)
+        if self.image_height is not None:
+            maya.cmds.setAttr("vraySettings.height", self.image_height)
+            print(f"Set image height to {self.image_height}", flush=True)
+
+        region = [
+            data.get(field)
+            for field in ("region_min_x", "region_max_x", "region_min_y", "region_max_y")
+        ]
+        if any(v is not None for v in region):
+            raise RuntimeError(
+                "MayaClient: A region render was specified, but region rendering support is not implemented for the selected renderer."
+            )
+
         if not self.vraySettingsNodeExists():
             raise RuntimeError(
                 "MayaClient: start_render called with missing vraySettings node in the scene."
@@ -95,28 +118,6 @@ class VRayHandler(DefaultMayaHandler):
 
         maya.cmds.vrend(**self.render_kwargs)
         print(f"MayaClient: Finished Rendering Frame {frame}\n", flush=True)
-
-    def set_image_height(self, data: dict) -> None:
-        """
-        Sets the image height.
-
-        Args:
-            data (dict): The data given from the Adaptor. Keys expected: ['image_height']
-        """
-        yresolution = int(data.get("image_height", 0))
-        if self.vraySettingsNodeExists():
-            maya.cmds.setAttr("vraySettings.height", yresolution)
-
-    def set_image_width(self, data: dict) -> None:
-        """
-        Sets the image width.
-
-        Args:
-            data (dict): The data given from the Adaptor. Keys expected: ['image_width']
-        """
-        xresolution = int(data.get("image_width", 0))
-        if self.vraySettingsNodeExists():
-            maya.cmds.setAttr("vraySettings.width", xresolution)
 
     def set_output_file_prefix(self, data: dict) -> None:
         """

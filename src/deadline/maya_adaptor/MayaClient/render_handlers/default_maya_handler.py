@@ -33,7 +33,10 @@ class DefaultMayaHandler:
             "render_setup_include_lights": self.set_render_setup_include_lights,
             "scene_file": self.set_scene_file,
         }
+        self.image_width = None
+        self.image_height = None
         self.camera_name = None
+        self.output_file_prefix = None
         self.render_kwargs = {}
 
     def get_camera_to_render(self, data: dict) -> list[str]:
@@ -94,8 +97,30 @@ class DefaultMayaHandler:
         maya.cmds.setAttr("defaultRenderGlobals.endFrame", frame)
 
         camera = self.get_camera_to_render(data)
-
         print(f"Rendering camera: {camera}", flush=True)
+
+        # In order of preference, use the task's output_file_prefix, the step's output_file_prefix, or the scene file setting.
+        output_file_prefix = data.get("output_file_prefix", self.output_file_prefix)
+        if output_file_prefix:
+            maya.cmds.setAttr(
+                "defaultRenderGlobals.imageFilePrefix", output_file_prefix, type="string"
+            )
+
+        if self.image_width is not None:
+            maya.cmds.setAttr("defaultResolution.width", self.image_width)
+            print(f"Set image width to {self.image_width}", flush=True)
+        if self.image_height is not None:
+            maya.cmds.setAttr("defaultResolution.height", self.image_height)
+            print(f"Set image height to {self.image_height}", flush=True)
+
+        region = [
+            data.get(field)
+            for field in ("region_min_x", "region_max_x", "region_min_y", "region_max_y")
+        ]
+        if any(v is not None for v in region):
+            raise RuntimeError(
+                "MayaClient: A region render was specified, but region rendering support is not implemented for the selected renderer."
+            )
 
         maya.cmds.render(camera, **self.render_kwargs)
 
@@ -120,9 +145,7 @@ class DefaultMayaHandler:
         Args:
             data (dict): The data given from the Adaptor. Keys expected: ['image_height']
         """
-        yresolution = int(data.get("image_height", 0))
-        if yresolution:
-            self.render_kwargs["yresolution"] = yresolution
+        self.image_height = data.get("image_height")
 
     def set_image_width(self, data: dict) -> None:
         """
@@ -131,9 +154,7 @@ class DefaultMayaHandler:
         Args:
             data (dict): The data given from the Adaptor. Keys expected: ['image_width']
         """
-        xresolution = int(data.get("image_width", 0))
-        if xresolution:
-            self.render_kwargs["xresolution"] = xresolution
+        self.image_width = data.get("image_width")
 
     def set_output_file_path(self, data: dict) -> None:
         """
@@ -153,9 +174,7 @@ class DefaultMayaHandler:
         Args:
             data (dict): The data given from the Adaptor. Keys expected: ['output_file_prefix']
         """
-        prefix = data.get("output_file_prefix")
-        if prefix:
-            maya.cmds.setAttr("defaultRenderGlobals.imageFilePrefix", prefix, type="string")
+        self.output_file_prefix = data.get("output_file_prefix")
 
     def set_path_mapping(self, data: dict) -> None:
         """
