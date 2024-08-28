@@ -22,7 +22,7 @@ class TestDefaultMayaHandler:
         mayahandlerbase.set_image_height(args)
 
         # THEN
-        assert mayahandlerbase.render_kwargs["yresolution"] == args["image_height"]
+        assert mayahandlerbase.image_height == args["image_height"]
 
     @pytest.mark.parametrize("args", [{"image_width": 1500}])
     def test_set_image_width(self, mayahandlerbase: DefaultMayaHandler, args: dict):
@@ -31,7 +31,7 @@ class TestDefaultMayaHandler:
         mayahandlerbase.set_image_width(args)
 
         # THEN
-        assert mayahandlerbase.render_kwargs["xresolution"] == args["image_width"]
+        assert mayahandlerbase.image_width == args["image_width"]
 
     set_render_layer_args = [
         (

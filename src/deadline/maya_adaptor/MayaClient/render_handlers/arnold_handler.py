@@ -24,7 +24,7 @@ class ArnoldHandler(DefaultMayaHandler):
             data (dict): The data given from the Adaptor. Keys expected: ['frame']
 
         Raises:
-            RuntimeError: If no camera was specified and no renderable camera was found
+            RuntimeError: If no camera was specified and no renderable camera was found. If a render region is partially specified.
         """
         frame = data.get("frame")
         if frame is None:
@@ -33,18 +33,42 @@ class ArnoldHandler(DefaultMayaHandler):
 
         self.render_kwargs["camera"] = self.get_camera_to_render(data)
 
-        if "width" not in self.render_kwargs:
-            self.render_kwargs["width"] = maya.cmds.getAttr("defaultResolution.width")
-            print(
-                f"No width was specified, defaulting to {self.render_kwargs['width']}",
-                flush=True,
+        # In order of preference, use the task's output_file_prefix, the step's output_file_prefix, or the scene file setting.
+        output_file_prefix = data.get("output_file_prefix", self.output_file_prefix)
+        if output_file_prefix:
+            maya.cmds.setAttr(
+                "defaultRenderGlobals.imageFilePrefix", output_file_prefix, type="string"
             )
-        if "height" not in self.render_kwargs:
-            self.render_kwargs["height"] = maya.cmds.getAttr("defaultResolution.height")
-            print(
-                f"No height was specified, defaulting to {self.render_kwargs['height']}",
-                flush=True,
-            )
+            print(f"Set imageFilePrefix to {output_file_prefix}", flush=True)
+
+        if self.image_width is not None:
+            maya.cmds.setAttr("defaultResolution.width", self.image_width)
+            print(f"Set image width to {self.image_width}", flush=True)
+        if self.image_height is not None:
+            maya.cmds.setAttr("defaultResolution.height", self.image_height)
+            print(f"Set image height to {self.image_height}", flush=True)
+
+        region = [
+            data.get(field)
+            for field in ("region_min_x", "region_max_x", "region_min_y", "region_max_y")
+        ]
+        if any(v is not None for v in region):
+            region_str = f"(minX={region[0]}, maxX={region[1]}, minY={region[2]}, maxY={region[3]})"
+
+            if any(v is None for v in region):
+                raise RuntimeError(
+                    f"MayaClient: Region bounds {region_str} must be fully defined or all empty, but were partially specified."
+                )
+
+            # Set the region render ranges
+            maya.cmds.setAttr("defaultArnoldRenderOptions.regionMinX", region[0])
+            maya.cmds.setAttr("defaultArnoldRenderOptions.regionMaxX", region[1])
+            maya.cmds.setAttr("defaultArnoldRenderOptions.regionMinY", region[2])
+            maya.cmds.setAttr("defaultArnoldRenderOptions.regionMaxY", region[3])
+
+            print(f"Set render region to {region_str}", flush=True)
+        else:
+            print("No region render", flush=True)
 
         # Set the arnold render type so that we don't just make .ass files, but the actual image
         maya.cmds.setAttr("defaultArnoldRenderOptions.renderType", 0)
@@ -81,25 +105,3 @@ class ArnoldHandler(DefaultMayaHandler):
         render_layer_name = self.get_render_layer_to_render(data)
         if render_layer_name:
             maya.cmds.editRenderLayerGlobals(currentRenderLayer=render_layer_name)
-
-    def set_image_height(self, data: dict) -> None:
-        """
-        Sets the image height.
-
-        Args:
-            data (dict): The data given from the Adaptor. Keys expected: ['image_height']
-        """
-        yresolution = int(data.get("image_height", 0))
-        if yresolution:
-            self.render_kwargs["height"] = yresolution
-
-    def set_image_width(self, data: dict) -> None:
-        """
-        Sets the image width.
-
-        Args:
-            data (dict): The data given from the Adaptor. Keys expected: ['image_width']
-        """
-        xresolution = int(data.get("image_width", 0))
-        if xresolution:
-            self.render_kwargs["width"] = xresolution

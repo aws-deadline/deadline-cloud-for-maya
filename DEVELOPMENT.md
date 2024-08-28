@@ -45,7 +45,7 @@ from any directory of this repository:
 * `hatch run lint` - To check that the package's formatting adheres to our standards.
 * `hatch run fmt` - To automatically reformat all code to adhere to our formatting standards.
 * `hatch shell` - Enter a shell environment that will have Python set up to import your development version of this package.
-* `hatch env prune` - Delete all of your isolated workspace [environments](https://hatch.pypa.io/1.12/environment/) 
+* `hatch env prune` - Delete all of your isolated workspace [environments](https://hatch.pypa.io/1.12/environment/)
    for this package.
 * `hatch run install` - Install the DeadlineCloudForMaya plugin from this repository into a temporary directory within this repository.
 
@@ -111,7 +111,7 @@ logic behaves as expected and that future changes do not accidentally break your
 To run the unit tests, simply use hatch:
 
 ```bash
-hatch test
+hatch run test
 ```
 
 ##### Integration Tests
@@ -147,7 +147,7 @@ To run the adaptor you will first need to create two files:
    during its initialization phase. The schema for this file can be found at
    `src/deadline/maya_adaptor/MayaAdaptor/schemas/init_data.schema.json`, and examples of init data can
    be found in the `template.yaml` files spread throughout this repository.
-2. A `run-data.yaml` (or `run-data.json`) file that contains the information passed to the adaptor 
+2. A `run-data.yaml` (or `run-data.json`) file that contains the information passed to the adaptor
    to do a single Task run. The schema for this file can be found at
    `src/deadline/maya_adaptor/MayaAdaptor/schemas/run_data.schema.json`, and examples of run data can
    be found in the `template.yaml` files spread throughout this repository.
@@ -207,7 +207,7 @@ maya-openjd daemon stop \
 If you have made modifications to the adaptor and wish to test your modifications on a live Deadline Cloud Farm
 with real jobs, then we recommend using a [Service Managed Fleet](https://docs.aws.amazon.com/deadline-cloud/latest/userguide/smf-manage.html)
 for your testing. We recommend performing this style of test if you have made any modifications that might interact with Deadline Cloud's
-job attachments feature, or that could interact with path mapping in any way. We have implemented a developer feature in the Maya submitter 
+job attachments feature, or that could interact with path mapping in any way. We have implemented a developer feature in the Maya submitter
 plug-in that submits the Python wheel files for your modified adaptor along with your job submission and uses the modified adaptor to
 run the submitted job.
 
@@ -248,5 +248,5 @@ logic behaves as expected and that future changes do not accidentally break your
 To run the unit tests, simply use hatch:
 
 ```bash
-hatch test
+hatch run test
 ```
