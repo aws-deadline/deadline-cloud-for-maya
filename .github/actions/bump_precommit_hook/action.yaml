@@ -1,0 +1,14 @@
+
+inputs:
+  semver:
+    required: true
+    type: string
+
+runs:
+  using: composite
+  steps:
+  - name: Update plugin Version
+    run: |
+      echo "+ deadline-cloud-for-maya ${{inputs.semver}} ." > ./maya_submitter_plugin/DeadlineCloudForMaya.mod
+
+      git add ./maya_submitter_plugin/DeadlineCloudForMaya.mod
