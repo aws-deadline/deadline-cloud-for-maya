@@ -36,8 +36,8 @@ that is displayed to the user. The important parts to know about in a job bundle
    Note: All job template files are currently derived from a standard static job template located at
    `src/deadline/maya_submitter/default_maya_job_template.yaml`.
 2. Asset references. These are the files that the job, when submitted, will require to be able to run. The submitter contains code
-   that introspects the scene that is loaded to automatically discover these, and the submitter UI allows the end-user to modify
-   the list of files.
+   that introspects the loaded scene to automatically discover these. The submitter plug-in's UI allows the end-user to modify this
+   list of files.
 
 The job submission itself is handled by functionality within the `deadline` package that is hooked up when the UI is created.
 
@@ -50,24 +50,23 @@ The implementation of the adaptor for Maya has two parts:
 1. The adaptor application itself whose code is located in `src/deadline/maya_adaptor/MayaAdaptor`. This is the
    implementation of the command-line application (named `maya-openjd`) that is run by Jobs created by the Maya submitter.
 2. A "MayaClient" application located in `src/deadline/maya_adaptor/MayaClient`. This is an application that is
-   run within Maya itself by the adaptor application when it launches Maya. The MayaClient facilitates communication
-   between the adaptor itself and the running Maya application; communication to tell Maya to, say, load a scene file,
-   or render frame 20 of the loaded scene.
+   run within Maya by the adaptor application when it launches Maya. The MayaClient remains running as long as the Maya
+   process is running. It facilitates communication between the adaptor process and the running Maya process; communication
+   to tell Maya to, say, load a scene file, or render frame 20 of the loaded scene.
 
-The adaptor application itself is built using the [Open Job Description Adaptor Runtime](https://github.com/OpenJobDescription/openjd-adaptor-runtime-for-python)
+The adaptor application is built using the [Open Job Description Adaptor Runtime](https://github.com/OpenJobDescription/openjd-adaptor-runtime-for-python)
 package. This package supplies the application entrypoint that defines and parses the command-line subcommands and options, as well as
 the business logic that drives the state machine of the adaptor itself. Please see the README for the runtime package for information on
 the lifecycle states of an adaptor, and the command line options that are available. 
 
 Digging through the code for the adaptor, you will find that the `MayaAdaptor.on_start()` method is where the Maya application is started.
-Rather than starting it with command-line options that say to render a specific scene, the application is started with arguments that 
-tell Maya to run the "MayaClient" application. This application is, essentially, a secure web server that is running over named pipes
-rather than network sockets. The adaptor sends the client commands (look for calls to `enqueue_action()` in the adaptor) to instruct Maya
-to do things, and then waits for the results of those actions to take effect. 
+The application is started with arguments that tell Maya to run the "MayaClient" application. This application is, essentially, a secure web
+server that is running over named pipes rather than network sockets. The adaptor sends the client commands (look for calls to `enqueue_action()`
+in the adaptor) to instruct Maya to do things, and then waits for the results of those actions to take effect. 
 
 You can see the definitions of the available commands, and the actions that they take by inspecting `src/deadline/MayaClient/maya_client.py`. You'll
 notice that the commands that it directly defines are minimal, and that the set of commands that are available is updated when the adaptor sends
-it a command to set the rendererer being used. Each renderer has its own command handler defined under `src/deadline/MayaClient/render_handlers`.
+it a command to set the renderer being used. Each renderer has its own command handler defined under `src/deadline/MayaClient/render_handlers`.
 
 The final thing to be aware of is that the adaptor defines a number of stdout/stderr handlers. These are registered when launching the Maya process
 via the `LoggingSubprocess` class. Each handler defines a regex that is compared against the output stream of Maya itself, and code that is run

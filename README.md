@@ -85,7 +85,7 @@ and the Maya executable be available on the PATH of the user that will be runnin
 The adaptor application is a command-line Python-based application that enhances the functionality of Maya for running
 within a render farm like Deadline Cloud. Its primary purpose for existing is to add a "sticky rendering" functionality
 where a single process instance of Maya is able to load the scene file and then dynamically be instructed to perform
-desired renders without needing to close and re-launch Maya between them, though it also supplies additional benefit
+desired renders without needing to close and re-launch Maya between them. It also has additional benefits
 such as support for path mapping, and reporting the progress of your render to Deadline Cloud. The alternative 
 to "sticky rendering" is that Maya would need to be run separately for each render that is done, and close afterwards.
 Some scenes can take 10's of minutes just to load for rendering, so being able to keep the application open and loaded between
@@ -99,10 +99,11 @@ The adaptor can be installed by the standard python packaging mechanisms:
 $ pip install deadline-cloud-for-maya
 ```
 
-After installation it can then you can test that it has been installed properly by running the following as the same
-user that runs your jobs:
+After installation, test that it has been installed properly by running the following as the same user that runs your jobs and
+that `maya` can be run as the same user:
 ```sh
 $ maya-openjd --help
+$ maya -help
 ```
 
 For more information on the commands the OpenJD adaptor runtime provides, see [here][openjd-adaptor-runtime-lifecycle].
@@ -114,15 +115,16 @@ AWS Deadline Cloud's [Service Managed Fleets](service-managed-fleets) to run job
 hosts do not have any rendering applications pre-installed. The standard way of accomplishing this is described
 [in the service documentation](https://docs.aws.amazon.com/deadline-cloud/latest/developerguide/provide-applications.html).
 You can find a list of the versions of Maya that are available by default 
-[in the user guide](https://docs.aws.amazon.com/deadline-cloud/latest/userguide/create-queue-environment.html#conda-queue-environment).
+[in the user guide](https://docs.aws.amazon.com/deadline-cloud/latest/userguide/create-queue-environment.html#conda-queue-environment)
+if you are using the default Conda queue enivonment in your setup.
 
-## Modifying Jobs Before Submitting
+## Viewing the Job Bundle that will be submitted
 
 To submit a job, the submitter first generates a [Job Bundle](job-bundle), and then uses functionality from the
-[Deadline](deadline-cloud-client) package to submit the Job Bundle to your render farm to run. If you need to modify
+[Deadline](deadline-cloud-client) package to submit the Job Bundle to your render farm to run. If you would like to see
 the job that will be submitted to your farm, then you can use the "Export Bundle" button in the submitter to export the
-Job Bundle to a location of your choice, modify that bundle, and then use the [Deadline Cloud application](deadline-cloud-client)
-to submit that bundle to your farm.
+Job Bundle to a location of your choice. If you want to submit the job from the export, rather than through the
+submitter plug-in then you can use the [Deadline Cloud application](deadline-cloud-client) to submit that bundle to your farm.
 
 [job-bundle]: https://docs.aws.amazon.com/deadline-cloud/latest/developerguide/build-job-bundle.html
 

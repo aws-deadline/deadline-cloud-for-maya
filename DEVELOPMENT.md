@@ -149,7 +149,7 @@ To run the adaptor you will first need to create two files:
    be found in the `template.yaml` files spread throughout this repository.
 2. A `run-data.yaml` (or `run-data.json`) file that contains the information passed to the adaptor 
    to do a single Task run. The schema for this file can be found at
-   `src/deadline/maya_adaptor/MayaAdaptor/schemas/run_data.schema.json`, and examples of init data can
+   `src/deadline/maya_adaptor/MayaAdaptor/schemas/run_data.schema.json`, and examples of run data can
    be found in the `template.yaml` files spread throughout this repository.
 
 To run the adaptor once you have created an `init-data.yaml` and `run-data.yaml` file to test with:
