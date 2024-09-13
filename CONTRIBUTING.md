@@ -72,10 +72,15 @@ To send us a pull request, please:
    If you also reformat all the code, it will be hard for us to focus on your change.
    Please see [DEVELOPMENT.md](./DEVELOPMENT.md) for tips.
 3. Ensure tests pass. Please see the [Testing](./DEVELOPMENT.md#testing) section for information on tests.
-4. Commit to your fork using clear commit messages. Note that all AWS Deadline Cloud GitHub repositories require the use
+4. **IMPORTANT**: Commit to your fork using clear commit messages. Note that all AWS Deadline Cloud GitHub repositories require the use
    of [conventional commit](#conventional-commits) syntax for the title of your commit.
-5. Send us a pull request, answering any default questions in the pull request interface.
-6. Pay attention to any automated CI failures reported in the pull request, and stay involved in the conversation.
+5. **IMPORTANT**: Ensure that your commit is signed for [Developer Certificate of Origin](https://github.com/apps/dco) (`git commit --amend -s`).
+   Be aware that your configured `user.email` value will be embedded in the commit message for all to see. We recommend that
+   you configure GitHub to [block pushes that expose your email](https://docs.github.com/en/account-and-profile/setting-up-and-managing-your-personal-account-on-github/managing-email-preferences/blocking-command-line-pushes-that-expose-your-personal-email-address),
+   [setup GitHub to keep your email private](https://docs.github.com/en/account-and-profile/setting-up-and-managing-your-personal-account-on-github/managing-email-preferences/setting-your-commit-email-address#setting-your-commit-email-address-on-github),
+   and use GitHub's provided noreply email address [as the `user.email` setting in git](https://docs.github.com/en/account-and-profile/setting-up-and-managing-your-personal-account-on-github/managing-email-preferences/setting-your-commit-email-address#setting-your-commit-email-address-in-git).
+6. Send us a pull request, answering any default questions in the pull request interface.
+7. Pay attention to any automated CI failures reported in the pull request, and stay involved in the conversation.
 
 GitHub provides additional documentation on [forking a repository](https://help.github.com/articles/fork-a-repo/) and
 [creating a pull request](https://help.github.com/articles/creating-a-pull-request/).
