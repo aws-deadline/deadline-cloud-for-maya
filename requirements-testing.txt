@@ -7,3 +7,4 @@ mypy == 1.*
 black == 24.*
 ruff == 0.4.*
 moto[s3,sts] == 5.*
+pipgrip == 0.10.*
