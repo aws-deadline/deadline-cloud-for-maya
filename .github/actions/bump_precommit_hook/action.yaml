@@ -8,6 +8,7 @@ runs:
   using: composite
   steps:
   - name: Update plugin Version
+    shell: bash
     run: |
       echo "+ deadline-cloud-for-maya ${{inputs.semver}} ." > ./maya_submitter_plugin/DeadlineCloudForMaya.mod
       sed -i "s/^VERSION =.*/VERSION = \"${{inputs.semver}}\"/" ./maya_submitter_plugin/plug-ins/DeadlineCloudForMaya.py
