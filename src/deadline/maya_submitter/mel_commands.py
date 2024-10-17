@@ -5,8 +5,8 @@ Defines the Render submitter command which is registered in Maya.
 """
 import maya.api.OpenMaya as om  # pylint: disable=import-error
 import maya.cmds
-from PySide2.QtCore import Qt  # pylint: disable=import-error
-from PySide2.QtWidgets import (  # pylint: disable=import-error; type: ignore
+from qtpy.QtCore import Qt  # pylint: disable=import-error
+from qtpy.QtWidgets import (  # pylint: disable=import-error; type: ignore
     QApplication,
 )
 
