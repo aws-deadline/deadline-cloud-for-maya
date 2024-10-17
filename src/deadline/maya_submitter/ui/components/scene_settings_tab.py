@@ -1,8 +1,9 @@
-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-import os
 
-from PySide2.QtCore import QSize, Qt  # type: ignore
-from PySide2.QtWidgets import (  # type: ignore
+import os
+from enum import Enum
+
+from qtpy.QtCore import QSize, Qt
+from qtpy.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFileDialog,
@@ -17,12 +18,9 @@ from PySide2.QtWidgets import (  # type: ignore
 )
 from deadline.client.ui import block_signals
 
-from ...render_layers import LayerSelection
-
-"""
-UI widgets for the Scene Settings tab.
-"""
-
+class LayerSelection(Enum):
+    ALL = "all"
+    CURRENT = "current"
 
 class FileSearchLineEdit(QWidget):
     """
@@ -30,20 +28,19 @@ class FileSearchLineEdit(QWidget):
     """
 
     def __init__(self, file_format=None, directory_only=False, parent=None):
-        super().__init__(parent=parent)
-
-        if directory_only and file_format is not None:
-            raise ValueError("")
+        super().__init__(parent)
 
         self.file_format = file_format
         self.directory_only = directory_only
 
+        if directory_only and file_format is not None:
+            raise ValueError("Cannot specify both directory_only and file_format")
+
         lyt = QHBoxLayout(self)
         lyt.setContentsMargins(0, 0, 0, 0)
-        lyt.setMargin(0)
 
         self.edit = QLineEdit(self)
-        self.btn = QPushButton("...", parent=self)
+        self.btn = QPushButton("...", self)
         self.btn.setMaximumSize(QSize(100, 40))
         self.btn.clicked.connect(self.get_file)
 
@@ -62,12 +59,12 @@ class FileSearchLineEdit(QWidget):
                 QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks,
             )
         else:
-            new_txt = QFileDialog.getOpenFileName(self, "Select File", self.edit.text())
+            new_txt, _ = QFileDialog.getOpenFileName(self, "Select File", self.edit.text(), self.file_format)
 
         if new_txt:
             self.edit.setText(new_txt)
 
-    def setText(self, txt: str) -> None:  # pylint: disable=invalid-name
+    def setText(self, txt: str) -> None:
         """
         Sets the text of the internal line edit
         """
@@ -79,27 +76,37 @@ class FileSearchLineEdit(QWidget):
         """
         return self.edit.text()
 
-
 class SceneSettingsWidget(QWidget):
     """
     Widget containing all top level scene settings.
     """
 
     def __init__(self, initial_settings, parent=None):
-        super().__init__(parent=parent)
+        super().__init__(parent)
+
+        if initial_settings is None:
+            raise ValueError("initial_settings cannot be None")
 
         self.developer_options = (
             os.environ.get("DEADLINE_ENABLE_DEVELOPER_OPTIONS", "").upper() == "TRUE"
         )
 
         # Save the two lists of selectable cameras
-        self.all_layer_selectable_cameras = initial_settings.all_layer_selectable_cameras
-        self.current_layer_selectable_cameras = initial_settings.current_layer_selectable_cameras
+        self.all_layer_selectable_cameras = getattr(initial_settings, 'all_layer_selectable_cameras', [])
+        self.current_layer_selectable_cameras = getattr(initial_settings, 'current_layer_selectable_cameras', [])
 
         self._build_ui(initial_settings)
         self._configure_settings(initial_settings)
 
     def _build_ui(self, settings):
+        if settings is None:
+            raise ValueError("settings cannot be None")
+
+        required_attrs = ['project_path', 'output_path', 'render_layer_selection', 'camera_selection']
+        for attr in required_attrs:
+            if not hasattr(settings, attr):
+                raise AttributeError(f"settings is missing required attribute: {attr}")
+
         lyt = QGridLayout(self)
         self.proj_path_txt = FileSearchLineEdit(directory_only=True, parent=self)
         lyt.addWidget(QLabel("Project Path"), 0, 0)
