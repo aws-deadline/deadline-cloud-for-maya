@@ -1,3 +1,12 @@
+## 0.14.3 (2024-10-17)
+
+
+### Features
+* Add the ability to specify a render region ([`419a06b`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/419a06b73b1b4914561e36e97c95a5e325c61762))
+
+### Bug Fixes
+* import HTTPClientInterface correctly on Windows (#184) ([`1208134`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/1208134b63d215b21ee86a4682ebc686079d3a21))
+
 ## 0.14.2 (2024-08-22)
 
 

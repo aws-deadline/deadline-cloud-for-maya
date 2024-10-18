@@ -10,11 +10,20 @@ from typing import Optional
 # so that importing just the adaptor_runtime_client should work.
 try:
     from adaptor_runtime_client import HTTPClientInterface  # type: ignore[import]
+except (ImportError, ModuleNotFoundError):
+    try:
+        from openjd.adaptor_runtime_client import HTTPClientInterface  # type: ignore[import]
+    except (ImportError, ModuleNotFoundError):
+        # TODO: Remove this try/except once we bump to openjd.adaptor_runtime_client 0.9+
+        # On Windows, HTTPClientInterface is not available, only ClientInterface
+        from openjd.adaptor_runtime_client import ClientInterface as HTTPClientInterface  # type: ignore[import]
+
+
+try:
     from maya_adaptor.MayaClient.render_handlers import (  # type: ignore[import]
         get_render_handler,
     )
 except (ImportError, ModuleNotFoundError):
-    from openjd.adaptor_runtime_client import HTTPClientInterface  # type: ignore[import]
     from deadline.maya_adaptor.MayaClient.render_handlers import (  # type: ignore[import]
         get_render_handler,
     )
