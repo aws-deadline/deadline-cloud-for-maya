@@ -177,6 +177,7 @@ fi
 PACKAGEVER=$(cd $PACKAGEDIR; echo deadline_cloud_for*)
 PACKAGEVER=${PACKAGEVER#*-}
 PACKAGEVER=${PACKAGEVER%+*}
+PACKAGEVER=${PACKAGEVER%.dist-info*}
 echo "Package version number is $PACKAGEVER"
 
 # Create the tar artifact
