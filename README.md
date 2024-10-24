@@ -4,9 +4,9 @@
 [![python](https://img.shields.io/pypi/pyversions/deadline-cloud-for-maya.svg?style=flat)](https://pypi.python.org/pypi/deadline-cloud-for-maya)
 [![license](https://img.shields.io/pypi/l/deadline-cloud-for-maya.svg?style=flat)](https://github.com/aws-deadline/deadline-cloud-for-maya/blob/mainline/LICENSE)
 
-AWS Deadline Cloud for Maya is a Python package that supports creating and running Audodesk Maya jobs within [AWS Deadline Cloud](deadline-cloud).
+AWS Deadline Cloud for Maya is a Python package that supports creating and running Audodesk Maya jobs within [AWS Deadline Cloud][deadline-cloud].
 It provides both the implementation of a Maya plug-in for your workstation that helps you offload the computation for your rendering workloads
-to [AWS Deadline Cloud](deadline-cloud) to free up your workstation's compute for other tasks, and the implementation of a command-line
+to [AWS Deadline Cloud][deadline-cloud] to free up your workstation's compute for other tasks, and the implementation of a command-line
 adaptor application based on the [Open Job Description (OpenJD) Adaptor Runtime][openjd-adaptor-runtime] that improves AWS Deadline Cloud's
 ability to run Maya efficiently on your render farm.
 
@@ -57,18 +57,18 @@ It automatically determines the files required based on the loaded scene, allows
 To install the submitter plug-in:
 
 1. Install the `deadline-cloud-for-maya` Python package, with `mayapy`, into the Maya installation on your workstation by following 
-   Maya's official online documentation (e.g. [For Maya 2024](maya-2024-mayapy)).
+   Maya's official online documentation (e.g. [For Maya 2024][maya-2024-mayapy]).
 2. Copy the contents of the 
    [`/maya_submitter_plugin` directory](https://github.com/aws-deadline/deadline-cloud-for-maya/tree/release/maya_submitter_plugin)
    from the release branch of [deadline-cloud-for-maya GitHub repository](https://github.com/aws-deadline/deadline-cloud-for-maya) into
    a directory in Maya's module search paths. See the `MAYA_MODULE_PATH` section of Maya's official documentation 
-   (e.g. [For Maya 2024](maya-2024-module-path)) for a list of the default search search paths on your system.
+   (e.g. [For Maya 2024][maya-2024-module-path]) for a list of the default search paths on your system.
 3. Within Maya, enable the DealineCloudForMaya plug-in in Maya's Plug-in Manager.
    (Main menu bar: Windows -> Settings/Preferences -> Plug-in Manager)
 4. To supply AWS account credentials for the submitter to use when submitting a job you can either:
-    1. [Install and set up the Deadline Cloud Monitor](deadline-cloud-monitor-setup), and then log in to the monitor. Logging in
+    1. [Install and set up the Deadline Cloud Monitor][deadline-cloud-monitor-setup], and then log in to the monitor. Logging in
        to the monitor will make AWS credentials available to the submitter, automatically.
-    2. Set up an AWS credentials profile [as you would for the AWS CLI](aws-cli-credentials), and select that profile for the submitter
+    2. Set up an AWS credentials profile [as you would for the AWS CLI][aws-cli-credentials], and select that profile for the submitter
        to use.
     3. Or default to your AWS EC2 instance profile credentials if you are running a workstation in the cloud.
 
@@ -91,7 +91,7 @@ to "sticky rendering" is that Maya would need to be run separately for each rend
 Some scenes can take 10's of minutes just to load for rendering, so being able to keep the application open and loaded between
 renders can be a significant time-saving optimization; particularly when the render itself is quick.
 
-If you are using the [default Queue Environment](default-queue-environment), or an equivalent, to run your jobs, then the adaptor will be
+If you are using the [default Queue Environment][default-queue-environment], or an equivalent, to run your jobs, then the adaptor will be
 automatically made available to your job. Otherwise, you will need to install the adaptor.
 
 The adaptor can be installed by the standard python packaging mechanisms:
@@ -111,7 +111,7 @@ For more information on the commands the OpenJD adaptor runtime provides, see [h
 ### Maya Software Availability in AWS Deadline Cloud Service Managed Fleets
 
 You will need to ensure that the version of Maya that you want to run is available on the worker host when you are using
-AWS Deadline Cloud's [Service Managed Fleets](service-managed-fleets) to run jobs;
+AWS Deadline Cloud's [Service Managed Fleets][service-managed-fleets] to run jobs;
 hosts do not have any rendering applications pre-installed. The standard way of accomplishing this is described
 [in the service documentation](https://docs.aws.amazon.com/deadline-cloud/latest/developerguide/provide-applications.html).
 You can find a list of the versions of Maya that are available by default 
@@ -120,11 +120,11 @@ if you are using the default Conda queue enivonment in your setup.
 
 ## Viewing the Job Bundle that will be submitted
 
-To submit a job, the submitter first generates a [Job Bundle](job-bundle), and then uses functionality from the
-[Deadline](deadline-cloud-client) package to submit the Job Bundle to your render farm to run. If you would like to see
+To submit a job, the submitter first generates a [Job Bundle][job-bundle], and then uses functionality from the
+[Deadline][deadline-cloud-client] package to submit the Job Bundle to your render farm to run. If you would like to see
 the job that will be submitted to your farm, then you can use the "Export Bundle" button in the submitter to export the
 Job Bundle to a location of your choice. If you want to submit the job from the export, rather than through the
-submitter plug-in then you can use the [Deadline Cloud application](deadline-cloud-client) to submit that bundle to your farm.
+submitter plug-in then you can use the [Deadline Cloud application][deadline-cloud-client] to submit that bundle to your farm.
 
 [job-bundle]: https://docs.aws.amazon.com/deadline-cloud/latest/developerguide/build-job-bundle.html
 
