@@ -70,8 +70,10 @@ def _get_job_template(
 ) -> dict[str, Any]:
     job_template = deepcopy(default_job_template)
 
-    # Set the job's name
+    # Set the job's name and description
     job_template["name"] = settings.name
+    if settings.description:
+        job_template["description"] = settings.description
 
     # If there are multiple frame ranges, split up the Frames parameter by layer
     if render_layers[0].frames_parameter_name:
