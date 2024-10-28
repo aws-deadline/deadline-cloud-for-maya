@@ -200,4 +200,4 @@ class SceneSettingsWidget(QWidget):
         """
         Set the activated/deactivated status of the Frame override text box
         """
-        self.frame_override_txt.setEnabled(state == Qt.Checked)
+        self.frame_override_txt.setEnabled(Qt.CheckState(state) == Qt.Checked)
