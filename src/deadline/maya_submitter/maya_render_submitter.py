@@ -18,7 +18,7 @@ from deadline.client.ui.dialogs.submit_job_to_deadline_dialog import (  # pylint
     JobBundlePurpose,
 )
 from deadline.client.exceptions import DeadlineOperationError
-from qtpy.QtCore import Qt  # pylint: disable=import-error
+from qtpy.QtCore import Qt  # type: ignore
 
 from . import Animation, Scene  # type: ignore
 from .assets import AssetIntrospector
