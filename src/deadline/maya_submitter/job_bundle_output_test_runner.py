@@ -16,7 +16,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 import maya.cmds
-from qtpy.QtWidgets import (  # pylint: disable=import-error; type: ignore
+from qtpy.QtWidgets import (  # type: ignore
     QApplication,
     QFileDialog,
     QMessageBox,
