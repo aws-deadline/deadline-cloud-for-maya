@@ -40,7 +40,6 @@ class FileSearchLineEdit(QWidget):
 
         lyt = QHBoxLayout(self)
         lyt.setContentsMargins(0, 0, 0, 0)
-        lyt.setMargin(0)
 
         self.edit = QLineEdit(self)
         self.btn = QPushButton("...", parent=self)

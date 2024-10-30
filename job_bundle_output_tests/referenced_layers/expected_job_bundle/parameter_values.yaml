@@ -16,7 +16,7 @@ parameterValues:
 - name: RenderSetupIncludeLights
   value: 'true'
 - name: ArnoldErrorOnLicenseFailure
-  value: 'false'
+  value: 'true'
 - name: deadline:targetTaskRunStatus
   value: READY
 - name: deadline:maxFailedTasksCount

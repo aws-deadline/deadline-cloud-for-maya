@@ -109,6 +109,7 @@ createNode renderLayer -n "defaultRenderLayer";
 	setAttr ".g" yes;
 createNode aiOptions -s -n "defaultArnoldRenderOptions";
 	rename -uid "9A138AC0-0948-F5B6-6486-93B7C51BB0B6";
+	setAttr ".abort_on_license_fail" yes;
 	setAttr ".version" -type "string" "5.1.0";
 createNode aiAOVFilter -s -n "defaultArnoldFilter";
 	rename -uid "34BABCDD-D041-35C1-8012-4E91D4182313";

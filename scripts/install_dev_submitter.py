@@ -18,6 +18,7 @@ class MayaVersion:
     PYTHON_VERSIONS = {
         "2023": "3.9",
         "2024": "3.10",
+        "2025": "3.11",
     }
 
     def __init__(self, arg_version: Optional[str]):
@@ -107,13 +108,27 @@ def _build_deps_env(destination: Path, python_version: str, local_deps: list[Pat
         "install",
         "--target",
         str(destination),
-        "--platform",
-        get_pip_platform(platform.system()),
         "--python-version",
         python_version,
         "--only-binary=:all:",
         *resolved_dependencies,
     ]
+    if python_version == "3.9":
+        # maya 2023 on mac relies on rosetta
+        # should probably swap to maya's pip to avoid specifying platform
+        args = [
+            "pip",
+            "install",
+            "--target",
+            str(destination),
+            "--platform",
+            get_pip_platform(platform.system()),
+            "--python-version",
+            python_version,
+            "--only-binary=:all:",
+            *resolved_dependencies,
+        ]
+
     subprocess.run(args, check=True)
 
 
