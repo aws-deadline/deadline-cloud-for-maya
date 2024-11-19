@@ -1,3 +1,14 @@
+## 0.14.4 (2024-11-19)
+
+
+### Features
+* add Maya 2025 submitter support (#183) ([`a4fc035`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/a4fc035ae96ceb8c97e11dad5db93bd896633e85))
+
+### Bug Fixes
+* maya 2025 submitter failed to load due to qt setMargin being removed (#192) ([`39ca5fc`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/39ca5fcec28d5d5c8cb0f5d05192c6043d528694))
+* frame override does not enable frame list in Maya 2025 (#190) ([`b054dd4`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/b054dd46a7f7ebc1f025798aa323d122d843f413))
+* include description in job submission (#188) ([`c279cfd`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/c279cfd7cce0b67b84af6c9e83847733cfb1dbb8))
+
 ## 0.14.3 (2024-10-17)
 
 
