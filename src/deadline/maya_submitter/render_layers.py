@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from enum import IntEnum
 from typing import List
 
+import maya.app.renderSetup.model.renderSetupPreferences as renderSetupPrefs  # type: ignore
 import maya.cmds
 import maya.mel
 
@@ -64,8 +65,10 @@ def render_setup_include_all_lights() -> bool:
     Returns whether a Render Layer should contain all lights in the scene automatically
     (machine level setting)
     """
-    # The maya.cmds.optionVar query did not work
-    return bool(maya.mel.eval("optionVar -q renderSetup_includeAllLights"))
+    try:
+        return renderSetupPrefs.IncludeAllLightsSetting.isEnabled()
+    except AttributeError:
+        return True
 
 
 @contextmanager
