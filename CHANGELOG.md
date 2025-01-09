@@ -1,3 +1,13 @@
+## 0.15.0 (2025-01-09)
+
+### BREAKING CHANGES
+* Allow specifying MAYAPY exe via environment (#200) ([`29634ca`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/29634ca1bbf070cbd9311329204ce09601e9a0b9))
+
+
+### Bug Fixes
+* **submitter**: read includeAllLights setting correctly (#207) ([`f5d0435`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/f5d0435d0548488622972324c9d5804d63f7aa8d))
+* fix README typos (#203) ([`d0594a8`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/d0594a8ca3dad6689691a7151a14a98aaa773b76))
+
 ## 0.14.4 (2024-11-19)
 
 
