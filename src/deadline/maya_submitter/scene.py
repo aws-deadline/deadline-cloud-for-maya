@@ -56,7 +56,7 @@ class Animation:
         """
         Returns the frame step of the current render.
         """
-        return int(maya.cmds.getAttr("defaultRenderGlobals.byFrame"))
+        return int(maya.cmds.getAttr("defaultRenderGlobals.byFrameStep"))
 
     @staticmethod
     def extension_padding() -> int:
