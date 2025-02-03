@@ -444,7 +444,9 @@ def _get_parameter_values(
     return parameter_values
 
 
-def show_maya_render_submitter(parent, f=Qt.WindowFlags()) -> "Optional[SubmitJobToDeadlineDialog]":
+def show_maya_render_submitter(
+    parent, f=Qt.WindowFlags(), load_sticky_setting: bool = False
+) -> Optional[SubmitJobToDeadlineDialog]:
     with open(Path(__file__).parent / "default_maya_job_template.yaml") as fh:
         default_job_template = yaml.safe_load(fh)
 
@@ -457,7 +459,8 @@ def show_maya_render_submitter(parent, f=Qt.WindowFlags()) -> "Optional[SubmitJo
     render_settings.output_path = Scene.output_path()
 
     # Load the sticky settings
-    render_settings.load_sticky_settings(Scene.name())
+    if load_sticky_setting:
+        render_settings.load_sticky_settings(Scene.name())
 
     # Create a dictionary for the layers, and accumulate data about each layer
     render_layer_names = get_all_renderable_render_layer_names()
