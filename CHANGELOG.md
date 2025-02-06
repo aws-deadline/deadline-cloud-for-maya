@@ -1,3 +1,8 @@
+## 0.15.1 (2025-02-03)
+
+* This release only includes documentation updates (#227) ([`e0a3827`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/e0a38272e6cab7dac27f0af8c7c64ce3a79189ae))
+
+
 ## 0.15.0 (2025-01-09)
 
 ### BREAKING CHANGES
