@@ -214,7 +214,7 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
                 RegexCallback(
                     [
                         re.compile(
-                            "(aborting render because the abort_on_license_fail option was enabled)"
+                            "(aborting render because (?:the abort_on_license_fail option was enabled|this is a batch render and abort_on_license_fail option is enabled))"
                         )
                     ],
                     self._handle_error,
