@@ -866,7 +866,9 @@ class TestMayaAdaptor_on_cleanup:
         init_data["error_on_arnold_license_fail"] = error_on_arnold_license_fail
         adaptor = MayaAdaptor(init_data)
         expected_regex_list = [
-            re.compile("(aborting render because (?:the abort_on_license_fail option was enabled|this is a batch render and abort_on_license_fail option is enabled))")
+            re.compile(
+                "(aborting render because (?:the abort_on_license_fail option was enabled|this is a batch render and abort_on_license_fail option is enabled))"
+            )
         ]
 
         # WHEN
