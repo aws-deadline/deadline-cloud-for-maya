@@ -130,7 +130,7 @@ class Scene:
         """
         Returns the base path to the project the current scene is in
         """
-        return maya.cmds.workspace(query=True, directory=True)
+        return maya.cmds.workspace(query=True, rootDirectory=True)
 
     @staticmethod
     def output_path() -> str:
@@ -140,9 +140,9 @@ class Scene:
         # This one didn't work translated to the maya.cmds equivalent
         image_rule = maya.mel.eval('workspace -q -fileRuleEntry "images"')
         if image_rule:
-            return os.path.join(maya.cmds.workspace(query=True, directory=True), image_rule)
+            return os.path.join(Scene.project_path(), image_rule)
         else:
-            return maya.cmds.workspace(query=True, directory=True)
+            return Scene.project_path()
 
     @staticmethod
     def autotx() -> bool:
