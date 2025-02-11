@@ -538,7 +538,10 @@ def show_maya_render_submitter(
             scene_name = maya.cmds.file(q=True, sn=True)
             button = maya.cmds.confirmDialog(
                 title="Warning: Scene Changes not Saved",
-                message=("Save scene to %s before submitting?" % scene_name),
+                message=(
+                    "The scene has unsaved local changes that will not be included in the job submission.\n\nDo you want to save the scene to %s before submitting?"
+                    % scene_name
+                ),
                 button=["Yes", "No"],
                 defaultButton="No",
                 cancelButton="No",
