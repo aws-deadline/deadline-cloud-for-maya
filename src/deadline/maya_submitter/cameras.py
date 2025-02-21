@@ -7,7 +7,7 @@ import maya.cmds
 Functionality for interacting with Cameras in a Maya scene.
 """
 
-ALL_CAMERAS = "All Cameras"
+ALL_CAMERAS = "All Renderable Cameras"
 
 
 def get_renderable_camera_names() -> list[str]:
