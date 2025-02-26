@@ -201,8 +201,22 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
             re.compile("\\[PROGRESS\\] ([0-9]+) percent"),
             re.compile("([0-9]+)% done"),  # arnold
             re.compile("R90000\\s+([0-9]+)%"),  # renderman
+            re.compile("V-Ray: +([0-9]+)%"),  #vray
+            re.compile("V-Ray: +([0-9]+) %"),  #vray
         ]
-        error_regexes = [re.compile(".*Exception:.*|.*Error:.*|.*Warning.*|.*SEVERE.*")]
+        error_regexes = [
+            re.compile( r"Frame rendering aborted.", re.IGNORECASE),
+            re.compile( r"Rendering was internally aborted", re.IGNORECASE),
+            re.compile( r'Cannot find procedure "rsPreference"', re.IGNORECASE),
+            re.compile( r"\[mtoa\] Failed batch render", re.IGNORECASE),
+            re.compile( r"Plug-in, \"mtoa\", was not found on MAYA_PLUG_IN_PATH", re.IGNORECASE),
+            re.compile( r".*V-Ray error: .*", re.IGNORECASE),
+            re.compile( r".*The system does not support the required CUDA compute capabilities.*", re.IGNORECASE),
+            re.compile( r".*Failed to init the CUDA driver API.*", re.IGNORECASE),
+            re.compile( r".*CUDA_ERROR_UNKNOWN.*", re.IGNORECASE),
+            re.compile( r"Render failed", re.IGNORECASE),
+            re.compile( r".*Exception:.*|.*Error:.*|.*Warning.*|.*SEVERE.*"),
+            ]
         version_regexes = [re.compile("MayaClient: Maya Version ([0-9]+)")]
 
         callback_list.append(RegexCallback(completed_regexes, self._handle_complete))
