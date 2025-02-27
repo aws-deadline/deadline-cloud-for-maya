@@ -202,8 +202,8 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
             re.compile("\\[PROGRESS\\] ([0-9]+) percent"),
             re.compile("([0-9]+)% done"),  # arnold
             re.compile("R90000\\s+([0-9]+)%"),  # renderman
-            re.compile("V-Ray: +([0-9]+)%"),  # vray
-            re.compile("V-Ray: +([0-9]+) %"),  # vray
+            re.compile("V-Ray: +(\d+)%"),  # vray
+            re.compile("V-Ray: +(\d+) %"),  # vray
         ]
         error_regexes = [
             re.compile(r"Frame rendering aborted.", re.IGNORECASE),
