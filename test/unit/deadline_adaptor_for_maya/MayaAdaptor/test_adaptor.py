@@ -727,9 +727,9 @@ class TestMayaAdaptor_on_cleanup:
     handle_progress_params = [
         (0, "[PROGRESS] 99 percent", 99),
         (1, " 45% done - 11 rays/pixel", 45),
-        (2, "R90000   24%", 24)
-        (3, "V-Ray: 55%", 55)
-        (4, "V-Ray: 30 %", 30),
+        (2, "R90000   24%", 24),
+        (3, "V-Ray: 55%", 55),
+        (4, "V-Ray: 30 %", 30)
     ]
 
     @pytest.mark.parametrize("regex_index, stdout, expected_progress", handle_progress_params)
