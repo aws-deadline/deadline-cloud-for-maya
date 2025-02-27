@@ -729,7 +729,7 @@ class TestMayaAdaptor_on_cleanup:
         (1, " 45% done - 11 rays/pixel", 45),
         (2, "R90000   24%", 24),
         (3, "V-Ray: 55%", 55),
-        (4, "V-Ray: 30 %", 30)
+        (4, "V-Ray: 30 %", 30),
     ]
 
     @pytest.mark.parametrize("regex_index, stdout, expected_progress", handle_progress_params)
@@ -847,18 +847,21 @@ class TestMayaAdaptor_on_cleanup:
         init_data["strict_error_checking"] = strict_error_checking
         adaptor = MayaAdaptor(init_data)
         error_regexes = [
-            re.compile( r"Frame rendering aborted.", re.IGNORECASE),
-            re.compile( r"Rendering was internally aborted", re.IGNORECASE),
-            re.compile( r'Cannot find procedure "rsPreference"', re.IGNORECASE),
-            re.compile( r"\[mtoa\] Failed batch render", re.IGNORECASE),
-            re.compile( r"Plug-in, \"mtoa\", was not found on MAYA_PLUG_IN_PATH", re.IGNORECASE),
-            re.compile( r".*V-Ray error: .*", re.IGNORECASE),
-            re.compile( r".*The system does not support the required CUDA compute capabilities.*", re.IGNORECASE),
-            re.compile( r".*Failed to init the CUDA driver API.*", re.IGNORECASE),
-            re.compile( r".*CUDA_ERROR_UNKNOWN.*", re.IGNORECASE),
-            re.compile( r"Render failed", re.IGNORECASE),
-            re.compile( r".*Exception:.*|.*Error:.*|.*SEVERE.*"),
-            ]
+            re.compile(r"Frame rendering aborted.", re.IGNORECASE),
+            re.compile(r"Rendering was internally aborted", re.IGNORECASE),
+            re.compile(r'Cannot find procedure "rsPreference"', re.IGNORECASE),
+            re.compile(r"\[mtoa\] Failed batch render", re.IGNORECASE),
+            re.compile(r"Plug-in, \"mtoa\", was not found on MAYA_PLUG_IN_PATH", re.IGNORECASE),
+            re.compile(r".*V-Ray error: .*", re.IGNORECASE),
+            re.compile(
+                r".*The system does not support the required CUDA compute capabilities.*",
+                re.IGNORECASE,
+            ),
+            re.compile(r".*Failed to init the CUDA driver API.*", re.IGNORECASE),
+            re.compile(r".*CUDA_ERROR_UNKNOWN.*", re.IGNORECASE),
+            re.compile(r"Render failed", re.IGNORECASE),
+            re.compile(r".*Exception:.*|.*Error:.*|.*SEVERE.*"),
+        ]
 
         # WHEN
         callbacks = adaptor._get_regex_callbacks()
