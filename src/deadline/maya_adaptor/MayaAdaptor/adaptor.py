@@ -216,7 +216,7 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
             re.compile( r".*Failed to init the CUDA driver API.*", re.IGNORECASE),
             re.compile( r".*CUDA_ERROR_UNKNOWN.*", re.IGNORECASE),
             re.compile( r"Render failed", re.IGNORECASE),
-            re.compile( r".*Exception:.*|.*Error:.*|.*Warning.*|.*SEVERE.*"),
+            re.compile( r".*Exception:.*|.*Error:.*|.*SEVERE.*"),
             ]
         version_regexes = [re.compile("MayaClient: Maya Version ([0-9]+)")]
 
