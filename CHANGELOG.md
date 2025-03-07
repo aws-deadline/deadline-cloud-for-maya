@@ -1,3 +1,13 @@
+## 0.15.2 (2025-03-06)
+
+### Bug Fixes
+* Changed the cameras dropdown wording option from "All Cameras" to "All Renderable Cameras" in the submitter ([`a6d983c`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/a6d983c76f2628d827693c78baa4ee78a2bb0c0d))
+* Tighten error regex pattern for Maya Adaptor. ([`67bbc97`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/67bbc970dbc6c6e4273127d8ecf7ae310735f4b9))
+* Use `byFrameStep` instead of `byFrame` (#224) ([`677137d`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/677137d6a67e18d1a787671dd134096a8df0b04a))
+* Update the warning message used when the scene has unsaved changes (#238) ([`c9b5e74`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/c9b5e7479e21c76184ba522e3cd983dd8b35a647))
+* OutputPath is read from the scene in the submitter (#231) ([`d77f474`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/d77f47491372abec3324410e0cd2eb7cbc68a7eb))
+* Load scene settings when the submitter is open (#229) ([`94ee920`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/94ee920f7a0707c5308a26fb33571c85c1af7555))
+
 ## 0.15.1 (2025-02-03)
 
 * This release only includes documentation updates (#227) ([`e0a3827`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/e0a38272e6cab7dac27f0af8c7c64ce3a79189ae))
