@@ -8,6 +8,7 @@ from collections import namedtuple
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import ANY, Mock, PropertyMock, patch
+from typing import List
 
 import pytest
 import jsonschema  # type: ignore
@@ -866,7 +867,9 @@ class TestMayaAdaptor_on_cleanup:
         init_data["error_on_arnold_license_fail"] = error_on_arnold_license_fail
         adaptor = MayaAdaptor(init_data)
         expected_regex_list = [
-            re.compile("(aborting render because the abort_on_license_fail option was enabled)")
+            re.compile(
+                "(aborting render because (?:the abort_on_license_fail option was enabled|this is a batch render and abort_on_license_fail option is enabled))"
+            )
         ]
 
         # WHEN
@@ -877,6 +880,35 @@ class TestMayaAdaptor_on_cleanup:
             any(expected_regex_list == regex_callback.regex_list for regex_callback in callbacks)
             == error_on_arnold_license_fail
         )
+
+    @pytest.mark.parametrize(
+        "message, should_match",
+        [
+            ("aborting render because the abort_on_license_fail option was enabled", True),
+            (
+                "aborting render because this is a batch render and abort_on_license_fail option is enabled",
+                True,
+            ),
+            ("aborting render because ", False),
+            ("aborting render because something else happened", False),
+        ],
+    )
+    def test_regex_for_error_on_arnold_license_fail(self, message: str, should_match: bool) -> None:
+        """
+        Tests that the regexes used to catch arnold license errors work as expected.
+        """
+        # GIVEN
+        regex_list = [
+            re.compile(
+                "(aborting render because (?:the abort_on_license_fail option was enabled|this is a batch render and abort_on_license_fail option is enabled))"
+            )
+        ]
+
+        # WHEN
+        results: List[bool] = [bool(regex.match(message)) for regex in regex_list]
+
+        # THEN
+        assert any(results) == should_match
 
     @pytest.mark.parametrize("adaptor_exc_info", [RuntimeError("Something Bad Happened!"), None])
     def test_has_exception(self, init_data: dict, adaptor_exc_info: Exception | None) -> None:
