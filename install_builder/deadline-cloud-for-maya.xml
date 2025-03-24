@@ -13,7 +13,7 @@
             <platforms>all</platforms>
             <distributionFileList>
                 <distributionDirectory allowWildcards="1">
-                    <origin>components/deadline-cloud-for-maya/maya_submitter_plugin/*</origin>
+                    <origin>../maya_submitter_plugin/*</origin>
                 </distributionDirectory>
             </distributionFileList>
         </folder>
@@ -24,7 +24,7 @@
             <platforms>all</platforms>
             <distributionFileList>
                 <distributionDirectory allowWildcards="1">
-                    <origin>components/deadline-cloud-for-maya/src/deadline/maya_submitter/*</origin>
+                    <origin>../src/deadline/maya_submitter/*</origin>
                 </distributionDirectory>
             </distributionFileList>
         </folder>
@@ -35,7 +35,7 @@
              <platforms>all</platforms>
              <distributionFileList>
                  <distributionDirectory allowWildcards="1">
-                     <origin>components/deadline-cloud-for-maya/dependency_bundle</origin>
+                     <origin>../dependency_bundle</origin>
                  </distributionDirectory>
              </distributionFileList>
          </folder>
@@ -44,7 +44,17 @@
 		<setInstallerVariable name="all_components" value="${all_components} deadline_cloud_for_maya"/>
 	</initializationActionList>
 	<readyToInstallActionList>
-		<setInstallerVariable name="maya_installdir" value="${installdir}/Submitters/Maya"/>
+        <if>
+            <conditionRuleList>
+                <isTrue value="${individual_install}"/>
+            </conditionRuleList>
+            <actionList>
+                <setInstallerVariable name="maya_installdir" value="${installdir}/"/>
+            </actionList>
+            <elseActionList>
+                <setInstallerVariable name="maya_installdir" value="${installdir}/Submitters/Maya"/>
+            </elseActionList>
+        </if>
         <if>
              <conditionRuleList>
                  <platformTest type="windows"/>

@@ -18,7 +18,9 @@ See [DEVELOPMENT.md](https://github.com/aws-deadline/deadline-cloud-for-maya/blo
 - Have you run the unit tests?
 *delete text ending here*
 
-### Did you run the "Job Bundle Output Tests"? If not, why not? If so, paste the test results here.
+#### If `installer/` was modified or a file was added/removed from `src/`, then update the installer tests and post the test results below
+
+#### Did you run the "Job Bundle Output Tests"? If not, why not? If so, paste the test results here.
 
 *delete text starting here*
 See the "Integration Tests" subsection of the
@@ -29,6 +31,7 @@ section of DEVELOPMENT.md for information on these tests.
 Required: paste the contents of job_bundle_output_tests/test-job-bundle-results.txt here
 ```
 *delete text ending here*
+
 
 ### Was this change documented?
 

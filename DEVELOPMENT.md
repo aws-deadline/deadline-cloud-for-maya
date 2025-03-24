@@ -14,6 +14,10 @@ Table of Contents:
       * [Running the Adaptor Locally](#running-the-adaptor-locally)
       * [Running the Adaptor on a Farm](#running-the-adaptor-on-a-farm)
       * [Testing the Adaptor](#testing-the-adaptor)
+   * [Submitter Installer Development Workflow](#submitter-installer-development-workflow)
+      * [Build the package](#build-the-package)
+      * [Build the installer](#build-the-installer)
+      * [Test a local installer](#test-a-local-installer)
 
 ## Development Environment Setup
 
@@ -48,6 +52,7 @@ from any directory of this repository:
 * `hatch env prune` - Delete all of your isolated workspace [environments](https://hatch.pypa.io/1.12/environment/)
    for this package.
 * `hatch run install` - Install the DeadlineCloudForMaya plugin from this repository into a temporary directory within this repository.
+* `hatch run build-installer` - To build the submitter installer for Maya into the root directory
 
 Note: Hatch uses [environments](https://hatch.pypa.io/1.12/environment/) to isolate the Python development workspace
 for this package from your system or virtual environment Python. If your build/test run is not making sense, then
@@ -249,4 +254,26 @@ To run the unit tests, simply use hatch:
 
 ```bash
 hatch run test
+```
+
+### Submitter Installer Development Workflow
+#### Build the package
+
+```bash
+hatch run build
+```
+
+#### Build the installer
+
+```bash
+hatch run build-installer --local-dev-build --platform <PLATFORM> [--install-builder-location <LOCATION> --output-dir <DIR>]
+```
+
+Run `hatch run build-installer -h` to see the full list of arguments.
+
+
+
+#### Test a local installer
+```bash
+hatch run test-installer
 ```
