@@ -52,7 +52,7 @@ from any directory of this repository:
 * `hatch env prune` - Delete all of your isolated workspace [environments](https://hatch.pypa.io/1.12/environment/)
    for this package.
 * `hatch run install` - Install the DeadlineCloudForMaya plugin from this repository into a temporary directory within this repository.
-* `hatch run build-installer` - To build the submitter installer for Maya into the root directory
+* `hatch run installer:build-installer` - To build the submitter installer for Maya into the root directory
 
 Note: Hatch uses [environments](https://hatch.pypa.io/1.12/environment/) to isolate the Python development workspace
 for this package from your system or virtual environment Python. If your build/test run is not making sense, then
