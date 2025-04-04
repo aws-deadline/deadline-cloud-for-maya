@@ -686,6 +686,13 @@ def show_maya_render_submitter(
     introspector = AssetIntrospector()
     print(f"Asset introspector initialized at {time.time()}")
 
+    normalized_paths = [os.path.normpath(path) for path in introspector.parse_scene_assets()]
+    for path in normalized_paths:
+        if os.path.exists(path) and os.path.isdir(path):
+            auto_detected_attachments.input_directories.add(path)
+        else:
+            auto_detected_attachments.input_filenames.add(path)
+
     update_progress("Analyzing scene assets...")
     scene_assets = list(introspector.parse_scene_assets(progress_callback=update_progress))
     total_assets = len(scene_assets)

@@ -63,6 +63,7 @@ def findAllFilesForPattern(pattern: str, frameNumber: int) -> list[str]:
         if frameNumber is not None:
             # _patternToRegex handles frame tokens, but this is for only finding files for a specific frame
             basename = basename.replace("<f>", "0*" + str(frameNumber))
+            basename = basename.replace("<frame>", "0*" + str(frameNumber))
         regex = _patternToRegex(basename)
         result = [
             os.path.join(dirname, f)
