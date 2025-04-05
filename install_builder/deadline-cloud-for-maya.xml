@@ -1,3 +1,4 @@
+<!-- Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved. --><!-- Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved. -->
 <component>
     <name>deadline_cloud_for_maya</name>
     <description>Deadline Cloud for Maya 2024 - 2025</description>
@@ -55,30 +56,6 @@
                 <setInstallerVariable name="maya_installdir" value="${installdir}/Submitters/Maya"/>
             </elseActionList>
         </if>
-        <if>
-             <conditionRuleList>
-                 <platformTest type="windows"/>
-             </conditionRuleList>
-             <actionList>
-                 <setInstallerVariable name="maya_deps_platform" value="windows"/>
-             </actionList>
-         </if>
-         <if>
-             <conditionRuleList>
-                 <platformTest type="linux"/>
-             </conditionRuleList>
-             <actionList>
-                 <setInstallerVariable name="maya_deps_platform" value="linux"/>
-             </actionList>
-         </if>
-         <if>
-             <conditionRuleList>
-                 <platformTest type="osx"/>
-             </conditionRuleList>
-             <actionList>
-                 <setInstallerVariable name="maya_deps_platform" value="macos"/>
-             </actionList>
-         </if>
 	</readyToInstallActionList>
 	<parameterList>
 		<stringParameter name="deadline_cloud_for_maya_summary" ask="0" cliOptionShow="0">
@@ -89,7 +66,7 @@
 		</stringParameter>
 	</parameterList>
     <postInstallationActionList>
-		<fnAddPathEnvironmentVariable>
+        <fnAddPathEnvironmentVariable>
 			<progressText>Registering plug-in with Maya</progressText>
 			<name>MAYA_MODULE_PATH</name>
 			<value>${maya_installdir}</value>
@@ -98,10 +75,30 @@
 		</fnAddPathEnvironmentVariable>
         <unzip>
             <destinationDirectory>${maya_installdir}/scripts</destinationDirectory>
-            <zipFile>${installdir}/tmp/maya_deps/dependency_bundle/deadline_cloud_for_maya_submitter-deps-${maya_deps_platform}.zip</zipFile>
+            <zipFile>${installdir}/tmp/maya_deps/dependency_bundle/deadline_cloud_for_maya_submitter-deps.zip</zipFile>
         </unzip>
         <deleteFile>
             <path>${installdir}/tmp/maya_deps</path>
         </deleteFile>
+        <if>
+            <conditionRuleList>
+                <platformTest type="osx" />
+            </conditionRuleList>
+            <actionList>
+                <runProgram>
+                    <program>bash</program>
+                    <programArguments>-c "
+                        sed -E -i '' 's#(\+ DeadlineCloudForMaya [^ ]*) \.#\1 '"${installdir}"'#' "${installdir}/DeadlineCloudForMaya.mod"
+                    "</programArguments>
+                </runProgram>
+                <createDirectory>
+                    <path>/Users/Shared/Autodesk/modules/maya</path>
+                </createDirectory>
+                <copyFile>
+                    <origin>${installdir}/DeadlineCloudForMaya.mod</origin>
+                    <destination>/Users/Shared/Autodesk/modules/maya/DeadlineCloudForMaya.mod</destination>
+                </copyFile>
+            </actionList>
+        </if>
     </postInstallationActionList>
 </component>

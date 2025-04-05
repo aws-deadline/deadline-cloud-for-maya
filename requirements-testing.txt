@@ -8,3 +8,4 @@ black == 24.*
 ruff == 0.10.*
 moto[s3,sts] == 5.*
 pipgrip == 0.10.*
+types-pyyaml == 6.*
