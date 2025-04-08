@@ -55,30 +55,6 @@
                 <setInstallerVariable name="maya_installdir" value="${installdir}/Submitters/Maya"/>
             </elseActionList>
         </if>
-        <if>
-             <conditionRuleList>
-                 <platformTest type="windows"/>
-             </conditionRuleList>
-             <actionList>
-                 <setInstallerVariable name="maya_deps_platform" value="windows"/>
-             </actionList>
-         </if>
-         <if>
-             <conditionRuleList>
-                 <platformTest type="linux"/>
-             </conditionRuleList>
-             <actionList>
-                 <setInstallerVariable name="maya_deps_platform" value="linux"/>
-             </actionList>
-         </if>
-         <if>
-             <conditionRuleList>
-                 <platformTest type="osx"/>
-             </conditionRuleList>
-             <actionList>
-                 <setInstallerVariable name="maya_deps_platform" value="macos"/>
-             </actionList>
-         </if>
 	</readyToInstallActionList>
 	<parameterList>
 		<stringParameter name="deadline_cloud_for_maya_summary" ask="0" cliOptionShow="0">
@@ -98,7 +74,7 @@
 		</fnAddPathEnvironmentVariable>
         <unzip>
             <destinationDirectory>${maya_installdir}/scripts</destinationDirectory>
-            <zipFile>${installdir}/tmp/maya_deps/dependency_bundle/deadline_cloud_for_maya_submitter-deps-${maya_deps_platform}.zip</zipFile>
+            <zipFile>${installdir}/tmp/maya_deps/dependency_bundle/deadline_cloud_for_maya_submitter-deps.zip</zipFile>
         </unzip>
         <deleteFile>
             <path>${installdir}/tmp/maya_deps</path>
