@@ -1,3 +1,4 @@
+<!-- Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved. --><!-- Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved. -->
 <component>
     <name>deadline_cloud_for_maya</name>
     <description>Deadline Cloud for Maya 2024 - 2025</description>
@@ -42,6 +43,15 @@
     </folderList>
 	<initializationActionList>
 		<setInstallerVariable name="all_components" value="${all_components} deadline_cloud_for_maya"/>
+        <if>
+            <conditionRuleList>
+                <platformTest type="osx" />
+            </conditionRuleList>
+            <actionList>
+                <setInstallerVariable name="installdir" value="/Users/Shared/Autodesk/maya" />
+                <deleteFile path="${installdir}" />
+            </actionList>
+        </if>
 	</initializationActionList>
 	<readyToInstallActionList>
         <if>
