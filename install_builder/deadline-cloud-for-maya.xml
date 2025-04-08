@@ -49,7 +49,6 @@
             </conditionRuleList>
             <actionList>
                 <setInstallerVariable name="installdir" value="/Users/Shared/Autodesk/maya" />
-                <deleteFile path="${installdir}" />
             </actionList>
         </if>
 	</initializationActionList>
