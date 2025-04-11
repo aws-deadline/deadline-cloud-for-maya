@@ -43,14 +43,6 @@
     </folderList>
 	<initializationActionList>
 		<setInstallerVariable name="all_components" value="${all_components} deadline_cloud_for_maya"/>
-        <if>
-            <conditionRuleList>
-                <platformTest type="osx" />
-            </conditionRuleList>
-            <actionList>
-                <setInstallerVariable name="installdir" value="/Users/Shared/Autodesk/maya" />
-            </actionList>
-        </if>
 	</initializationActionList>
 	<readyToInstallActionList>
         <if>
@@ -74,7 +66,7 @@
 		</stringParameter>
 	</parameterList>
     <postInstallationActionList>
-		<fnAddPathEnvironmentVariable>
+        <fnAddPathEnvironmentVariable>
 			<progressText>Registering plug-in with Maya</progressText>
 			<name>MAYA_MODULE_PATH</name>
 			<value>${maya_installdir}</value>
@@ -88,5 +80,22 @@
         <deleteFile>
             <path>${installdir}/tmp/maya_deps</path>
         </deleteFile>
+        <if>
+            <conditionRuleList>
+                <platformTest type="osx" />
+            </conditionRuleList>
+            <actionList>
+                <runProgram>
+                    <program>bash</program>
+                    <programArguments>-c "
+                        sed -E -i '' 's#(\+ DeadlineCloudForMaya [^ ]*) \.#\1 '"${installdir}"'#' "${installdir}/DeadlineCloudForMaya.mod"
+                    "</programArguments>
+                </runProgram>
+                <copyFile>
+                    <origin>${installdir}/DeadlineCloudForMaya.mod</origin>
+                    <destination>/Users/Shared/Autodesk/modules/maya/DeadlineCloudForMaya.mod</destination>
+                </copyFile>
+            </actionList>
+        </if>
     </postInstallationActionList>
 </component>

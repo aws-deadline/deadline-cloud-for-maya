@@ -1,1 +1,1 @@
-+ deadline-cloud-for-maya 0.13.2 .
++ DeadlineCloudForMaya 0.15.3 .
