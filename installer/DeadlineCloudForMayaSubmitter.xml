@@ -239,7 +239,14 @@
             </ruleList>
         </actionGroup>
         <deleteFile path="${installdir}/installer_version.txt"/>
-        <deleteFile path="Users/Shared/Autodesk/modules/maya/DeadlineCloudForMaya.mod"/>
+        <if>
+            <conditionRuleList>
+                <platformTest type="osx" />
+            </conditionRuleList>
+            <actionList>
+                <deleteFile path="/Users/Shared/Autodesk/modules/maya/DeadlineCloudForMaya.mod"/>
+            </actionList>
+        </if>
     </preUninstallationActionList>
     <width>550</width>
 </project>
