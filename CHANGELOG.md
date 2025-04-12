@@ -1,3 +1,12 @@
+## 0.15.3 (2025-04-12)
+
+
+### Features
+* Add standalone installer for Maya Submitter (#255) ([`3c124fe`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/3c124fe844e5a77b0dda16f0b1b73f60edbf9cf5))
+
+### Bug Fixes
+* Arnold licensing error handling for mtoa5.4.7.1 (#252) ([`9c39e47`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/9c39e4761f4e1d82b82f56a3f2ba73dbdc8525fa))
+
 ## 0.15.2 (2025-03-06)
 
 ### Bug Fixes
