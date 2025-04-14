@@ -91,6 +91,9 @@
                         sed -E -i '' 's#(\+ DeadlineCloudForMaya [^ ]*) \.#\1 '"${installdir}"'#' "${installdir}/DeadlineCloudForMaya.mod"
                     "</programArguments>
                 </runProgram>
+                <createDirectory>
+                    <path>/Users/Shared/Autodesk/modules/maya</path>
+                </createDirectory>
                 <copyFile>
                     <origin>${installdir}/DeadlineCloudForMaya.mod</origin>
                     <destination>/Users/Shared/Autodesk/modules/maya/DeadlineCloudForMaya.mod</destination>
