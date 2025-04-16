@@ -1,3 +1,10 @@
+## 0.15.4 (2025-04-16)
+
+
+
+### Bug Fixes
+* move mod file to a user folder to prevent permission issue (#269) ([`615b21a`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/615b21a9ab8020adc4dcaea4b752eddc10898c85))
+
 ## 0.15.3 (2025-04-14)
 
 
