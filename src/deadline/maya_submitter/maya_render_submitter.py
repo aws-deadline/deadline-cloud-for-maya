@@ -368,13 +368,13 @@ def _get_parameter_values(
         parameter_values.append(
             {
                 "name": "ImageWidth",
-                "value": render_layers[0].image_resolution[0],
+                "value": get_width(),
             }
         )
         parameter_values.append(
             {
                 "name": "ImageHeight",
-                "value": render_layers[0].image_resolution[1],
+                "value": get_height(),
             }
         )
 
