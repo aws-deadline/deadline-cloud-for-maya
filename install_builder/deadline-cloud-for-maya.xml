@@ -92,11 +92,11 @@
                     "</programArguments>
                 </runProgram>
                 <createDirectory>
-                    <path>/Users/Shared/Autodesk/modules/maya</path>
+                    <path>${user_home_directory}/Library/Preferences/Autodesk/maya/modules</path>
                 </createDirectory>
                 <copyFile>
                     <origin>${installdir}/DeadlineCloudForMaya.mod</origin>
-                    <destination>/Users/Shared/Autodesk/modules/maya/DeadlineCloudForMaya.mod</destination>
+                    <destination>${user_home_directory}/Library/Preferences/Autodesk/maya/modules/DeadlineCloudForMaya.mod</destination>
                 </copyFile>
             </actionList>
         </if>

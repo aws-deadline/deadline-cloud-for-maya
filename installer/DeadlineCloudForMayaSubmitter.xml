@@ -244,7 +244,7 @@
                 <platformTest type="osx" />
             </conditionRuleList>
             <actionList>
-                <deleteFile path="/Users/Shared/Autodesk/modules/maya/DeadlineCloudForMaya.mod"/>
+                <deleteFile path="${user_home_directory}/Library/Preferences/Autodesk/maya/modules/DeadlineCloudForMaya.mod"/>
             </actionList>
         </if>
     </preUninstallationActionList>
