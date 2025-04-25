@@ -11,10 +11,12 @@ import numpy as np
 from test.integ.test_const import ASSET_REFERENCES, PARAMETER_VALUES
 
 
-# Function to compare if the render output from the adaptor match what we expected
 def are_images_similar(
     expected_image_directory: Path, actual_image_directory: Path, tolerance: int
 ) -> bool:
+    """
+    Helper function that compare if the render output from the adaptor match what we expected
+    """
     for image in (expected_image_directory).iterdir():
         if not image.is_file():
             continue
@@ -33,15 +35,16 @@ def are_images_similar(
     return True
 
 
-# Helper function to extract parameter value for path convert if needed
 def extract_parameter_value(expected_parameter_values, param_name):
+    """
+    Helper function that extract parameter value for path convert if needed
+    """
     for param in expected_parameter_values["parameterValues"]:
         if param["name"] == param_name:
             return param["value"]
     return None
 
 
-# Function to compare if the parameter generated from submitter match what we expected
 def are_parameter_values_similar(job_history_dir: Path, expected_parameter_values: dict[str, list]):
     """
     Helper function that asserts that parameter values in the job bundle are what's expected.
@@ -58,7 +61,6 @@ def are_parameter_values_similar(job_history_dir: Path, expected_parameter_value
             assert parameter_value in actual_parameter_values["parameterValues"]
 
 
-# Function to compare if the asset references generated from submitter match what we expected
 def are_asset_references_similar(
     job_history_dir: Path, expected_asset_references: dict[str, dict[str, Any]]
 ):
