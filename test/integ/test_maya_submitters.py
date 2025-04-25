@@ -10,6 +10,7 @@ from typing import Any
 from qtpy import QtWidgets
 
 from .helpers.test_runners import is_valid_template
+from .helpers.output_comparison import are_asset_references_similar, are_parameter_values_similar
 
 import maya.standalone
 import maya.cmds as cmds
@@ -52,41 +53,6 @@ class TestSubmitters:
         )
         Path(script_location / sticky_settings_location).unlink(missing_ok=True)
 
-    def assert_parameter_values(
-        self, job_history_dir: Path, expected_parameter_values: dict[str, list]
-    ):
-        """
-        Helper function that asserts that parameter values in the job bundle are what's expected.
-        """
-        with open(job_history_dir / "parameter_values.yaml") as actual:
-            actual_parameter_values = yaml.safe_load(actual)
-            # Compare the lengths so that we can cover the case of duplicate parameters.
-            assert len(actual_parameter_values["parameterValues"]) == len(
-                expected_parameter_values["parameterValues"]
-            )
-
-            # The order of the list of parameter values doesn't matter,
-            for parameter_value in expected_parameter_values["parameterValues"]:
-                assert parameter_value in actual_parameter_values["parameterValues"]
-
-    def assert_asset_references(
-        self, job_history_dir: Path, expected_asset_references: dict[str, dict[str, Any]]
-    ):
-        """
-        Helper function that asserts that asset reference values in the job bundle are what's expected.
-        """
-        with open(job_history_dir / "asset_references.yaml") as actual:
-            actual_asset_reference = yaml.safe_load(actual)
-            # We don't care what order the filenames list is in, so turn it into a set for easier comparison.
-            # Compare the lengths before we turn it into a set so that we can cover the case of duplicate assets.
-            assert len(actual_asset_reference["assetReferences"]["inputs"]["filenames"]) == len(
-                expected_asset_references["assetReferences"]["inputs"]["filenames"]
-            )
-            actual_asset_reference["assetReferences"]["inputs"]["filenames"] = set(
-                actual_asset_reference["assetReferences"]["inputs"]["filenames"]
-            )
-            assert actual_asset_reference == expected_asset_references
-
     def test_minimal_scene_submitter(
         self, initialize_maya, script_location: Path, tmp_path: Path
     ) -> None:
@@ -98,6 +64,9 @@ class TestSubmitters:
         output_path = tmp_path / "output"
         project_path = script_location / "minimal_test" / "scene"
         scene_location = script_location / "minimal_test" / "scene" / "test.ma"
+
+        # Clean up sticky setting
+        self._cleanup_sticky_settings(scene_location, script_location)
 
         os.makedirs(job_history_dir, exist_ok=True)
         os.makedirs(output_path, exist_ok=True)
@@ -183,7 +152,7 @@ class TestSubmitters:
             ]
         }
 
-        self.assert_parameter_values(job_history_dir, expected_parameter_values)
+        are_parameter_values_similar(job_history_dir, expected_parameter_values)
 
         # Check that the asset references are as expected.
         expected_asset_references: dict[str, dict[str, Any]] = {
@@ -199,7 +168,4 @@ class TestSubmitters:
             }
         }
 
-        self.assert_asset_references(job_history_dir, expected_asset_references)
-
-        # Clean up after test
-        self._cleanup_sticky_settings(scene_location, script_location)
+        are_asset_references_similar(job_history_dir, expected_asset_references)
