@@ -47,6 +47,7 @@ _MAYA_INIT_KEYS = {
     "output_file_prefix",
     "render_layer",
     "render_setup_include_lights",
+    "cache_pathmapping",
     "error_on_arnold_license_fail",
 }
 
