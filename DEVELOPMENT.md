@@ -9,7 +9,7 @@ Table of Contents:
    * [Submitter Development Workflow](#submitter-development-workflow)
       * [Running the Plug-In](#running-the-plug-in)
       * [Making Code Changes](#making-submitter-code-changes)
-      * [Running Tests](#running-submitter-tests)
+      * [Testing the Submitter](#testing-the-submitter)
    * [Adaptor Development Workflow](#adaptor-development-workflow)
       * [Running the Adaptor Locally](#running-the-adaptor-locally)
       * [Running the Adaptor on a Farm](#running-the-adaptor-on-a-farm)
@@ -98,7 +98,7 @@ Whenever you modify code for the plug-in, or one of its supporting Python librar
 the `hatch run install` to repackage the changes, and then uncheck then check the option to load the plug-in in
 Maya's Plug-In Manager; if you do not reload the plug-in in Maya, then your changes will not take effect.
 
-#### Running Submitter Tests
+#### Testing the Submitter
 
 The tests for the plug-in have two forms:
 
@@ -109,7 +109,7 @@ The tests for the plug-in have two forms:
 
 ##### Unit Tests
 
-Unit tests are all located under the `test/deadline_submitter_for_maya/unit` directory of this repository. If you are adding
+Unit tests are all located under the `test/unit/deadline_submitter_for_maya` directory of this repository. If you are adding
 or modifying functionality, then you will almost always want to be writing one or more unit tests to demonstrate that your
 logic behaves as expected and that future changes do not accidentally break your change.
 
@@ -120,18 +120,41 @@ hatch run test
 ```
 
 ##### Integration Tests
+###### Job Bundle Output Tests
 
-Integration tests are built in to the plug-in itself. They are available as the `TEST` button in the AWSDeadline
+Job Bundle Output tests are built in to the plug-in itself. They are available as the `TEST` button in the AWSDeadline
 shelf when you run Maya with the environment variable `DEADLINE_ENABLE_DEVELOPER_OPTIONS=true`. If you are adding
 or modifying functionality that will affect the content of a generated job bundle then you will likely want to
 be writing or modifying an integration test for your change.
 
-To run the integration tests:
+To run the Job Bundle Output tests:
 1. Select the `TEST` button from the AWSDeadline shelf; and then
 2. Select the `/job_bundle_output_tests` directory within this repository.
 
 The test results will be saved to a file called `test-job-bundle-results.txt` within the test directory
 that you selected.
+
+###### Automated Integration Tests
+Submitter integration tests are located under `test/integ/test_maya_submitters.py`. If you are adding
+or modifying functionality, then you will want to be writing one or more integ tests to demonstrate that your
+logic behaves as expected and that future changes do not accidentally break your change.
+
+To run the integ tests, you need to:
+1. Add `mayapy` executable to the PATH:
+   
+   For example, default path of mayapy on OSX is 
+
+   ```
+   /Applications/Autodesk/maya<version>/Maya.app/Contents/MacOS
+   ```
+2. Use hatch to run submitter tests:
+   ```bash
+   hatch run integ:test_submitters
+   ```
+3. (Optional) Use hatch to run all integ tests:
+   ```bash
+   hatch run integ:test
+   ```
 
 ### Adaptor Development Workflow
 
@@ -245,7 +268,7 @@ You'll need to perform the following steps to substitute your build of the adapt
 3. Open the Maya integrated submitter, and in the Job-Specific Settings tab, enable the option 'Include Adaptor Wheels'. This option is only visible when the environment variable `DEADLINE_ENABLE_DEVELOPER_OPTIONS` is set to `true`. Then submit your test job.
 
 #### Testing the Adaptor
-
+##### Unit Tests
 Unit tests are all located under the `test/deadline_submitter_for_maya/unit` directory of this repository. If you are adding
 or modifying functionality, then you will almost always want to be writing one or more unit tests to demonstrate that your
 logic behaves as expected and that future changes do not accidentally break your change.
@@ -255,6 +278,28 @@ To run the unit tests, simply use hatch:
 ```bash
 hatch run test
 ```
+
+##### Integration Tests
+Adaptor integration tests are located under `test/integ/test_maya_adaptors.py`. If you are adding
+or modifying functionality, then you will want to be writing one or more integ tests to demonstrate that your
+logic behaves as expected and that future changes do not accidentally break your change.
+
+To run the integ tests, you need to:
+1. Add `mayapy` executable to the PATH:
+   
+   For example, default path of mayapy on OSX is 
+
+   ```
+   /Applications/Autodesk/maya<version>/Maya.app/Contents/MacOS
+   ```
+2. Use hatch to run adaptor tests:
+   ```bash
+   hatch run integ:test_adaptors
+   ```
+3. (Optional) Use hatch to run all integ tests:
+   ```bash
+   hatch run integ:test
+   ```
 
 ### Submitter Installer Development Workflow
 #### Build the package
