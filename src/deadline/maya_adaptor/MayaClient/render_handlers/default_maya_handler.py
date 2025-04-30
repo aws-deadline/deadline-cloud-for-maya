@@ -241,7 +241,7 @@ class DefaultMayaHandler:
         file_path = data.get("scene_file", "")
         if not os.path.isfile(file_path):
             raise FileNotFoundError(f"The scene file '{file_path}' does not exist")
-        maya.cmds.file(file_path, open=True, force=True)
+        maya.cmds.file(file_path, open=True, force=True, ignoreVersion=True)
 
         pre_render_mel = maya.cmds.getAttr("defaultRenderGlobals.preMel")
         if pre_render_mel:
