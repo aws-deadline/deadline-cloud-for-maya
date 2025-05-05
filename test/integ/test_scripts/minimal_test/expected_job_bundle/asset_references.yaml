@@ -1,0 +1,8 @@
+assetReferences:
+  inputs:
+    directories: []
+    filenames:
+    - deadline-cloud-for-maya/test/integ/scenes/test.ma
+  outputs:
+    directories: [<tmp_path>/output]
+  referencedPaths: []

@@ -5,7 +5,8 @@ pre-install-commands = [
 
 [envs.default.scripts]
 sync = "pip install -r requirements-testing.txt"
-test = "pytest --cov-config pyproject.toml {args:test}"
+test = "pytest --cov-config pyproject.toml {args:test/unit}"
+test-installer = "pytest --no-cov {args:test/installer} -vvv"
 typing = "mypy {args:src test maya_submitter_plugin/plug-ins}"
 style = [
   "ruff check {args:.}",
@@ -34,8 +35,16 @@ build = "hatch build"
 [envs.codebuild.env-vars]
 SKIP_BOOTSTRAP_TEST_RESOURCES="True"
 
+[envs.integ]
+pre-install-commands = [
+  "mayapy -m pip install -r requirements-integ-testing.txt",
+  "mayapy -m pip install -r requirements-testing.txt",
+]
+
 [envs.integ.scripts]
-test = "pytest --no-cov {args:test/*/integ}"
+test = "mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1"
+test_submitters = "mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m submitter"
+test_adaptors = "mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m adaptor"
 
 [envs.e2e.scripts]
 test = "pytest --no-cov {args:test/*/e2e}"
@@ -47,3 +56,6 @@ detached = true
 deps = "pip install -r requirements-release.txt"
 bump = "semantic-release -v --strict version --no-push --no-commit --no-tag --skip-build {args}"
 version = "semantic-release -v --strict version --print {args}"
+
+[envs.installer.scripts]
+build-installer = "python {root}/scripts/build_installer_cli.py --installer-source-path {root}/installer/DeadlineCloudForMayaSubmitter.xml {args:}"
