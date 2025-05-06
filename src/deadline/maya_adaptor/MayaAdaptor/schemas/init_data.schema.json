@@ -20,7 +20,8 @@
                 "mayaSoftware",
                 "mayaVector",
                 "vray",
-                "renderman"
+                "renderman",
+                "redshift"
             ]
         },
         "scene_file": { "type": "string" },
