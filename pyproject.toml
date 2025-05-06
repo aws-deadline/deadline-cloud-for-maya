@@ -137,6 +137,10 @@ pythonpath = [
   # The Maya submitter plugin isn't structured like a Python package
   "maya_submitter_plugin/plug-ins"
 ]
+markers = [
+    "submitter: mark test as test for the submitter",
+    "adaptor: mark test as test for the adaptor",
+]
 
 [tool.coverage.run]
 source_pkgs = [ "deadline/maya_adaptor", "deadline/maya_submitter", "maya_submitter_plugin/plugins" ]

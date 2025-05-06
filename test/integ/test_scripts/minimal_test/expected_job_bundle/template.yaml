@@ -1,5 +1,5 @@
-specificationVersion: 'jobtemplate-2023-09'
-name: Default Maya Job Template
+specificationVersion: jobtemplate-2023-09
+name: test.ma
 parameterDefinitions:
 - name: MayaSceneFile
   type: PATH
@@ -29,7 +29,6 @@ parameterDefinitions:
 - name: ProjectPath
   type: PATH
   objectType: DIRECTORY
-  # The submitter determines the set of files by walking the scene graph.
   dataFlow: NONE
   userInterface:
     control: CHOOSE_DIRECTORY
@@ -67,13 +66,41 @@ parameterDefinitions:
   allowedValues:
   - 'true'
   - 'false'
+- name: OutputFilePrefix
+  type: STRING
+  userInterface:
+    control: LINE_EDIT
+    label: Output File Prefix
+    groupLabel: Maya Settings
+  description: The output filename prefix.
+- name: ImageWidth
+  type: INT
+  userInterface:
+    control: SPIN_BOX
+    label: Image Width
+    groupLabel: Maya Settings
+  minValue: 1
+  description: The image width of the output.
+- name: ImageHeight
+  type: INT
+  userInterface:
+    control: SPIN_BOX
+    label: Image Height
+    groupLabel: Maya Settings
+  minValue: 1
+  description: The image height of the output.
 steps:
-- name: Render
+- name: orangeSphereLayer
   parameterSpace:
     taskParameterDefinitions:
     - name: Frame
       type: INT
       range: '{{Param.Frames}}'
+    - name: Camera
+      type: STRING
+      range:
+      - sideCam1
+      - topCam1
   stepEnvironments:
   - name: Maya
     description: Runs Maya in the background.
@@ -83,11 +110,89 @@ steps:
         filename: init-data.yaml
         type: TEXT
         data: |
+          renderer: mayaHardware2
+          render_layer: orangeSphereLayer
           scene_file: '{{Param.MayaSceneFile}}'
           project_path: '{{Param.ProjectPath}}'
           output_file_path: '{{Param.OutputFilePath}}'
           render_setup_include_lights: {{Param.RenderSetupIncludeLights}}
           strict_error_checking: {{Param.StrictErrorChecking}}
+          output_file_prefix: '{{Param.OutputFilePrefix}}'
+          image_width: {{Param.ImageWidth}}
+          image_height: {{Param.ImageHeight}}
+      actions:
+        onEnter:
+          command: MayaAdaptor
+          args:
+          - daemon
+          - start
+          - --path-mapping-rules
+          - file://{{Session.PathMappingRulesFile}}
+          - --connection-file
+          - '{{Session.WorkingDirectory}}/connection.json'
+          - --init-data
+          - file://{{Env.File.initData}}
+          cancelation:
+            mode: NOTIFY_THEN_TERMINATE
+        onExit:
+          command: MayaAdaptor
+          args:
+          - daemon
+          - stop
+          - --connection-file
+          - '{{ Session.WorkingDirectory }}/connection.json'
+          cancelation:
+            mode: NOTIFY_THEN_TERMINATE
+  script:
+    embeddedFiles:
+    - name: runData
+      filename: run-data.yaml
+      type: TEXT
+      data: |
+        frame: {{Task.Param.Frame}}
+        camera: '{{Task.Param.Camera}}'
+    actions:
+      onRun:
+        command: MayaAdaptor
+        args:
+        - daemon
+        - run
+        - --connection-file
+        - '{{ Session.WorkingDirectory }}/connection.json'
+        - --run-data
+        - file://{{ Task.File.runData }}
+        cancelation:
+          mode: NOTIFY_THEN_TERMINATE
+- name: purpleSphereLayer
+  parameterSpace:
+    taskParameterDefinitions:
+    - name: Frame
+      type: INT
+      range: '{{Param.Frames}}'
+    - name: Camera
+      type: STRING
+      range:
+      - sideCam1
+      - topCam1
+  stepEnvironments:
+  - name: Maya
+    description: Runs Maya in the background.
+    script:
+      embeddedFiles:
+      - name: initData
+        filename: init-data.yaml
+        type: TEXT
+        data: |
+          renderer: mayaHardware2
+          render_layer: purpleSphereLayer
+          scene_file: '{{Param.MayaSceneFile}}'
+          project_path: '{{Param.ProjectPath}}'
+          output_file_path: '{{Param.OutputFilePath}}'
+          render_setup_include_lights: {{Param.RenderSetupIncludeLights}}
+          strict_error_checking: {{Param.StrictErrorChecking}}
+          output_file_prefix: '{{Param.OutputFilePrefix}}'
+          image_width: {{Param.ImageWidth}}
+          image_height: {{Param.ImageHeight}}
       actions:
         onEnter:
           command: MayaAdaptor
@@ -120,6 +225,7 @@ steps:
       type: TEXT
       data: |
         frame: {{Task.Param.Frame}}
+        camera: '{{Task.Param.Camera}}'
     actions:
       onRun:
         command: MayaAdaptor

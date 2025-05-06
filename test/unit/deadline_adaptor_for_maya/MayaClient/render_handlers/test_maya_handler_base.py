@@ -84,3 +84,109 @@ class TestDefaultMayaHandler:
         # THEN
         mock_mapping_activated.assert_called_once_with(True)
         assert mock_set_mappings.call_count == len(args["path_mapping_rules"])
+
+    @pytest.mark.parametrize(
+        "args,file_exists",
+        [
+            ({"scene_file": "/path/to/scene.ma"}, True),
+        ],
+    )
+    @patch("os.path.isfile")
+    @patch("deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds.file")
+    @patch(
+        "deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds.getAttr"
+    )
+    @patch("deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.mel.eval")
+    def test_set_scene_file(
+        self,
+        mock_mel_eval: Mock,
+        mock_get_attr: Mock,
+        mock_file: Mock,
+        mock_isfile: Mock,
+        mayahandlerbase: DefaultMayaHandler,
+        args: dict,
+        file_exists: bool,
+    ):
+        """
+        Test that set_scene_file calls maya.cmds.file with the correct arguments
+        and handles pre-render MEL scripts if they exist.
+        """
+        # GIVEN
+        mock_isfile.return_value = file_exists
+        mock_get_attr.return_value = "some_mel_script"
+
+        # WHEN
+        mayahandlerbase.set_scene_file(args)
+
+        # THEN
+        mock_isfile.assert_called_once_with(args["scene_file"])
+        mock_file.assert_called_once_with(
+            args["scene_file"], open=True, force=True, ignoreVersion=True
+        )
+        mock_get_attr.assert_called_once_with("defaultRenderGlobals.preMel")
+        mock_mel_eval.assert_called_once_with(mock_get_attr.return_value)
+
+    @pytest.mark.parametrize(
+        "args,file_exists",
+        [
+            ({"scene_file": "/path/to/scene.ma"}, True),
+        ],
+    )
+    @patch("os.path.isfile")
+    @patch("deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds.file")
+    @patch(
+        "deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds.getAttr"
+    )
+    @patch("deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.mel.eval")
+    def test_set_scene_file_no_pre_mel(
+        self,
+        mock_mel_eval: Mock,
+        mock_get_attr: Mock,
+        mock_file: Mock,
+        mock_isfile: Mock,
+        mayahandlerbase: DefaultMayaHandler,
+        args: dict,
+        file_exists: bool,
+    ):
+        """
+        Test that set_scene_file doesn't call maya.mel.eval when there's no pre-render MEL script.
+        """
+        # GIVEN
+        mock_isfile.return_value = file_exists
+        mock_get_attr.return_value = ""  # No pre-render MEL script
+
+        # WHEN
+        mayahandlerbase.set_scene_file(args)
+
+        # THEN
+        mock_isfile.assert_called_once_with(args["scene_file"])
+        mock_file.assert_called_once_with(
+            args["scene_file"], open=True, force=True, ignoreVersion=True
+        )
+        mock_get_attr.assert_called_once_with("defaultRenderGlobals.preMel")
+        mock_mel_eval.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            ({"scene_file": "/path/to/nonexistent.ma"}),
+        ],
+    )
+    @patch("os.path.isfile")
+    def test_set_scene_file_not_found(
+        self,
+        mock_isfile: Mock,
+        mayahandlerbase: DefaultMayaHandler,
+        args: dict,
+    ):
+        """
+        Test that set_scene_file raises FileNotFoundError when the scene file doesn't exist.
+        """
+        # GIVEN
+        mock_isfile.return_value = False
+
+        # WHEN/THEN
+        with pytest.raises(
+            FileNotFoundError, match=f"The scene file '{args['scene_file']}' does not exist"
+        ):
+            mayahandlerbase.set_scene_file(args)

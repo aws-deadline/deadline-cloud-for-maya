@@ -35,8 +35,16 @@ build = "hatch build"
 [envs.codebuild.env-vars]
 SKIP_BOOTSTRAP_TEST_RESOURCES="True"
 
+[envs.integ]
+pre-install-commands = [
+  "mayapy -m pip install -r requirements-integ-testing.txt",
+  "mayapy -m pip install -r requirements-testing.txt",
+]
+
 [envs.integ.scripts]
-test = "pytest --no-cov {args:test/*/integ}"
+test = "mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1"
+test_submitters = "mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m submitter"
+test_adaptors = "mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m adaptor"
 
 [envs.e2e.scripts]
 test = "pytest --no-cov {args:test/*/e2e}"
