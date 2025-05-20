@@ -51,6 +51,7 @@ def are_parameter_values_similar(job_history_dir: Path, expected_parameter_value
     """
     with open(job_history_dir / PARAMETER_VALUES) as actual:
         actual_parameter_values = yaml.safe_load(actual)
+
         # Compare the lengths so that we can cover the case of duplicate parameters.
         assert len(actual_parameter_values["parameterValues"]) == len(
             expected_parameter_values["parameterValues"]
@@ -58,7 +59,14 @@ def are_parameter_values_similar(job_history_dir: Path, expected_parameter_value
 
         # The order of the list of parameter values doesn't matter,
         for parameter_value in expected_parameter_values["parameterValues"]:
-            assert parameter_value in actual_parameter_values["parameterValues"]
+            name = parameter_value["name"]
+            value = parameter_value["value"]
+
+            # Convert to help with Windows path format
+            if not isinstance(value, int):
+                value = value.replace("\\", "/")
+
+            assert value == extract_parameter_value(actual_parameter_values, name)
 
 
 def are_asset_references_similar(
@@ -77,4 +85,8 @@ def are_asset_references_similar(
         actual_asset_reference["assetReferences"]["inputs"]["filenames"] = set(
             actual_asset_reference["assetReferences"]["inputs"]["filenames"]
         )
+        directories = expected_asset_references["assetReferences"]["outputs"]["directories"]
+        expected_asset_references["assetReferences"]["outputs"]["directories"] = [
+            d.replace("\\", "/") for d in directories
+        ]
         assert actual_asset_reference == expected_asset_references
