@@ -15,6 +15,22 @@ def _get_render_layer_display_name(render_layer_name: str) -> str:
     return maya.mel.eval(f'renderLayerDisplayName "{render_layer_name}"')
 
 
+def _get_ignore_version_flag() -> bool:
+    raw_val = os.environ.get("MAYA_IGNORE_VERSION", "True")
+    normalized_val = raw_val.strip().lower()
+
+    if normalized_val == "false":
+        return False
+    elif normalized_val == "true":
+        return True
+    else:
+        print(
+            f"Warning: Unrecognized value for 'MAYA_IGNORE_VERSION': '{raw_val}'. "
+            "Expected 'False' to disable. Defaulting to True (ignoring version)."
+        )
+        return True
+
+
 class DefaultMayaHandler:
     cameras: Optional[List[str]] = None
     render_kwargs: Dict[str, Any]
@@ -238,10 +254,11 @@ class DefaultMayaHandler:
         Raises:
             FileNotFoundError: If the file provided in the data dictionary does not exist.
         """
+        ignore_version_flag = _get_ignore_version_flag()
         file_path = data.get("scene_file", "")
         if not os.path.isfile(file_path):
             raise FileNotFoundError(f"The scene file '{file_path}' does not exist")
-        maya.cmds.file(file_path, open=True, force=True, ignoreVersion=True)
+        maya.cmds.file(file_path, open=True, force=True, ignoreVersion=ignore_version_flag)
 
         pre_render_mel = maya.cmds.getAttr("defaultRenderGlobals.preMel")
         if pre_render_mel:

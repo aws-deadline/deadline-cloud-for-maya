@@ -110,6 +110,13 @@ $ maya -help
 
 For more information on the commands the OpenJD adaptor runtime provides, see [here][openjd-adaptor-runtime-lifecycle].
 
+Maya Adaptor by default will skip version checking when opening scene. If you want to change this, set the `MAYA_IGNORE_VERSION` enviroment variable accordingly.
+
+For example, to enable version checking:
+```
+export MAYA_IGNORE_VERSION=false
+```
+
 ### Maya Software Availability in AWS Deadline Cloud Service Managed Fleets
 
 You will need to ensure that the version of Maya that you want to run is available on the worker host when you are using
