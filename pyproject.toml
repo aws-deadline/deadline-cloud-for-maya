@@ -72,7 +72,8 @@ destinations = [
 
 [tool.hatch.build.targets.sdist]
 include = [
-    "src/*",
+    "src/deadline",
+    "maya_submitter_plugin",
     "hatch_custom_hook.py",
 ]
 
