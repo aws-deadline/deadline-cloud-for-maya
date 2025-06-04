@@ -516,7 +516,7 @@ def on_create_job_bundle_callback(
     asset_references: AssetReferences,
     host_requirements: Optional[dict[str, Any]] = None,
     purpose: JobBundlePurpose = JobBundlePurpose.SUBMISSION,
-) -> None:
+) -> dict[str, Any]:
     with open(Path(__file__).parent / "default_maya_job_template.yaml") as fh:
         default_job_template = yaml.safe_load(fh)
 
@@ -641,6 +641,10 @@ def on_create_job_bundle_callback(
     settings.input_filenames = sorted(attachments.input_filenames)
 
     settings.save_sticky_settings(Scene.name())
+
+    return {
+        "job_parameters": parameter_values,
+    }
 
 
 def show_maya_render_submitter(

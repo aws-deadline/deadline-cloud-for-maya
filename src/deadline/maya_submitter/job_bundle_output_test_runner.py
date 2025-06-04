@@ -14,6 +14,7 @@ import difflib
 from typing import Any
 from pathlib import Path
 from datetime import datetime, timezone
+import traceback
 
 import maya.cmds
 from qtpy.QtWidgets import (  # type: ignore
@@ -218,8 +219,14 @@ def _run_job_bundle_output_test(test_dir: str, dcc_scene_file: str, report_fh, m
         _copy_dcc_scene_file(dcc_scene_file, temp_dcc_scene_file)
 
         # Open the DCC scene file
-        _open_dcc_scene_file(temp_dcc_scene_file)
-        QApplication.processEvents()
+        try:
+            _open_dcc_scene_file(temp_dcc_scene_file)
+            QApplication.processEvents()
+        except Exception:
+            traceback.print_exc(file=report_fh)
+            QApplication.processEvents()
+            _close_dcc_scene_file()
+            return False
 
         # Open the AWS Deadline Cloud submitter
         submitter = _show_deadline_cloud_submitter(mainwin)
