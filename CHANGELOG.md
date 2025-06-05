@@ -1,3 +1,16 @@
+## 0.15.5 (2025-06-05)
+
+
+### Features
+* Add ignore version enviroment variable flag (#280) ([`17391a9`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/17391a9a1b181f11fe22b90698e72da5dab3d333))
+* Update Maya adaptor to support Redshift renderer via redshift4maya plugin (#277) ([`f6667bf`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/f6667bf8714a225e30fe3b5b2a1fe042accefbff))
+* allow adaptor to ignore version when open scene (#273) ([`a1361ef`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/a1361efd568bc4c6a8f8e4f92cc6eae7b2c9346e))
+
+### Bug Fixes
+* sdist failed to install (#281) ([`0bb9847`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/0bb9847eab28d82a547a0b8171055324b848e579))
+* Fix submitter integration test for Windows (#278) ([`c7bdb58`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/c7bdb585d9de02667ec924fed6e8c2f7ea26b598))
+* fixed Maya submitter to pull the correct image resolution from scene ([`20c3a72`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/20c3a72cd711715e61bb02255ddaa78df212d893))
+
 ## 0.15.4 (2025-04-16)
 
 
