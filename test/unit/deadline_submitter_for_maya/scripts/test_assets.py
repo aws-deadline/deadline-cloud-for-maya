@@ -146,10 +146,8 @@ def test_get_tex_files(
 
     # python 3.9 3.10 requires to mock the import of maya.cmds
     sys.modules["maya.cmds"] = mock_cmds
-    mock_cmds.filePathEditor.side_effect = [
-        [path],
-        [basename, "skydome_light.map"],
-    ]
+    # Set up the mock to return the expected values for each call
+    mock_cmds.filePathEditor.return_value = [basename, "skydome_light.map"]
 
     # mock the import of a non existent library (renderman for maya)
     mock_txmanager = MagicMock()

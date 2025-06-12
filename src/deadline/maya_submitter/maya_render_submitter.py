@@ -39,6 +39,7 @@ from .cameras import get_renderable_camera_names, ALL_CAMERAS
 from ._version import version, version_tuple as adaptor_version_tuple
 from .ui.components.scene_settings_tab import SceneSettingsWidget
 from deadline.client.job_bundle.submission import AssetReferences
+import time
 
 logger = getLogger(__name__)
 
@@ -462,18 +463,20 @@ def _set_render_setting(load_sticky_setting: bool = False) -> RenderSubmitterUIS
 
 def _set_render_layer_data() -> list[RenderLayerData]:
     # Create a dictionary for the layers, and accumulate data about each layer
+    print(f"_set_render_layer_data - get_all_renderable_render_layer_names {time.time()}")
     render_layer_names = get_all_renderable_render_layer_names()
     if not render_layer_names:
         raise DeadlineOperationError(
             "No render layer is set as renderable. At least one must be renderable to submit a job."
         )
-
+    print(f"_set_render_layer_data processing layers {time.time()}")
     render_layers: list[RenderLayerData] = []
     with saved_current_render_layer():
         for render_layer_name in render_layer_names:
             set_current_render_layer(render_layer_name)
 
             display_name = get_render_layer_display_name(render_layer_name)
+            print(f"_set_render_layer_data processing layer {display_name} {time.time()}")
             renderer_name = Scene.renderer()
             renderable_camera_names = get_renderable_camera_names()
             output_directories: set[str] = set()
@@ -501,6 +504,7 @@ def _set_render_layer_data() -> list[RenderLayerData]:
                     image_resolution=image_resolution,
                 )
             )
+            print(f"_set_render_layer_data done processing layer {time.time()}")
 
     # Sort the layers by name
     render_layers.sort(key=lambda layer: layer.display_name)
@@ -650,21 +654,67 @@ def on_create_job_bundle_callback(
 def show_maya_render_submitter(
     parent, f=Qt.WindowFlags(), load_sticky_setting: bool = False
 ) -> Optional[SubmitJobToDeadlineDialog]:
+    print("Starting Maya render submitter")
 
-    render_settings = _set_render_setting()
+    # Create and show a progress dialog
+    from qtpy.QtWidgets import QProgressDialog
+    from qtpy.QtCore import Qt  # type: ignore
 
+    progress_dialog = QProgressDialog("Initializing...", "", 0, 1, parent)
+    progress_dialog.setWindowTitle("Asset Detection")
+    progress_dialog.setWindowModality(Qt.WindowModal)
+    progress_dialog.setCancelButton(None)  # Remove cancel button
+    progress_dialog.setMinimumDuration(0)  # Show immediately
+    progress_dialog.setValue(0)
+
+    # Create a callback function to update the progress dialog
+    def update_progress(message):
+        progress_dialog.setLabelText(message)
+        maya.cmds.refresh(force=True)
+        time.sleep(0.05)  # Add a small sleep to ensure the UI has time to update
+
+    # Initialize with first message
+    update_progress("Loading render settings...")
+    render_settings = _set_render_setting(load_sticky_setting)
+
+    update_progress("Processing render layers...")
     render_layers: list[RenderLayerData] = _set_render_layer_data()
-
+    print(f"Render layers processed at {time.time()}")
     all_renderers: set[str] = {layer_data.renderer_name for layer_data in render_layers}
 
     auto_detected_attachments = AssetReferences()
     introspector = AssetIntrospector()
-    auto_detected_attachments.input_filenames = set(
-        os.path.normpath(path) for path in introspector.parse_scene_assets()
-    )
+    print(f"Asset introspector initialized at {time.time()}")
 
+    update_progress("Analyzing scene assets...")
+    scene_assets = list(introspector.parse_scene_assets(progress_callback=update_progress))
+    total_assets = len(scene_assets)
+
+    # Update progress dialog with total assets
+    progress_dialog.setMaximum(total_assets)
+    progress_dialog.setValue(0)
+
+    # Process assets with progress updates
+    processed_assets = set()
+    print(f"Starting to process {total_assets} scene assets...")
+
+    for i, asset_path in enumerate(scene_assets):
+        progress_dialog.setValue(i)
+        processed_assets.add(os.path.normpath(asset_path))
+        # Process in larger batches to improve performance - refresh UI every 100 assets
+        if i % 100 == 0 and i > 0:
+            print(f"Processed {i+1}/{total_assets} assets at {time.time()}")
+            update_progress(f"Processed {i+1}/{total_assets} assets")
+
+    progress_dialog.setValue(total_assets)
+    auto_detected_attachments.input_filenames = processed_assets
+    print(f"All {total_assets} assets processed at {time.time()}")
+    update_progress(f"All {total_assets} assets processed")
+
+    update_progress("Adding output directories...")
     for layer_data in render_layers:
         auto_detected_attachments.output_directories.update(layer_data.output_directories)
+    print(f"Output directories added at {time.time()}")
 
     attachments = AssetReferences(
         input_filenames=set(render_settings.input_filenames),
@@ -672,9 +722,9 @@ def show_maya_render_submitter(
         output_directories=set(render_settings.output_directories),
     )
 
+    update_progress("Preparing submission parameters...")
     maya_version = maya.cmds.about(version=True)
     adaptor_version = ".".join(str(v) for v in adaptor_version_tuple[:2])
-
     # Need Maya and the Maya OpenJD application interface adaptor
     rez_packages = f"mayaIO-{maya_version} deadline_cloud_for_maya"
     conda_packages = f"maya={maya_version}.* maya-openjd={adaptor_version}.*"
@@ -690,6 +740,10 @@ def show_maya_render_submitter(
         rez_packages += " mtoa"
         conda_packages += " maya-mtoa"
 
+    # Close the progress dialog before creating the submission dialog
+    progress_dialog.close()
+    print("Progress dialog closed, creating submission dialog")
+
     submitter_dialog = SubmitJobToDeadlineDialog(
         job_setup_widget_type=SceneSettingsWidget,
         initial_job_settings=render_settings,
@@ -704,6 +758,5 @@ def show_maya_render_submitter(
         f=f,
         show_host_requirements_tab=True,
     )
-
     submitter_dialog.show()
     return submitter_dialog
