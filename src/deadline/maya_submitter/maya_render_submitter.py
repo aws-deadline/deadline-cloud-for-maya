@@ -740,6 +740,9 @@ def show_maya_render_submitter(
         rez_packages += " mtoa"
         conda_packages += " maya-mtoa"
 
+    if "redshift" in all_renderers:
+        conda_packages += " maya-redshift"
+
     # Close the progress dialog before creating the submission dialog
     progress_dialog.close()
     print("Progress dialog closed, creating submission dialog")
