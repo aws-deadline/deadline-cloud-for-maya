@@ -44,3 +44,27 @@ class TestRedshiftHandler:
 
         # THEN
         assert handler.image_width == args["image_width"]
+
+    def test_start_render_throws_runtime_error_when_camera_not_set(self) -> None:
+        """Tests that a runtime error is raised when there is no camera"""
+        # GIVEN
+        handler = RedshiftHandler()
+
+        # WHEN
+        start_render_data = {"frame": 1}
+
+        # THEN
+        with pytest.raises(RuntimeError):
+            handler.start_render(start_render_data)
+
+    def test_start_render_throws_runtime_error_when_frama_not_set(self) -> None:
+        """Tests that a runtime error is raised when there is no frame"""
+        # GIVEN
+        handler = RedshiftHandler()
+
+        # WHEN
+        start_render_data = {"camera": "persp"}
+
+        # THEN
+        with pytest.raises(RuntimeError):
+            handler.start_render(start_render_data)
