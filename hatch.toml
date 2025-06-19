@@ -42,9 +42,11 @@ pre-install-commands = [
 ]
 
 [envs.integ.scripts]
-test = "mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1"
-test_submitters = "mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m submitter"
-test_adaptors = "mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m adaptor"
+test = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1'
+test_submitters = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m submitter'
+test_adaptors_all = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m adaptor'
+test_adaptors_maya = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "adaptor and maya_renderer"'
+test_adaptors_redshift = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "adaptor and redshift_renderer"'
 
 [envs.e2e.scripts]
 test = "pytest --no-cov {args:test/*/e2e}"

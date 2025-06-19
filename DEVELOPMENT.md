@@ -292,11 +292,20 @@ To run the integ tests, you need to:
    ```
    /Applications/Autodesk/maya<version>/Maya.app/Contents/MacOS
    ```
-2. Use hatch to run adaptor tests:
+2. Use hatch to run all adaptor tests:
    ```bash
-   hatch run integ:test_adaptors
+   hatch run integ:test_adaptors_all
    ```
-3. (Optional) Use hatch to run all integ tests:
+3. Use hatch to run adaptor tests for a specific maya renderer plugin: 
+   ```bash
+   hatch run integ:test_adaptors_maya
+   ```
+   or 
+   ```bash
+   hatch run integ:test_adaptors_redshift
+   ```
+
+4. (Optional) Use hatch to run all integ tests:
    ```bash
    hatch run integ:test
    ```

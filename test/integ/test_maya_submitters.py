@@ -1,4 +1,5 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+import dataclasses
 
 import yaml
 import os
@@ -16,7 +17,7 @@ import maya.standalone
 import maya.cmds as cmds
 
 
-@pytest.fixture(scope="class", autouse=True)
+@pytest.fixture(scope="session", autouse=True)
 def initialize_maya():
     """
     Fixture that ensures Maya is open and close after the test runs.
@@ -30,8 +31,10 @@ def initialize_maya():
         on_create_job_bundle_callback,
     )
 
+    qt_application = QtWidgets.QApplication(sys.argv)
     yield show_maya_render_submitter, on_create_job_bundle_callback
 
+    qt_application.shutdown()
     maya.standalone.uninitialize()
 
 
@@ -41,6 +44,13 @@ class TestSubmitters:
     """
     Tests that ensure submitters produce the correct job bundle given a scene file.
     """
+
+    @dataclasses.dataclass
+    class JobConfiguration:
+        name: str
+        asset_folder: str
+        frame_list: str
+        file_prefix: str
 
     def _cleanup_sticky_settings(self, scene_file: Path, script_location: Path):
         """
@@ -53,8 +63,29 @@ class TestSubmitters:
         )
         Path(script_location / sticky_settings_location).unlink(missing_ok=True)
 
-    def test_minimal_scene_submitter(
-        self, initialize_maya, script_location: Path, tmp_path: Path
+    @pytest.mark.parametrize(
+        "job_configuration",
+        [
+            JobConfiguration(
+                name="Minimal Maya Test",
+                asset_folder="minimal_test",
+                frame_list="1-2",
+                file_prefix="rs_<RenderLayer>_<Camera>",
+            ),
+            JobConfiguration(
+                name="Redshift Test",
+                asset_folder="redshift_test",
+                frame_list="1",
+                file_prefix="redshift_test",
+            ),
+        ],
+    )
+    def test_scene_submitter(
+        self,
+        initialize_maya,
+        script_location: Path,
+        tmp_path: Path,
+        job_configuration: JobConfiguration,
     ) -> None:
         # Get submitters
         show_maya_render_submitter = initialize_maya[0]
@@ -62,8 +93,8 @@ class TestSubmitters:
 
         job_history_dir = tmp_path / "jobhistory"
         output_path = tmp_path / "output"
-        project_path = script_location / "minimal_test" / "scene"
-        scene_location = script_location / "minimal_test" / "scene" / "test.ma"
+        project_path = script_location / job_configuration.asset_folder / "scene"
+        scene_location = script_location / job_configuration.asset_folder / "scene" / "test.ma"
 
         # Clean up sticky setting
         self._cleanup_sticky_settings(scene_location, script_location)
@@ -74,17 +105,17 @@ class TestSubmitters:
         cmds.workspace(project_path, openWorkspace=True)
         cmds.workspace(fileRule=["images", output_path])
 
-        cmds.file(scene_location, open=True)
+        cmds.file(scene_location, open=True, force=True)
 
         cmds.setAttr("defaultResolution.width", 960)  # Set width
         cmds.setAttr("defaultResolution.height", 540)  # Set height
 
         # Set the render output directory
-        prefix = "rs_<RenderLayer>_<Camera>"
-        cmds.setAttr("defaultRenderGlobals.imageFilePrefix", prefix, type="string")
+        cmds.setAttr(
+            "defaultRenderGlobals.imageFilePrefix", job_configuration.file_prefix, type="string"
+        )
         cmds.optionVar(iv=("renderSetup_includeAllLights", 0))
 
-        QtWidgets.QApplication(sys.argv)
         widget = show_maya_render_submitter(None)
 
         settings = widget.job_settings_type()
@@ -96,7 +127,7 @@ class TestSubmitters:
         settings.description = ""
         settings.include_adaptor_wheels = False
         settings.override_frame_range = True
-        settings.frame_list = "1-2"
+        settings.frame_list = job_configuration.frame_list
 
         widget.shared_job_settings.shared_job_properties_box.set_parameter_value(
             {"name": "deadline:targetTaskRunStatus", "value": "READY"}
@@ -128,7 +159,10 @@ class TestSubmitters:
         # Check that the template is as expected.
         with (
             open(
-                script_location / "minimal_test" / "expected_job_bundle" / "template.yaml"
+                script_location
+                / job_configuration.asset_folder
+                / "expected_job_bundle"
+                / "template.yaml"
             ) as expected,
             open(job_history_dir / "template.yaml") as actual,
         ):
@@ -138,8 +172,8 @@ class TestSubmitters:
         expected_parameter_values = {
             "parameterValues": [
                 {"name": "MayaSceneFile", "value": str(scene_location)},
-                {"name": "OutputFilePrefix", "value": str(prefix)},
-                {"name": "Frames", "value": "1-2"},
+                {"name": "OutputFilePrefix", "value": str(job_configuration.file_prefix)},
+                {"name": "Frames", "value": job_configuration.frame_list},
                 {"name": "ImageWidth", "value": 960},
                 {"name": "ImageHeight", "value": 540},
                 {"name": "ProjectPath", "value": str(project_path) + "/"},
