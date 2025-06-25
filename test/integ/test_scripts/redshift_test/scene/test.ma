@@ -353,7 +353,6 @@ createNode VRaySettingsNode -s -n "vraySettings";
 		 1600613993 1768186226 893002351 1679961142 1735746149 1684105299 1600613993 1667590243 577004907 1818322490 573334899 1919251571
 		 1867345765 1918854500 1869177953 943143458 1953702444 1868919397 1701080909 1701339999 1684368227 1634089506 2103800684 125 ;
 	setAttr ".vfbSyncM" yes;
-	setAttr ".mSceneName" -type "string" "/Users/larbe/github/deadline-cloud-for-maya/test/integ/test_scripts/redshift_test/scene/test.ma";
 	setAttr ".rt_cpuRayBundleSize" 4;
 	setAttr ".rt_gpuRayBundleSize" 256;
 	setAttr ".rt_gpuRaysPerPixel" 2;
