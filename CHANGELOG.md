@@ -1,3 +1,10 @@
+## 0.15.6 (2025-06-25)
+
+
+
+### Bug Fixes
+* Maya scene with many asset files hangs without user feedback (#287) ([`4b69f6b`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/4b69f6bfa8eb93e5fd4d8ac44917234cea517e1b))
+
 ## 0.15.5 (2025-06-05)
 
 
