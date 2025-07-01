@@ -702,7 +702,7 @@ def show_maya_render_submitter(
         progress_dialog.setValue(i)
         normalized = os.path.normpath(asset_path)
         if not os.path.exists(normalized):
-            continue;
+            continue
         if os.path.isdir(normalized):
             processed_directories.add(normalized)
         else:
