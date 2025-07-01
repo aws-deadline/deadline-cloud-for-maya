@@ -77,12 +77,8 @@ class AssetIntrospector:
             frame_re_matches = _FRAME_RE.findall(normalized_path)
             if frame_re_matches or "<f>" in normalized_path or "<frame>" in normalized_path:
                 for expanded_path in self._expand_path(normalized_path):
-                    if not os.path.exists(expanded_path):
-                        continue
-                    if expanded_path in assets:
-                        continue
                     assets.add(expanded_path)
-            elif os.path.exists(normalized_path) and normalized_path not in assets:
+            else:
                 assets.add(Path(normalized_path))
 
         assets.add(Path(Scene.name()))
