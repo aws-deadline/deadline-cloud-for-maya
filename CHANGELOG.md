@@ -1,3 +1,11 @@
+## 0.15.7 (2025-07-03)
+
+
+### Features
+* add maya-redshift to conda-package auto-populate  (#297) ([`de8adbd`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/de8adbd689bb7fdef6d29b01bfe02dd42cd97b3b))
+* add validation for frame range field in submitter ui (#295) ([`5467cbf`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/5467cbf87456ea712d8a9ec65fe5930913bf2625))
+
+
 ## 0.15.6 (2025-06-25)
 
 
