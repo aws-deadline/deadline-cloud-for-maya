@@ -94,6 +94,7 @@ def _validate_files(installation_path: Path) -> None:
     assert "deadline" in module_dir
     assert "qtpy" in module_dir
     assert "xxhash" in module_dir
+    assert "psutil" in module_dir
 
     # Check the Maya module is here and there's a version file
     maya_submitter_dir = [f.name for f in (python_dir / "deadline" / "maya_submitter").iterdir()]
