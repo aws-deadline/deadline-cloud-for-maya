@@ -739,9 +739,10 @@ def show_maya_render_submitter(
     if "arnold" in all_renderers:
         rez_packages += " mtoa"
         conda_packages += " maya-mtoa"
-
     if "vray" in all_renderers:
         conda_packages += " maya-vray"
+    if "redshift" in all_renderers:
+        conda_packages += " maya-redshift"
 
     # Close the progress dialog before creating the submission dialog
     progress_dialog.close()
