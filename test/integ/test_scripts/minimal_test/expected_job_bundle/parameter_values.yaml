@@ -1,0 +1,25 @@
+parameterValues:
+- name: MayaSceneFile
+  value: /Volumes/workplace/deadline-cloud-for-maya/test/integ/test_scripts/minimal_test/scene/test.ma
+- name: Frames
+  value: 1-2
+- name: OutputFilePrefix
+  value: rs_<RenderLayer>_<Camera>
+- name: ImageWidth
+  value: 960
+- name: ImageHeight
+  value: 540
+- name: ProjectPath
+  value: /Volumes/workplace/deadline-cloud-for-maya/test/integ/test_scripts/minimal_test/scene/
+- name: OutputFilePath
+  value: <tmp_path>/output
+- name: RenderSetupIncludeLights
+  value: 'false'
+- name: deadline:targetTaskRunStatus
+  value: READY
+- name: deadline:maxFailedTasksCount
+  value: 20
+- name: deadline:maxRetriesPerTask
+  value: 5
+- name: deadline:priority
+  value: 50

@@ -39,6 +39,7 @@ from .cameras import get_renderable_camera_names, ALL_CAMERAS
 from ._version import version, version_tuple as adaptor_version_tuple
 from .ui.components.scene_settings_tab import SceneSettingsWidget
 from deadline.client.job_bundle.submission import AssetReferences
+import time
 
 logger = getLogger(__name__)
 
@@ -368,13 +369,13 @@ def _get_parameter_values(
         parameter_values.append(
             {
                 "name": "ImageWidth",
-                "value": render_layers[0].image_resolution[0],
+                "value": get_width(),
             }
         )
         parameter_values.append(
             {
                 "name": "ImageHeight",
-                "value": render_layers[0].image_resolution[1],
+                "value": get_height(),
             }
         )
 
@@ -444,12 +445,7 @@ def _get_parameter_values(
     return parameter_values
 
 
-def show_maya_render_submitter(
-    parent, f=Qt.WindowFlags(), load_sticky_setting: bool = False
-) -> Optional[SubmitJobToDeadlineDialog]:
-    with open(Path(__file__).parent / "default_maya_job_template.yaml") as fh:
-        default_job_template = yaml.safe_load(fh)
-
+def _set_render_setting(load_sticky_setting: bool = False) -> RenderSubmitterUISettings:
     render_settings = RenderSubmitterUISettings()
 
     # Set the setting defaults that come from the scene
@@ -462,19 +458,25 @@ def show_maya_render_submitter(
     if load_sticky_setting:
         render_settings.load_sticky_settings(Scene.name())
 
+    return render_settings
+
+
+def _set_render_layer_data() -> list[RenderLayerData]:
     # Create a dictionary for the layers, and accumulate data about each layer
+    print(f"_set_render_layer_data - get_all_renderable_render_layer_names {time.time()}")
     render_layer_names = get_all_renderable_render_layer_names()
     if not render_layer_names:
         raise DeadlineOperationError(
             "No render layer is set as renderable. At least one must be renderable to submit a job."
         )
-
+    print(f"_set_render_layer_data processing layers {time.time()}")
     render_layers: list[RenderLayerData] = []
     with saved_current_render_layer():
         for render_layer_name in render_layer_names:
             set_current_render_layer(render_layer_name)
 
             display_name = get_render_layer_display_name(render_layer_name)
+            print(f"_set_render_layer_data processing layer {display_name} {time.time()}")
             renderer_name = Scene.renderer()
             renderable_camera_names = get_renderable_camera_names()
             output_directories: set[str] = set()
@@ -502,9 +504,29 @@ def show_maya_render_submitter(
                     image_resolution=image_resolution,
                 )
             )
+            print(f"_set_render_layer_data done processing layer {time.time()}")
 
     # Sort the layers by name
     render_layers.sort(key=lambda layer: layer.display_name)
+
+    return render_layers
+
+
+def on_create_job_bundle_callback(
+    widget: SubmitJobToDeadlineDialog,
+    job_bundle_dir: str,
+    settings: RenderSubmitterUISettings,
+    queue_parameters: list[dict[str, Any]],
+    asset_references: AssetReferences,
+    host_requirements: Optional[dict[str, Any]] = None,
+    purpose: JobBundlePurpose = JobBundlePurpose.SUBMISSION,
+) -> dict[str, Any]:
+    with open(Path(__file__).parent / "default_maya_job_template.yaml") as fh:
+        default_job_template = yaml.safe_load(fh)
+
+    render_settings = _set_render_setting()
+
+    render_layers: list[RenderLayerData] = _set_render_layer_data()
 
     # Tell the settings tab the selectable cameras when only the current layer is in the job
     current_layer_selectable_cameras: list[str] = get_renderable_camera_names()
@@ -521,128 +543,178 @@ def show_maya_render_submitter(
     all_layer_selectable_cameras: list[str] = list(sorted(all_layer_selectable_cameras_set))
     render_settings.all_layer_selectable_cameras = [ALL_CAMERAS] + all_layer_selectable_cameras
 
-    all_renderers: set[str] = {layer_data.renderer_name for layer_data in render_layers}
+    # if submitting, warn if the current scene has been modified
+    scene_modified = maya.cmds.file(q=True, mf=True) == 1
+    if scene_modified and purpose == JobBundlePurpose.SUBMISSION:
+        scene_name = maya.cmds.file(q=True, sn=True)
+        button = maya.cmds.confirmDialog(
+            title="Warning: Scene Changes not Saved",
+            message=(
+                "The scene has unsaved local changes that will not be included in the job submission.\n\nDo you want to save the scene to %s before submitting?"
+                % scene_name
+            ),
+            button=["Yes", "No"],
+            defaultButton="No",
+            cancelButton="No",
+            dismissString="No",
+        )
+        if button == "Yes":
+            maya.cmds.file(save=True)
 
-    def on_create_job_bundle_callback(
-        widget: SubmitJobToDeadlineDialog,
-        job_bundle_dir: str,
-        settings: RenderSubmitterUISettings,
-        queue_parameters: list[dict[str, Any]],
-        asset_references: AssetReferences,
-        host_requirements: Optional[dict[str, Any]] = None,
-        purpose: JobBundlePurpose = JobBundlePurpose.SUBMISSION,
-    ) -> None:
-        # if submitting, warn if the current scene has been modified
-        scene_modified = maya.cmds.file(q=True, mf=True) == 1
-        if scene_modified and purpose == JobBundlePurpose.SUBMISSION:
-            scene_name = maya.cmds.file(q=True, sn=True)
-            button = maya.cmds.confirmDialog(
-                title="Warning: Scene Changes not Saved",
-                message=(
-                    "The scene has unsaved local changes that will not be included in the job submission.\n\nDo you want to save the scene to %s before submitting?"
-                    % scene_name
-                ),
-                button=["Yes", "No"],
-                defaultButton="No",
-                cancelButton="No",
-                dismissString="No",
+    job_bundle_path = Path(job_bundle_dir)
+
+    # If we're only submitting the current layer, filter our list of layers by that
+    if settings.render_layer_selection == LayerSelection.CURRENT:
+        current_render_layer_name = get_current_render_layer_name()
+        submit_render_layers = [
+            layer for layer in render_layers if layer.name == current_render_layer_name
+        ]
+        if not submit_render_layers:
+            raise DeadlineOperationError(
+                f"The current render layer, {current_render_layer_name}, is not set as renderable. It must be renderable to submit as a job."
             )
-            if button == "Yes":
-                maya.cmds.file(save=True)
+    else:
+        submit_render_layers = render_layers
 
-        job_bundle_path = Path(job_bundle_dir)
+    # Check if there are multiple frame ranges across the layers
+    first_frame_range = submit_render_layers[0].frame_range
+    per_layer_frames_parameters = not settings.override_frame_range and any(
+        layer.frame_range != first_frame_range for layer in submit_render_layers
+    )
 
-        # If we're only submitting the current layer, filter our list of layers by that
-        if settings.render_layer_selection == LayerSelection.CURRENT:
-            current_render_layer_name = get_current_render_layer_name()
-            submit_render_layers = [
-                layer for layer in render_layers if layer.name == current_render_layer_name
-            ]
-            if not submit_render_layers:
-                raise DeadlineOperationError(
-                    f"The current render layer, {current_render_layer_name}, is not set as renderable. It must be renderable to submit as a job."
-                )
-        else:
-            submit_render_layers = render_layers
+    # If there are multiple frame ranges and we're not overriding the range,
+    # then we create per-layer Frames parameters.
+    if per_layer_frames_parameters:
+        for layer_data in submit_render_layers:
+            layer_data.frames_parameter_name = f"{layer_data.display_name}Frames"
 
-        # Check if there are multiple frame ranges across the layers
-        first_frame_range = submit_render_layers[0].frame_range
-        per_layer_frames_parameters = not settings.override_frame_range and any(
-            layer.frame_range != first_frame_range for layer in submit_render_layers
-        )
+    first_output_file_prefix = submit_render_layers[0].output_file_prefix
+    per_layer_output_file_prefix = any(
+        layer.output_file_prefix != first_output_file_prefix for layer in submit_render_layers
+    )
 
-        # If there are multiple frame ranges and we're not overriding the range,
-        # then we create per-layer Frames parameters.
-        if per_layer_frames_parameters:
-            for layer_data in submit_render_layers:
-                layer_data.frames_parameter_name = f"{layer_data.display_name}Frames"
+    if per_layer_output_file_prefix:
+        for layer_data in submit_render_layers:
+            layer_data.output_file_prefix_parameter_name = (
+                f"{layer_data.display_name}OutputFilePrefix"
+            )
 
-        first_output_file_prefix = submit_render_layers[0].output_file_prefix
-        per_layer_output_file_prefix = any(
-            layer.output_file_prefix != first_output_file_prefix for layer in submit_render_layers
-        )
+    first_image_resolution = submit_render_layers[0].image_resolution
+    per_layer_image_resolution = any(
+        layer.image_resolution != first_image_resolution for layer in submit_render_layers
+    )
 
-        if per_layer_output_file_prefix:
-            for layer_data in submit_render_layers:
-                layer_data.output_file_prefix_parameter_name = (
-                    f"{layer_data.display_name}OutputFilePrefix"
-                )
+    if per_layer_image_resolution:
+        for layer_data in submit_render_layers:
+            layer_data.image_width_parameter_name = f"{layer_data.display_name}ImageWidth"
+            layer_data.image_height_parameter_name = f"{layer_data.display_name}ImageHeight"
 
-        first_image_resolution = submit_render_layers[0].image_resolution
-        per_layer_image_resolution = any(
-            layer.image_resolution != first_image_resolution for layer in submit_render_layers
-        )
+    renderers: set[str] = {layer_data.renderer_name for layer_data in submit_render_layers}
 
-        if per_layer_image_resolution:
-            for layer_data in submit_render_layers:
-                layer_data.image_width_parameter_name = f"{layer_data.display_name}ImageWidth"
-                layer_data.image_height_parameter_name = f"{layer_data.display_name}ImageHeight"
+    job_template = _get_job_template(
+        default_job_template=default_job_template,
+        settings=settings,
+        renderers=renderers,
+        render_layers=submit_render_layers,
+        all_layer_selectable_cameras=all_layer_selectable_cameras,
+        current_layer_selectable_cameras=current_layer_selectable_cameras,
+    )
+    parameter_values = _get_parameter_values(
+        settings, renderers, submit_render_layers, queue_parameters
+    )
 
-        renderers: set[str] = {layer_data.renderer_name for layer_data in submit_render_layers}
+    # If "HostRequirements" is provided, inject it into each of the "Step"
+    if host_requirements:
+        # for each step in the template, append the same host requirements.
+        for step in job_template["steps"]:
+            step["hostRequirements"] = host_requirements
 
-        job_template = _get_job_template(
-            default_job_template=default_job_template,
-            settings=settings,
-            renderers=renderers,
-            render_layers=submit_render_layers,
-            all_layer_selectable_cameras=all_layer_selectable_cameras,
-            current_layer_selectable_cameras=current_layer_selectable_cameras,
-        )
-        parameter_values = _get_parameter_values(
-            settings, renderers, submit_render_layers, queue_parameters
-        )
+    with open(job_bundle_path / "template.yaml", "w", encoding="utf8") as f:
+        deadline_yaml_dump(job_template, f, indent=1)
 
-        # If "HostRequirements" is provided, inject it into each of the "Step"
-        if host_requirements:
-            # for each step in the template, append the same host requirements.
-            for step in job_template["steps"]:
-                step["hostRequirements"] = host_requirements
+    with open(job_bundle_path / "parameter_values.yaml", "w", encoding="utf8") as f:
+        deadline_yaml_dump({"parameterValues": parameter_values}, f, indent=1)
 
-        with open(job_bundle_path / "template.yaml", "w", encoding="utf8") as f:
-            deadline_yaml_dump(job_template, f, indent=1)
+    with open(job_bundle_path / "asset_references.yaml", "w", encoding="utf8") as f:
+        deadline_yaml_dump(asset_references.to_dict(), f, indent=1)
 
-        with open(job_bundle_path / "parameter_values.yaml", "w", encoding="utf8") as f:
-            deadline_yaml_dump({"parameterValues": parameter_values}, f, indent=1)
+    # Save Sticky Settings
+    attachments: AssetReferences = widget.job_attachments.attachments
+    settings.input_filenames = sorted(attachments.input_filenames)
+    settings.input_directories = sorted(attachments.input_directories)
+    settings.input_filenames = sorted(attachments.input_filenames)
 
-        with open(job_bundle_path / "asset_references.yaml", "w", encoding="utf8") as f:
-            deadline_yaml_dump(asset_references.to_dict(), f, indent=1)
+    settings.save_sticky_settings(Scene.name())
 
-        # Save Sticky Settings
-        attachments: AssetReferences = widget.job_attachments.attachments
-        settings.input_filenames = sorted(attachments.input_filenames)
-        settings.input_directories = sorted(attachments.input_directories)
-        settings.input_filenames = sorted(attachments.input_filenames)
+    return {
+        "job_parameters": parameter_values,
+    }
 
-        settings.save_sticky_settings(Scene.name())
+
+def show_maya_render_submitter(
+    parent, f=Qt.WindowFlags(), load_sticky_setting: bool = False
+) -> Optional[SubmitJobToDeadlineDialog]:
+    print("Starting Maya render submitter")
+
+    # Create and show a progress dialog
+    from qtpy.QtWidgets import QProgressDialog
+    from qtpy.QtCore import Qt  # type: ignore
+
+    progress_dialog = QProgressDialog("Initializing...", "", 0, 1, parent)
+    progress_dialog.setWindowTitle("Asset Detection")
+    progress_dialog.setWindowModality(Qt.WindowModal)
+    progress_dialog.setCancelButton(None)  # Remove cancel button
+    progress_dialog.setMinimumDuration(0)  # Show immediately
+    progress_dialog.setValue(0)
+
+    # Create a callback function to update the progress dialog
+    def update_progress(message):
+        progress_dialog.setLabelText(message)
+        maya.cmds.refresh(force=True)
+        time.sleep(0.05)  # Add a small sleep to ensure the UI has time to update
+
+    # Initialize with first message
+    update_progress("Loading render settings...")
+    render_settings = _set_render_setting(load_sticky_setting)
+
+    update_progress("Processing render layers...")
+    render_layers: list[RenderLayerData] = _set_render_layer_data()
+    print(f"Render layers processed at {time.time()}")
+    all_renderers: set[str] = {layer_data.renderer_name for layer_data in render_layers}
 
     auto_detected_attachments = AssetReferences()
     introspector = AssetIntrospector()
-    auto_detected_attachments.input_filenames = set(
-        os.path.normpath(path) for path in introspector.parse_scene_assets()
-    )
+    print(f"Asset introspector initialized at {time.time()}")
 
+    update_progress("Analyzing scene assets...")
+    scene_assets = list(introspector.parse_scene_assets(progress_callback=update_progress))
+    total_assets = len(scene_assets)
+
+    # Update progress dialog with total assets
+    progress_dialog.setMaximum(total_assets)
+    progress_dialog.setValue(0)
+
+    # Process assets with progress updates
+    processed_assets = set()
+    print(f"Starting to process {total_assets} scene assets...")
+
+    for i, asset_path in enumerate(scene_assets):
+        progress_dialog.setValue(i)
+        processed_assets.add(os.path.normpath(asset_path))
+        # Process in larger batches to improve performance - refresh UI every 100 assets
+        if i % 100 == 0 and i > 0:
+            print(f"Processed {i+1}/{total_assets} assets at {time.time()}")
+            update_progress(f"Processed {i+1}/{total_assets} assets")
+
+    progress_dialog.setValue(total_assets)
+    auto_detected_attachments.input_filenames = processed_assets
+    print(f"All {total_assets} assets processed at {time.time()}")
+    update_progress(f"All {total_assets} assets processed")
+
+    update_progress("Adding output directories...")
     for layer_data in render_layers:
         auto_detected_attachments.output_directories.update(layer_data.output_directories)
+    print(f"Output directories added at {time.time()}")
 
     attachments = AssetReferences(
         input_filenames=set(render_settings.input_filenames),
@@ -650,9 +722,9 @@ def show_maya_render_submitter(
         output_directories=set(render_settings.output_directories),
     )
 
+    update_progress("Preparing submission parameters...")
     maya_version = maya.cmds.about(version=True)
     adaptor_version = ".".join(str(v) for v in adaptor_version_tuple[:2])
-
     # Need Maya and the Maya OpenJD application interface adaptor
     rez_packages = f"mayaIO-{maya_version} deadline_cloud_for_maya"
     conda_packages = f"maya={maya_version}.* maya-openjd={adaptor_version}.*"
@@ -668,6 +740,13 @@ def show_maya_render_submitter(
         rez_packages += " mtoa"
         conda_packages += " maya-mtoa"
 
+    if "redshift" in all_renderers:
+        conda_packages += " maya-redshift"
+
+    # Close the progress dialog before creating the submission dialog
+    progress_dialog.close()
+    print("Progress dialog closed, creating submission dialog")
+
     submitter_dialog = SubmitJobToDeadlineDialog(
         job_setup_widget_type=SceneSettingsWidget,
         initial_job_settings=render_settings,
@@ -682,6 +761,5 @@ def show_maya_render_submitter(
         f=f,
         show_host_requirements_tab=True,
     )
-
     submitter_dialog.show()
     return submitter_dialog

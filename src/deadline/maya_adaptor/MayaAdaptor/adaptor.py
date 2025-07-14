@@ -194,7 +194,7 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
             "and necessary write permissions of MAYA_APP_DIR."
         )
         _vray_license_error = "error: Could not obtain a license"
-        _renderman_license_error = ".*{SEVERE}\s+License.*"
+        _renderman_license_error = r".*{SEVERE}\s+License.*"
         callback_list = []
         completed_regexes = [re.compile("MayaClient: Finished Rendering Frame [0-9]+")]
         progress_regexes = [
@@ -214,7 +214,7 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
                 RegexCallback(
                     [
                         re.compile(
-                            "(aborting render because the abort_on_license_fail option was enabled)"
+                            "(aborting render because (?:the abort_on_license_fail option was enabled|this is a batch render and abort_on_license_fail option is enabled))"
                         )
                     ],
                     self._handle_error,

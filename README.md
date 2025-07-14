@@ -22,7 +22,7 @@ ability to run Maya efficiently on your render farm.
 
 This library requires:
 
-1. Maya 2023 - 2024,
+1. Maya 2024 - 2025,
 1. Python 3.9 or higher; and
 1. Linux, Windows, or a macOS operating system.
 
@@ -109,6 +109,13 @@ $ maya -help
 ```
 
 For more information on the commands the OpenJD adaptor runtime provides, see [here][openjd-adaptor-runtime-lifecycle].
+
+Maya Adaptor by default will skip version checking when opening scene. If you want to change this, set the `MAYA_IGNORE_VERSION` enviroment variable accordingly.
+
+For example, to enable version checking:
+```
+export MAYA_IGNORE_VERSION=false
+```
 
 ### Maya Software Availability in AWS Deadline Cloud Service Managed Fleets
 

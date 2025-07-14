@@ -145,6 +145,7 @@ steps:
           - file://{{Env.File.initData}}
           cancelation:
             mode: NOTIFY_THEN_TERMINATE
+          timeout: 87000
         onExit:
           command: MayaAdaptor
           args:
@@ -154,6 +155,7 @@ steps:
           - '{{ Session.WorkingDirectory }}/connection.json'
           cancelation:
             mode: NOTIFY_THEN_TERMINATE
+          timeout: 600
   script:
     embeddedFiles:
     - name: runData
@@ -218,6 +220,7 @@ steps:
           - file://{{Env.File.initData}}
           cancelation:
             mode: NOTIFY_THEN_TERMINATE
+          timeout: 87000
         onExit:
           command: MayaAdaptor
           args:
@@ -227,6 +230,7 @@ steps:
           - '{{ Session.WorkingDirectory }}/connection.json'
           cancelation:
             mode: NOTIFY_THEN_TERMINATE
+          timeout: 600
   script:
     embeddedFiles:
     - name: runData
@@ -291,6 +295,7 @@ steps:
           - file://{{Env.File.initData}}
           cancelation:
             mode: NOTIFY_THEN_TERMINATE
+          timeout: 87000
         onExit:
           command: MayaAdaptor
           args:
@@ -300,6 +305,7 @@ steps:
           - '{{ Session.WorkingDirectory }}/connection.json'
           cancelation:
             mode: NOTIFY_THEN_TERMINATE
+          timeout: 600
   script:
     embeddedFiles:
     - name: runData

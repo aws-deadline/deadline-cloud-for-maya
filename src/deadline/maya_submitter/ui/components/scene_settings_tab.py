@@ -1,7 +1,7 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 import os
 
-from qtpy.QtCore import QSize, Qt  # type: ignore
+from qtpy.QtCore import QSize, Qt, QRegularExpression  # type: ignore
 from qtpy.QtWidgets import (  # type: ignore
     QCheckBox,
     QComboBox,
@@ -15,6 +15,7 @@ from qtpy.QtWidgets import (  # type: ignore
     QSpacerItem,
     QWidget,
 )
+from qtpy.QtGui import QRegularExpressionValidator  # type: ignore
 from deadline.client.ui import block_signals
 
 from ...render_layers import LayerSelection
@@ -125,6 +126,9 @@ class SceneSettingsWidget(QWidget):
 
         self.frame_override_chck = QCheckBox("Override Frame Range", self)
         self.frame_override_txt = QLineEdit(self)
+        # Only allow numbers, colons, dashes, commas, and whitespace for frame ranges
+        frame_pattern = QRegularExpression(r"^[0-9:\-,\s]*$")
+        self.frame_override_txt.setValidator(QRegularExpressionValidator(frame_pattern))
         lyt.addWidget(self.frame_override_chck, 4, 0)
         lyt.addWidget(self.frame_override_txt, 4, 1)
         self.frame_override_chck.stateChanged.connect(self.activate_frame_override_changed)

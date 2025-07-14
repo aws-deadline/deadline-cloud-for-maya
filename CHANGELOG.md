@@ -1,3 +1,57 @@
+## 0.15.7 (2025-07-03)
+
+
+### Features
+* add maya-redshift to conda-package auto-populate  (#297) ([`de8adbd`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/de8adbd689bb7fdef6d29b01bfe02dd42cd97b3b))
+* add validation for frame range field in submitter ui (#295) ([`5467cbf`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/5467cbf87456ea712d8a9ec65fe5930913bf2625))
+
+
+## 0.15.6 (2025-06-25)
+
+
+
+### Bug Fixes
+* Maya scene with many asset files hangs without user feedback (#287) ([`4b69f6b`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/4b69f6bfa8eb93e5fd4d8ac44917234cea517e1b))
+
+## 0.15.5 (2025-06-05)
+
+
+### Features
+* Add ignore version enviroment variable flag (#280) ([`17391a9`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/17391a9a1b181f11fe22b90698e72da5dab3d333))
+* Update Maya adaptor to support Redshift renderer via redshift4maya plugin (#277) ([`f6667bf`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/f6667bf8714a225e30fe3b5b2a1fe042accefbff))
+* allow adaptor to ignore version when open scene (#273) ([`a1361ef`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/a1361efd568bc4c6a8f8e4f92cc6eae7b2c9346e))
+
+### Bug Fixes
+* sdist failed to install (#281) ([`0bb9847`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/0bb9847eab28d82a547a0b8171055324b848e579))
+* Fix submitter integration test for Windows (#278) ([`c7bdb58`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/c7bdb585d9de02667ec924fed6e8c2f7ea26b598))
+* fixed Maya submitter to pull the correct image resolution from scene ([`20c3a72`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/20c3a72cd711715e61bb02255ddaa78df212d893))
+
+## 0.15.4 (2025-04-16)
+
+
+
+### Bug Fixes
+* move mod file to a user folder to prevent permission issue (#269) ([`615b21a`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/615b21a9ab8020adc4dcaea4b752eddc10898c85))
+
+## 0.15.3 (2025-04-14)
+
+
+### Features
+* Add standalone installer for Maya Submitter (#255) ([`3c124fe`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/3c124fe844e5a77b0dda16f0b1b73f60edbf9cf5))
+
+### Bug Fixes
+* Arnold licensing error handling for mtoa5.4.7.1 (#252) ([`9c39e47`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/9c39e4761f4e1d82b82f56a3f2ba73dbdc8525fa))
+
+## 0.15.2 (2025-03-06)
+
+### Bug Fixes
+* Changed the cameras dropdown wording option from "All Cameras" to "All Renderable Cameras" in the submitter ([`a6d983c`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/a6d983c76f2628d827693c78baa4ee78a2bb0c0d))
+* Tighten error regex pattern for Maya Adaptor. ([`67bbc97`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/67bbc970dbc6c6e4273127d8ecf7ae310735f4b9))
+* Use `byFrameStep` instead of `byFrame` (#224) ([`677137d`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/677137d6a67e18d1a787671dd134096a8df0b04a))
+* Update the warning message used when the scene has unsaved changes (#238) ([`c9b5e74`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/c9b5e7479e21c76184ba522e3cd983dd8b35a647))
+* OutputPath is read from the scene in the submitter (#231) ([`d77f474`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/d77f47491372abec3324410e0cd2eb7cbc68a7eb))
+* Load scene settings when the submitter is open (#229) ([`94ee920`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/94ee920f7a0707c5308a26fb33571c85c1af7555))
+
 ## 0.15.1 (2025-02-03)
 
 * This release only includes documentation updates (#227) ([`e0a3827`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/e0a38272e6cab7dac27f0af8c7c64ce3a79189ae))

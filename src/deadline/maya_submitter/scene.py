@@ -23,6 +23,7 @@ class RendererNames(Enum):
     arnold = "arnold"
     vray = "vray"
     renderman = "renderman"
+    redshift = "redshift"
 
 
 class Animation:
