@@ -1,3 +1,10 @@
+## 0.15.8 (2025-07-15)
+
+
+### Features
+* add support for auto-populating maya-vray conda package in submitter (#289) ([`26063d8`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/26063d8f6f730a69bff26cd33b3356d00869f6e9))
+
+
 ## 0.15.7 (2025-07-03)
 
 
