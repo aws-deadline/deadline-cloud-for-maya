@@ -1,3 +1,4 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 from __future__ import annotations
 
 import re
@@ -11,7 +12,7 @@ from typing import Any
 
 SUPPORTED_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12"]
 SUPPORTED_PLATFORMS = ["win_amd64", "manylinux2014_x86_64", "macosx_10_9_x86_64"]
-NATIVE_DEPENDENCIES = ["xxhash"]
+NATIVE_DEPENDENCIES = ["xxhash", "psutil"]
 
 
 def _get_project_dict() -> dict[str, Any]:
