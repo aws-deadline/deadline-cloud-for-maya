@@ -233,7 +233,25 @@ class AssetIntrospector:
         """
         import mtoa.txManager.lib as mtoa  # type: ignore
 
-        return mtoa.get_scanned_files(mtoa.scene_default_texture_scan)
+        try:
+            return mtoa.get_scanned_files(mtoa.scene_default_texture_scan)
+        except re.error as e:
+            if "bad escape" in str(e):
+                try:
+                    import maya.cmds
+
+                    mtoa_version = maya.cmds.pluginInfo("mtoa", query=True, version=True)
+                except Exception:
+                    mtoa_version = "UNKNOWN - Please check 'Arnold' > 'About'"
+
+                # Handle a known MTOA bug where this function is broken when using UDIM textures (logged as MTOA-1424 at Autodesk)
+                # This is fixed in MTOA 5.3.5: https://help.autodesk.com/view/ARNOL/ENU/?guid=arnold_for_maya_535_html
+                raise Exception(
+                    "This error may be caused by a known bug in Arnold for Maya (MtoA) versions less than 5.3.5 (MTOA-1424). "
+                    "If the installed version of Arnold for Maya is less than 5.3.5, please upgrade to MtoA 5.3.5 or newer and try again. "
+                    f"Detected MtoA Version: {mtoa_version}"
+                ) from e
+            raise
 
     @lru_cache(maxsize=None)
     def _expand_path(self, path: str) -> Generator[Path, None, None]:

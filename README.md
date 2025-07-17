@@ -23,6 +23,7 @@ ability to run Maya efficiently on your render farm.
 This library requires:
 
 1. Maya 2024 - 2025,
+1. MtoA 5.3.5 or higher,
 1. Python 3.9 or higher; and
 1. Linux, Windows, or a macOS operating system.
 
