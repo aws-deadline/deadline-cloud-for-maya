@@ -240,6 +240,7 @@ def _get_job_template(
             + "image_height: {{Param."
             + (layer_data.image_height_parameter_name or "ImageHeight")
             + "}}\n"
+            + "cache_pathmapping: true\n"
         )
         # If a specific camera is selected, link to the Camera parameter
         if settings.camera_selection != ALL_CAMERAS:
