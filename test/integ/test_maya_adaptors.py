@@ -1,20 +1,19 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
 from pathlib import Path
+from test.integ.test_const import (
+    EXPECTED_JOB_BUNDLE_FOLDER,
+    EXPECTED_OUTPUT_FOLDER,
+    OUTPUT_FOLDER,
+    TEMPLATE,
+    TEST_SCENE_FOLDER,
+)
 
 import pytest
 from flaky import flaky
 
 from .helpers.output_comparison import are_images_similar
 from .helpers.test_runners import run_adaptor_test
-
-from test.integ.test_const import (
-    TEMPLATE,
-    TEST_SCENE_FOLDER,
-    OUTPUT_FOLDER,
-    EXPECTED_JOB_BUNDLE_FOLDER,
-    EXPECTED_OUTPUT_FOLDER,
-)
 
 
 @pytest.mark.adaptor

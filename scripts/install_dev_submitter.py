@@ -6,10 +6,9 @@ import platform
 import shutil
 import subprocess
 from pathlib import Path
-
 from typing import Optional
 
-from _project import get_git_root, get_dependencies, get_project_dict, get_pip_platform
+from _project import get_dependencies, get_git_root, get_pip_platform, get_project_dict
 
 
 class MayaVersion:
@@ -34,7 +33,7 @@ class MayaVersion:
             return cls._validate_version(arg)
         maya_version_file = get_git_root() / "maya_version.txt"
         if maya_version_file.exists():
-            with open(maya_version_file, "r", encoding="utf-8") as f:
+            with open(maya_version_file, encoding="utf-8") as f:
                 return cls._validate_version(f.read().strip())
         return cls._validate_version(input("Please enter the Maya version: "))
 
@@ -95,7 +94,7 @@ def _resolve_dependencies(local_deps: list[Path]) -> dict[str, str]:
 def _build_deps_env(destination: Path, python_version: str, local_deps: list[Path]) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     if not destination.is_dir():
-        raise Exception(f"{str(destination)} is not a directory")
+        raise Exception(f"{destination!s} is not a directory")
 
     resolved_dependencies_dict = _resolve_dependencies(local_deps)
     resolved_dependencies = [

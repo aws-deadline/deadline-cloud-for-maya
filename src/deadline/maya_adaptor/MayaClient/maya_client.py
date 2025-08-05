@@ -16,7 +16,9 @@ except (ImportError, ModuleNotFoundError):
     except (ImportError, ModuleNotFoundError):
         # TODO: Remove this try/except once we bump to openjd.adaptor_runtime_client 0.9+
         # On Windows, HTTPClientInterface is not available, only ClientInterface
-        from openjd.adaptor_runtime_client import ClientInterface as HTTPClientInterface  # type: ignore[import]
+        from openjd.adaptor_runtime_client import (
+            ClientInterface as HTTPClientInterface,  # type: ignore[import]
+        )
 
 
 try:
@@ -37,8 +39,8 @@ class MayaClient(HTTPClientInterface):
                 "renderer": self.set_renderer,
             }
         )
-        import maya.standalone
         import maya.cmds
+        import maya.standalone
 
         maya.standalone.initialize()
         print(f"MayaClient: Maya Version {maya.cmds.about(version=True)}")

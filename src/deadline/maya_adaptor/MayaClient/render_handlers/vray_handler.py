@@ -1,9 +1,9 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
-from .default_maya_handler import DefaultMayaHandler
-
 import maya.cmds
 import maya.mel
+
+from .default_maya_handler import DefaultMayaHandler
 
 
 class VRayHandler(DefaultMayaHandler):

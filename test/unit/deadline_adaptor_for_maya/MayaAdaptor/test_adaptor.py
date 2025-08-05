@@ -8,21 +8,19 @@ from collections import namedtuple
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import ANY, Mock, PropertyMock, patch
-from typing import List
-
-import pytest
-import jsonschema  # type: ignore
-from openjd.adaptor_runtime.adaptors import SemanticVersion
-from openjd.adaptor_runtime_client import PathMappingRule
 
 import deadline.maya_adaptor.MayaAdaptor.adaptor as adaptor_module
+import jsonschema  # type: ignore
+import pytest
 from deadline.maya_adaptor.MayaAdaptor import MayaAdaptor
 from deadline.maya_adaptor.MayaAdaptor.adaptor import _FIRST_MAYA_ACTIONS, MayaNotRunningError
+from openjd.adaptor_runtime.adaptors import SemanticVersion
+from openjd.adaptor_runtime_client import PathMappingRule
 
 # , _MAYA_INIT_KEYS
 
 
-@pytest.fixture()
+@pytest.fixture
 def init_data() -> dict:
     """
     Pytest Fixture to return an init_data dictionary that passes validation
@@ -47,7 +45,7 @@ def init_data() -> dict:
     }
 
 
-@pytest.fixture()
+@pytest.fixture
 def run_data() -> dict:
     """
     Pytest Fixture to return a run_data dictionary that passes validation
@@ -905,7 +903,7 @@ class TestMayaAdaptor_on_cleanup:
         ]
 
         # WHEN
-        results: List[bool] = [bool(regex.match(message)) for regex in regex_list]
+        results: list[bool] = [bool(regex.match(message)) for regex in regex_list]
 
         # THEN
         assert any(results) == should_match

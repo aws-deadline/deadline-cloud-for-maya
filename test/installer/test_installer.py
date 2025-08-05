@@ -52,7 +52,7 @@ def installer_path():
     if not os.access(path, os.X_OK) and not platform.system() == "Darwin":
         raise PermissionError(f"Installer at '{path}' is not executable")
 
-    yield Path(path).absolute()
+    return Path(path).absolute()
 
 
 def _run_installer(installer_path, install_scope, installation_path) -> Path:
@@ -105,26 +105,26 @@ def _validate_files(installation_path: Path) -> None:
 def user_installation(installer_path, tmp_path_factory):
     """Used for tests that just want to assert some facts around the install but do not modify"""
     tmp_path = tmp_path_factory.mktemp("install")
-    yield _run_installer(installer_path, "user", tmp_path)
+    return _run_installer(installer_path, "user", tmp_path)
 
 
 @pytest.fixture(scope="session")
 def system_installation(installer_path, tmp_path_factory):
     """Used for tests that just want to assert some facts around the install but do not modify"""
     tmp_path = tmp_path_factory.mktemp("install")
-    yield _run_installer(installer_path, "system", tmp_path)
+    return _run_installer(installer_path, "system", tmp_path)
 
 
 @pytest.fixture(scope="function")
 def per_test_user_installation(installer_path, tmp_path):
     """Used for tests that modify the installation"""
-    yield _run_installer(installer_path, "user", tmp_path)
+    return _run_installer(installer_path, "user", tmp_path)
 
 
 @pytest.fixture(scope="function")
 def per_test_system_installation(installer_path, tmp_path):
     """Used for tests that modify the installation"""
-    yield _run_installer(installer_path, "system", tmp_path)
+    return _run_installer(installer_path, "system", tmp_path)
 
 
 @pytest.fixture(scope="function")
@@ -135,7 +135,7 @@ def uninstaller_path():
     elif platform.system() == "Windows":
         uninstaller_path = uninstaller_path.with_suffix(".exe")
 
-    yield uninstaller_path
+    return uninstaller_path
 
 
 def test_default_location(installer_path: Path):
@@ -155,7 +155,7 @@ def test_default_location(installer_path: Path):
     # Since windows doesn't have text mode, it'll pop-up a gui. We use the timeout to ensure it stops
     try:
         help_result = subprocess.run(
-            [installer_path, *text_mode, "--help"], capture_output=True, text=True, timeout=5
+            [installer_path, *text_mode, "--help"], capture_output=True, text=True, timeout=5, check=False
         )
         assert (
             help_result.returncode == 0
@@ -413,7 +413,7 @@ class TestUserInstall:
     def test_uninstall(self, per_test_user_installation: Path, uninstaller_path: Path):
         # GIVEN / WHEN
         result = subprocess.run(
-            [per_test_user_installation / uninstaller_path, "--mode", "unattended"]
+            [per_test_user_installation / uninstaller_path, "--mode", "unattended"], check=False
         )
 
         # THEN
@@ -440,7 +440,7 @@ class TestSystemInstall:
         result = subprocess.run(
             [per_test_system_installation / uninstaller_path, "--mode", "unattended"],
             capture_output=True,
-            text=True,
+            text=True, check=False,
         )
 
         # THEN
@@ -463,7 +463,7 @@ class TestSystemInstall:
 class TestVerifySigning:
     @pytest.mark.skipif(platform.system() != "Windows", reason="Only run on Windows")
     def test_windows_signing(self, installer_path):
-        """Assumes that the Windows SDK is installed so we can find signtool:
+        r"""Assumes that the Windows SDK is installed so we can find signtool:
             C:/Program Files*/Windows Kits/*/bin/*/x64/signtool.exe
         Example success:
 
@@ -491,7 +491,7 @@ class TestVerifySigning:
 
         # WHEN
         result = subprocess.run(
-            [signtool, "verify", "/pa", installer_path], capture_output=True, text=True
+            [signtool, "verify", "/pa", installer_path], capture_output=True, text=True, check=False
         )
 
         # THEN
@@ -510,7 +510,7 @@ class TestVerifySigning:
         result = subprocess.run(
             [gpg, "--verify", f"{installer_path}.sig", installer_path],
             capture_output=True,
-            text=True,
+            text=True, check=False,
         )
 
         # THEN
@@ -541,7 +541,7 @@ class TestVerifySigning:
         codesign_result = subprocess.run(
             [codesign, "--verify", "--deep", "--verbose", installer_path],
             capture_output=True,
-            text=True,
+            text=True, check=False,
         )
         assert (
             "code object is not signed at all" not in codesign_result.stdout
@@ -552,7 +552,7 @@ class TestVerifySigning:
         spctl_result = subprocess.run(
             [spctl, "--verbose", "--assess", "--type", "execute", installer_path],
             capture_output=True,
-            text=True,
+            text=True, check=False,
         )
         assert (
             "rejected" not in spctl_result.stderr

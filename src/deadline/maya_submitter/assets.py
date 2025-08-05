@@ -4,9 +4,9 @@ from __future__ import annotations
 import os
 import re
 import time
-from functools import lru_cache
+from collections.abc import Generator, Iterable
+from functools import cache
 from pathlib import Path
-from typing import Generator, Iterable
 
 from .file_path_editor import FilePathEditor
 from .scene import Animation, RendererNames, Scene
@@ -253,7 +253,7 @@ class AssetIntrospector:
                 ) from e
             raise
 
-    @lru_cache(maxsize=None)
+    @cache
     def _expand_path(self, path: str) -> Generator[Path, None, None]:
         """
         Some animated textures are padded with multiple '#' characters to indicate the current frame

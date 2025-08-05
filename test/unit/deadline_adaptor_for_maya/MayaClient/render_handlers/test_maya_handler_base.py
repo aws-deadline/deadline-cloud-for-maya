@@ -1,17 +1,16 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 from __future__ import annotations
 
-from io import StringIO
 import os
+from io import StringIO
 from unittest.mock import Mock, patch
 
 import pytest
-
 from deadline.maya_adaptor.MayaClient.dir_map import DirectoryMapping, DirectoryMappingDict
 from deadline.maya_adaptor.MayaClient.render_handlers import DefaultMayaHandler
 
 
-@pytest.fixture()
+@pytest.fixture
 def mayahandlerbase():
     return DefaultMayaHandler()
 

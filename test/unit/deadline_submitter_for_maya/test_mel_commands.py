@@ -1,7 +1,8 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-from deadline.maya_submitter.mel_commands import DeadlineCloudSubmitterCmd
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, patch
+
 import maya.api.OpenMaya as om  # pylint: disable=import-error
+from deadline.maya_submitter.mel_commands import DeadlineCloudSubmitterCmd
 from qtpy.QtCore import Qt  # type: ignore
 from qtpy.QtWidgets import (  # type: ignore
     QApplication,

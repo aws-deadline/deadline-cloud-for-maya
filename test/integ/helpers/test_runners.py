@@ -1,15 +1,15 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
-import subprocess
-import yaml
 import json
-
+import subprocess
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 
 def run_command(args: list[str]) -> subprocess.CompletedProcess[bytes]:
-    output = subprocess.run(args, capture_output=True)
+    output = subprocess.run(args, capture_output=True, check=False)
 
     print(f"Ran the following: {' '.join(output.args)}")
     print(f"\nstdout:\n\n{output.stdout.decode('utf-8', errors='replace')}")

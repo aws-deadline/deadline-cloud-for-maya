@@ -3,7 +3,6 @@
 import re
 
 import pytest
-
 from deadline.maya_submitter.utils import join_paths, timed_func
 
 

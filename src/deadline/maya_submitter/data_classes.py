@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
-import json
 
 from .cameras import ALL_CAMERAS
 from .render_layers import LayerSelection  # type: ignore
@@ -68,7 +68,6 @@ class RenderSubmitterUISettings:
                 print(
                     f"WARNING: Failed to load sticky settings file {sticky_settings_filename}, reverting to the default settings."
                 )
-                pass
 
     def save_sticky_settings(self, scene_filename: str):
         sticky_settings_filename = Path(scene_filename).with_suffix(

@@ -2,17 +2,16 @@
 """Script to create platform-specific Deadline Client installers using InstallBuilder."""
 
 import os
-import sys
 import shutil
+import sys
 import tempfile
 from datetime import datetime
-from typing import Optional
 from pathlib import Path
+from typing import Optional
 
 from common import EvaluationBuildError, run
-from find_installbuilder import InstallBuilderSelection, get_builder_exe_name
-
 from deps_bundle import build_deps_bundle
+from find_installbuilder import InstallBuilderSelection, get_builder_exe_name
 
 # This is derived from <installerFilename> in installer/DeadlineCloudClient.xml
 # See "Supported Platforms" table in https://releases.installbuilder.com/installbuilder/docs/installbuilder-userguide.html
@@ -142,7 +141,7 @@ def main(
     with tempfile.TemporaryDirectory() as wd:
         workdir = Path(wd)
         print(f"cwd: {os.getcwd()}")
-        print(f"working directory: {str(workdir)}")
+        print(f"working directory: {workdir!s}")
 
         installbuilder_path = setup_install_builder(
             workdir=workdir,

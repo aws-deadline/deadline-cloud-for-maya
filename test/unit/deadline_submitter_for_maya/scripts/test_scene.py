@@ -1,10 +1,10 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
-from typing import Optional
-import pytest
 import os
-from unittest.mock import patch, Mock
+from typing import Optional
+from unittest.mock import Mock, patch
 
+import pytest
 from deadline.maya_submitter.scene import FrameRange, Scene
 
 

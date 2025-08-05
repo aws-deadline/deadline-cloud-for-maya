@@ -2,11 +2,10 @@
 from __future__ import annotations
 
 from typing import Any
-
-import pytest
+from unittest.mock import patch
 
 import maya.cmds
-from unittest.mock import patch
+import pytest
 from deadline.maya_adaptor.MayaClient.render_handlers.vray_handler import VRayHandler
 
 

@@ -1,14 +1,12 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
 from pathlib import Path
+from test.integ.test_const import ASSET_REFERENCES, PARAMETER_VALUES
 from typing import Any
-import yaml
-
-import PIL.Image
 
 import numpy as np
-
-from test.integ.test_const import ASSET_REFERENCES, PARAMETER_VALUES
+import PIL.Image
+import yaml
 
 
 def are_images_similar(

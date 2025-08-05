@@ -5,15 +5,15 @@ Defines the Render submitter command which is registered in Maya.
 """
 import maya.api.OpenMaya as om  # pylint: disable=import-error
 import maya.cmds
+from deadline.client.ui import gui_error_handler
 from qtpy.QtCore import Qt  # type: ignore
 from qtpy.QtWidgets import (  # type: ignore
     QApplication,
 )
 
-from deadline.client.ui import gui_error_handler
 from . import logger as deadline_logger  # type: ignore
-from .maya_render_submitter import show_maya_render_submitter
 from .job_bundle_output_test_runner import run_maya_render_submitter_job_bundle_output_test
+from .maya_render_submitter import show_maya_render_submitter
 
 
 class DeadlineCloudSubmitterCmd(om.MPxCommand):

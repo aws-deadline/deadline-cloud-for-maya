@@ -2,44 +2,44 @@
 from __future__ import annotations
 
 import os
+import time
+from copy import deepcopy
+from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
 from typing import Any, Optional
-import yaml  # type: ignore[import]
-from copy import deepcopy
-from dataclasses import dataclass
 
 import maya.cmds  # pylint: disable=import-error
-
+import yaml  # type: ignore[import]
 from deadline.client.api import get_deadline_cloud_library_telemetry_client
-from deadline.client.job_bundle._yaml import deadline_yaml_dump
-from deadline.client.ui.dialogs.submit_job_to_deadline_dialog import (  # pylint: disable=import-error
-    SubmitJobToDeadlineDialog,
-    JobBundlePurpose,
-)
 from deadline.client.exceptions import DeadlineOperationError
+from deadline.client.job_bundle._yaml import deadline_yaml_dump
+from deadline.client.job_bundle.submission import AssetReferences
+from deadline.client.ui.dialogs.submit_job_to_deadline_dialog import (  # pylint: disable=import-error
+    JobBundlePurpose,
+    SubmitJobToDeadlineDialog,
+)
 from qtpy.QtCore import Qt  # type: ignore
 
 from . import Animation, Scene  # type: ignore
+from ._version import version
+from ._version import version_tuple as adaptor_version_tuple
 from .assets import AssetIntrospector
-from .renderers import get_output_prefix_with_tokens, get_height, get_width
+from .cameras import ALL_CAMERAS, get_renderable_camera_names
 from .data_classes import (
     RenderSubmitterUISettings,
 )
 from .render_layers import (
-    saved_current_render_layer,
+    LayerSelection,
+    get_all_renderable_render_layer_names,
     get_current_render_layer_name,
     get_render_layer_display_name,
-    set_current_render_layer,
-    get_all_renderable_render_layer_names,
     render_setup_include_all_lights,
-    LayerSelection,
+    saved_current_render_layer,
+    set_current_render_layer,
 )
-from .cameras import get_renderable_camera_names, ALL_CAMERAS
-from ._version import version, version_tuple as adaptor_version_tuple
+from .renderers import get_height, get_output_prefix_with_tokens, get_width
 from .ui.components.scene_settings_tab import SceneSettingsWidget
-from deadline.client.job_bundle.submission import AssetReferences
-import time
 
 logger = getLogger(__name__)
 
@@ -540,7 +540,7 @@ def on_create_job_bundle_callback(
         all_layer_selectable_cameras_set = all_layer_selectable_cameras_set.intersection(
             layer.renderable_camera_names
         )
-    all_layer_selectable_cameras: list[str] = list(sorted(all_layer_selectable_cameras_set))
+    all_layer_selectable_cameras: list[str] = sorted(all_layer_selectable_cameras_set)
     render_settings.all_layer_selectable_cameras = [ALL_CAMERAS] + all_layer_selectable_cameras
 
     # if submitting, warn if the current scene has been modified
@@ -657,8 +657,8 @@ def show_maya_render_submitter(
     print("Starting Maya render submitter")
 
     # Create and show a progress dialog
-    from qtpy.QtWidgets import QProgressDialog
     from qtpy.QtCore import Qt  # type: ignore
+    from qtpy.QtWidgets import QProgressDialog
 
     progress_dialog = QProgressDialog("Initializing...", "", 0, 1, parent)
     progress_dialog.setWindowTitle("Asset Detection")

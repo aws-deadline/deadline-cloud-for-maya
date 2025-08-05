@@ -14,15 +14,15 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from deadline.client.api import get_deadline_cloud_library_telemetry_client, TelemetryClient
+from deadline.client.api import TelemetryClient, get_deadline_cloud_library_telemetry_client
+from openjd.adaptor_runtime._utils import secure_open
 from openjd.adaptor_runtime._version import version as openjd_adaptor_version
 from openjd.adaptor_runtime.adaptors import Adaptor, AdaptorDataValidators, SemanticVersion
-from openjd.adaptor_runtime_client import Action
 from openjd.adaptor_runtime.adaptors.configuration import AdaptorConfiguration
-from openjd.adaptor_runtime.process import LoggingSubprocess
 from openjd.adaptor_runtime.app_handlers import RegexCallback, RegexHandler
 from openjd.adaptor_runtime.application_ipc import ActionsQueue, AdaptorServer
-from openjd.adaptor_runtime._utils import secure_open
+from openjd.adaptor_runtime.process import LoggingSubprocess
+from openjd.adaptor_runtime_client import Action
 
 from .._version import version as adaptor_version
 
@@ -32,7 +32,6 @@ _logger = logging.getLogger(__name__)
 class MayaNotRunningError(Exception):
     """Error that is raised when attempting to use Maya while it is not running"""
 
-    pass
 
 
 _FIRST_MAYA_ACTIONS = [
@@ -367,8 +366,8 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
 
         # Add the openjd namespace directory to PYTHONPATH, so that adaptor_runtime_client
         # will be available directly to the adaptor client.
-        import openjd.adaptor_runtime_client
         import deadline.maya_adaptor
+        import openjd.adaptor_runtime_client
 
         openjd_namespace_dir = os.path.dirname(
             os.path.dirname(openjd.adaptor_runtime_client.__file__)

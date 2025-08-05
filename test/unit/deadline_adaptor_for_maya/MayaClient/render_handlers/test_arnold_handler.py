@@ -4,7 +4,6 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-
 from deadline.maya_adaptor.MayaClient.render_handlers.arnold_handler import ArnoldHandler
 
 

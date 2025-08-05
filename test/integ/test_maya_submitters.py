@@ -1,20 +1,18 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 import dataclasses
-
-import yaml
 import os
-import pytest
 import sys
-
 from pathlib import Path
 from typing import Any
-from qtpy import QtWidgets
-
-from .helpers.test_runners import is_valid_template
-from .helpers.output_comparison import are_asset_references_similar, are_parameter_values_similar
 
 import maya.standalone
-import maya.cmds as cmds
+import pytest
+import yaml
+from maya import cmds
+from qtpy import QtWidgets
+
+from .helpers.output_comparison import are_asset_references_similar, are_parameter_values_similar
+from .helpers.test_runners import is_valid_template
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -27,8 +25,8 @@ def initialize_maya():
 
     # Need to import here since it need maya to be initialize first to not throw an error
     from deadline.maya_submitter.maya_render_submitter import (
-        show_maya_render_submitter,
         on_create_job_bundle_callback,
+        show_maya_render_submitter,
     )
 
     qt_application = QtWidgets.QApplication(sys.argv)

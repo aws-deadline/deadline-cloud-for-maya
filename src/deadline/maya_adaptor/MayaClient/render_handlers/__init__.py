@@ -1,10 +1,10 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
-from .default_maya_handler import DefaultMayaHandler
 from .arnold_handler import ArnoldHandler
+from .default_maya_handler import DefaultMayaHandler
 from .redshift_handler import RedshiftHandler
-from .vray_handler import VRayHandler
 from .renderman_handler import RenderManHandler
+from .vray_handler import VRayHandler
 
 __all__ = ["DefaultMayaHandler", "get_render_handler"]
 

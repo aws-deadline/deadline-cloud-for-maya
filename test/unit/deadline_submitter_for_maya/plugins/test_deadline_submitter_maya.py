@@ -3,18 +3,14 @@
 import os
 import re
 from collections import namedtuple
-from typing import Any
 from unittest.mock import Mock, call, patch
 
-import maya.cmds
-import maya.api.OpenMaya as om  # pylint: disable=import-error
-import pytest
-
 import deadline
-from deadline.maya_submitter import maya_render_submitter
-from deadline.maya_submitter import mel_commands
-from deadline.maya_submitter import shelf
 import DeadlineCloudForMaya
+import maya.api.OpenMaya as om  # pylint: disable=import-error
+import maya.cmds
+import pytest
+from deadline.maya_submitter import maya_render_submitter, mel_commands, shelf
 
 Command = namedtuple("Command", ["name", "cmdCreator"])  # Mock Command Class
 
@@ -60,7 +56,7 @@ def test_initialize_and_uninitialize_plugin(
 
         VERSION_REGEX = re.compile(r"^\d+\.\d+\.\d+$")
 
-        def __eq__(self, other: Any) -> bool:
+        def __eq__(self, other: object) -> bool:
             return bool(VersionMatcher.VERSION_REGEX.match(other))
 
     mock_MFnPlugin.assert_called_once_with(plugin, "AWS", VersionMatcher())
@@ -101,7 +97,7 @@ def test_initialize_plugin_exc(mock_reload: Mock, mock_confirm_dialog: Mock) -> 
             title="Deadline Cloud For Maya Plugin Failed To Load",
             message=(
                 "Encountered the following exception while loading the Deadline Cloud Submitter:\n"
-                f"{str(exc_info.value)}"
+                f"{exc_info.value!s}"
             ),
             button="OK",
             defaultButton="OK",

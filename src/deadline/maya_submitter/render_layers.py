@@ -5,7 +5,6 @@ Functionality for interacting with Maya's Render Layers
 """
 from contextlib import contextmanager
 from enum import IntEnum
-from typing import List
 
 import maya.app.renderSetup.model.renderSetupPreferences as renderSetupPrefs  # type: ignore
 import maya.cmds
@@ -22,7 +21,7 @@ class LayerSelection(IntEnum):
     CURRENT = 2
 
 
-def get_all_renderable_render_layer_names() -> List[str]:
+def get_all_renderable_render_layer_names() -> list[str]:
     render_layer_names = maya.cmds.ls(type="renderLayer")
     # Filter out any render layers that are referenced in other files,
     # because they cannot be set as the current render layer.

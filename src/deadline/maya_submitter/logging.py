@@ -3,7 +3,6 @@
 """
 Functionality for creating a global logger for the maya submitter.
 """
-from __future__ import absolute_import, print_function
 
 import logging
 import logging.handlers
@@ -57,7 +56,7 @@ class MayaLogger(logging.Logger):
             # make sure the directories exist.
             try:
                 os.makedirs(os.path.dirname(log_file))
-            except (IOError, OSError):
+            except OSError:
                 log_file = os.path.join(tempfile.gettempdir(), f"rfm.{os.getpid()}.log")
 
         if not os.access(os.path.dirname(log_file), os.W_OK | os.R_OK):

@@ -4,7 +4,6 @@ import os
 from unittest.mock import Mock, patch
 
 import pytest
-
 from deadline.maya_adaptor.MayaClient.maya_client import MayaClient, main
 
 

@@ -1,9 +1,9 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 import os
 import shutil
+from typing import Any
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
-from typing import Any
 
 
 class HatchCustomBuildHook(BuildHookInterface):

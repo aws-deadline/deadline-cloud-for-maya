@@ -6,8 +6,8 @@ Creates or updates the AWS Deadline shelf.
 import os
 from contextlib import contextmanager
 
-import maya.mel  # pylint: disable=import-errorz
 import maya.cmds  # pylint: disable=import-errorz
+import maya.mel  # pylint: disable=import-errorz
 
 _BUTTON_COMMAND = """import maya.cmds
 try:

@@ -1,9 +1,7 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
-from typing import List
 
 import pytest
-
 from deadline.maya_submitter.utils import join_paths
 
 join_path_parameters = [
@@ -15,7 +13,7 @@ join_path_parameters = [
 
 
 @pytest.mark.parametrize("first, remainder, expected", join_path_parameters)
-def test_join_paths(first: str, remainder: List[str], expected: str) -> None:
+def test_join_paths(first: str, remainder: list[str], expected: str) -> None:
     # WHEN
     new_path = join_paths(first, *remainder)
 

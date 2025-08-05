@@ -4,12 +4,12 @@
 Module contain a wrapper around Maya's dirmap command
 """
 
-from typing import List, Optional, Tuple
+from typing import Optional
 
 import maya.cmds
 
 
-class DirectoryMappingDict(object):
+class DirectoryMappingDict:
     """
     Dictionary like object used for accessing and modifying Directory mappings
     """
@@ -32,20 +32,20 @@ class DirectoryMappingDict(object):
     def __contains__(self, source: str):
         return maya.cmds.dirmap(getMappedDirectory=source) is not None
 
-    def items(self) -> List[Tuple[str, str]]:
+    def items(self) -> list[tuple[str, str]]:
         """
         Returns a list containing all mapping pairs
         """
         all_mappings = maya.cmds.dirmap(getAllMappings=True)
         return list(zip(all_mappings[::2], all_mappings[1::]))
 
-    def keys(self) -> List[str]:
+    def keys(self) -> list[str]:
         """
         Returns a list containing all source paths.
         """
         return maya.cmds.dirmap(getAllMappings=True)[::2]
 
-    def values(self) -> List[str]:
+    def values(self) -> list[str]:
         """
         Returns a list of all output paths
         """

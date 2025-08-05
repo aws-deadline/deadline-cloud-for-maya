@@ -8,9 +8,7 @@ from pathlib import Path
 from typing import Optional, Union
 
 import boto3
-
 from common import UnsupportedOSError
-
 
 _INSTALL_BUILDER_ARCHIVE_FILENAME = {
     "Windows": "VMware-InstallBuilder-Professional-windows.tar.gz",

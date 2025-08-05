@@ -1,8 +1,8 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
-import pytest
-
 from pathlib import Path
+
+import pytest
 
 
 @pytest.fixture

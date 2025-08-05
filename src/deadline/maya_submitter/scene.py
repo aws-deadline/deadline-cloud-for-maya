@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import Enum
-from typing import Iterator, Optional
+from typing import Optional
 
 import maya.cmds
 
@@ -67,7 +68,7 @@ class Animation:
         return maya.cmds.getAttr("defaultRenderGlobals.extensionPadding")
 
     @classmethod
-    def frame_list(cls) -> "FrameRange":
+    def frame_list(cls) -> FrameRange:
         """
         Returns a FrameRange object representing the full framelist.
         """

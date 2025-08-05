@@ -4,12 +4,11 @@
 This file contains the logic that is used to load/unload our plugin
 """
 
-from __future__ import absolute_import, annotations, print_function
+from __future__ import annotations
 
-import os
 import logging
+import os
 import types
-from typing import List
 from importlib import reload
 
 import maya.api.OpenMaya as om  # pylint: disable=import-error
@@ -21,7 +20,7 @@ VENDOR = "AWS"
 VERSION = "0.13.2"
 
 __log__ = logging.getLogger("Deadline")
-_registered_mel_commands: List[str] = []
+_registered_mel_commands: list[str] = []
 _first_initialization: bool = True
 
 
@@ -92,7 +91,7 @@ def initializePlugin(plugin):
         else:
             message = (
                 "Encountered the following exception while loading the Deadline Cloud Submitter:\n"
-                f"{str(e)}"
+                f"{e!s}"
             )
         maya.cmds.confirmDialog(
             title="Deadline Cloud For Maya Plugin Failed To Load",

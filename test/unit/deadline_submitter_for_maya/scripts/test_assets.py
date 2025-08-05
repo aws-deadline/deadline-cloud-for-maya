@@ -8,10 +8,9 @@ from os.path import normpath, split
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
-import pytest
-
 import deadline.maya_submitter.assets as assets_module
 import deadline.maya_submitter.utils as utils_module
+import pytest
 
 ArnoldConfig = namedtuple(
     "ArnoldConfig", ["currentRenderer", "autotx", "use_existing_tiled_textures"]

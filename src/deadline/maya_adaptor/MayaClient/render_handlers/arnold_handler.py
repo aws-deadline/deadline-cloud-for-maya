@@ -1,8 +1,8 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
-from .default_maya_handler import DefaultMayaHandler
-
 import maya.cmds
+
+from .default_maya_handler import DefaultMayaHandler
 
 
 class ArnoldHandler(DefaultMayaHandler):

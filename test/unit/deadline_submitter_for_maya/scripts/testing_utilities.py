@@ -7,7 +7,7 @@ A set of utilities developed for this set of tests.
 import contextlib
 import os
 import tempfile
-from typing import Dict, Optional, Tuple
+from typing import Optional
 
 if os.name == "nt":
 
@@ -88,7 +88,7 @@ def program_that_prints_output(
     exit_code: int,
     *,
     sleep_seconds=0.1,
-    conditional_outputs: Optional[Dict[Tuple[str], Tuple[str, int]]] = None,
+    conditional_outputs: Optional[dict[tuple[str], tuple[str, int]]] = None,
 ):
     """
     This context manager creates a program that prints the specified output, then returns

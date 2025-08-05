@@ -2,11 +2,11 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 import os
 import platform
+from collections.abc import Iterable
+from pathlib import Path
+from typing import Any, Callable, Optional
 
 import click
-
-from pathlib import Path
-from typing import Any, Callable, Iterable, Optional
 from build_installer import main
 
 

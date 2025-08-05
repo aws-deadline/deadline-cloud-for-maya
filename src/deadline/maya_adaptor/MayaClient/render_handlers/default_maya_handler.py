@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import maya.cmds
 import maya.mel
@@ -32,8 +32,8 @@ def _get_ignore_version_flag() -> bool:
 
 
 class DefaultMayaHandler:
-    cameras: Optional[List[str]] = None
-    render_kwargs: Dict[str, Any]
+    cameras: Optional[list[str]] = None
+    render_kwargs: dict[str, Any]
 
     def __init__(self):
         self.action_dict = {

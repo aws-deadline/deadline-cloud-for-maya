@@ -1,7 +1,9 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 import os
 
-from qtpy.QtCore import QSize, Qt, QRegularExpression  # type: ignore
+from deadline.client.ui import block_signals
+from qtpy.QtCore import QRegularExpression, QSize, Qt  # type: ignore
+from qtpy.QtGui import QRegularExpressionValidator  # type: ignore
 from qtpy.QtWidgets import (  # type: ignore
     QCheckBox,
     QComboBox,
@@ -15,8 +17,6 @@ from qtpy.QtWidgets import (  # type: ignore
     QSpacerItem,
     QWidget,
 )
-from qtpy.QtGui import QRegularExpressionValidator  # type: ignore
-from deadline.client.ui import block_signals
 
 from ...render_layers import LayerSelection
 
