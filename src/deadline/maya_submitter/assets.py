@@ -6,7 +6,7 @@ import re
 import time
 from functools import lru_cache
 from pathlib import Path
-from typing import Generator, Iterable
+from typing import Any, Generator, Iterable
 
 from .file_path_editor import FilePathEditor
 from .scene import Animation, RendererNames, Scene
@@ -238,7 +238,7 @@ class AssetIntrospector:
 
         return arnold_textures_files
 
-    def _get_arnold_texture_files(self):
+    def _get_arnold_texture_files(self) -> dict[str, Any]:
         """
         Imports inner Arnold functions to get list of textures.
 
