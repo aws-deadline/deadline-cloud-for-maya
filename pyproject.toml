@@ -31,7 +31,7 @@ classifiers = [
 
 dependencies = [
     "deadline == 0.51.*",
-    "openjd-adaptor-runtime == 0.8.*",
+    "openjd-adaptor-runtime == 0.9.*",
 ]
 
 [project.urls]

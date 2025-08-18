@@ -308,18 +308,47 @@ or modifying functionality, then you will want to be writing one or more integ t
 logic behaves as expected and that future changes do not accidentally break your change.
 
 To run the integ tests, you need to:
-1. Add `mayapy` executable to the PATH:
+1. Install Maya 2025
+2. Install Redshift 2025
+3. Add `mayapy` executable to the PATH:
    
    For example, default path of mayapy on OSX is 
 
    ```
    /Applications/Autodesk/maya<version>/Maya.app/Contents/MacOS
    ```
-2. Use hatch to run all adaptor tests:
+4. Navigate to your local checkout of this repository:
+   ```
+   cd </path/to/deadline-cloud-for-maya>
+   ```
+5. Install your local `deadline-cloud-for-maya` repository into Maya's Python environment:
+   ```
+   mayapy -m pip install -e . --force-reinstall
+   ```
+6. Install the testing dependencies into Maya's Python environment:
+   ```
+   mayapy -m pip install -r requirements-testing.txt
+   ```
+7. Install the integration testing dependencies into Maya's Python environment:
+   ```
+   mayapy -m pip install -r requirements-integ-testing.txt
+   ```
+8. Add Maya's Python's `bin/` folder to your `PATH`:
+
+   For example, the default path on OSX is
+   ```
+   /Applications/Autodesk/maya2025/Maya.app/Contents/Frameworks/Python.framework/Versions/Current/bin/
+   ```
+
+   So you can run:
+   ```
+   export PATH="/Applications/Autodesk/maya2025/Maya.app/Contents/Frameworks/Python.framework/Versions/Current/bin/:$PATH"
+   ```
+9. Use hatch to run all adaptor tests:
    ```bash
    hatch run integ:test_adaptors_all
    ```
-3. Use hatch to run adaptor tests for a specific maya renderer plugin: 
+10. Use hatch to run adaptor tests for a specific maya renderer plugin:
    ```bash
    hatch run integ:test_adaptors_maya
    ```
@@ -328,7 +357,7 @@ To run the integ tests, you need to:
    hatch run integ:test_adaptors_redshift
    ```
 
-4. (Optional) Use hatch to run all integ tests:
+11. (Optional) Use hatch to run all integ tests:
    ```bash
    hatch run integ:test
    ```
@@ -341,7 +370,7 @@ To run the integ tests, you need to:
 #### Build the package
 
 ```bash
-hatch run build
+hatch build
 ```
 
 #### Build the installer
