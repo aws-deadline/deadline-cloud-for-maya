@@ -16,16 +16,15 @@ Fixes: *<insert link to GitHub issue here>*
 See [DEVELOPMENT.md](https://github.com/aws-deadline/deadline-cloud-for-maya/blob/mainline/DEVELOPMENT.md) for information on running tests.
 *delete text ending here*
 
-#### Unit test result
-*delete text starting here*
-If `src/` was modified or a file was added/removed, then update the unit tests and post the test results below
-*delete text ending here*
 #### Integ test result
+
 *delete text starting here*
 If `src/` was modified or a file was added/removed, then update the integ tests and post the test results below. See
 DEVELOPMENT.md on additional instructions on running some, or all integ tests.
 *delete text ending here*
+
 #### Installer test result
+
 *delete text starting here*
 If `installer/` was modified or a file was added/removed from `src/`, then update the installer tests and post the test results below
 *delete text ending here*
