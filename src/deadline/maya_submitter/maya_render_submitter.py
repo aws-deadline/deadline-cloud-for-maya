@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from logging import getLogger
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, cast
 import yaml  # type: ignore[import]
 from copy import deepcopy
 from dataclasses import dataclass
@@ -12,6 +12,7 @@ from dataclasses import dataclass
 import maya.cmds  # pylint: disable=import-error
 
 from deadline.client.api import get_deadline_cloud_library_telemetry_client
+from deadline.client.job_bundle.parameters import JobParameter
 from deadline.client.job_bundle._yaml import deadline_yaml_dump
 from deadline.client.ui.dialogs.submit_job_to_deadline_dialog import (  # pylint: disable=import-error
     SubmitJobToDeadlineDialog,
@@ -517,7 +518,7 @@ def on_create_job_bundle_callback(
     widget: SubmitJobToDeadlineDialog,
     job_bundle_dir: str,
     settings: RenderSubmitterUISettings,
-    queue_parameters: list[dict[str, Any]],
+    queue_parameters: list[JobParameter],
     asset_references: AssetReferences,
     host_requirements: Optional[dict[str, Any]] = None,
     purpose: JobBundlePurpose = JobBundlePurpose.SUBMISSION,
@@ -621,7 +622,7 @@ def on_create_job_bundle_callback(
         current_layer_selectable_cameras=current_layer_selectable_cameras,
     )
     parameter_values = _get_parameter_values(
-        settings, renderers, submit_render_layers, queue_parameters
+        settings, renderers, submit_render_layers, cast(list[dict[str, Any]], queue_parameters)
     )
 
     # If "HostRequirements" is provided, inject it into each of the "Step"
