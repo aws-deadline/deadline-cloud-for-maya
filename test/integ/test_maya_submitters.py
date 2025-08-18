@@ -79,6 +79,7 @@ class TestSubmitters:
                 file_prefix="redshift_test",
             ),
         ],
+        ids=["Minimal Maya Test", "Redshift Test"],
     )
     def test_scene_submitter(
         self,

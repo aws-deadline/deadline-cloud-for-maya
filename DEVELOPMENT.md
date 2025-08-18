@@ -140,18 +140,41 @@ or modifying functionality, then you will want to be writing one or more integ t
 logic behaves as expected and that future changes do not accidentally break your change.
 
 To run the integ tests, you need to:
-1. Add `mayapy` executable to the PATH:
+1. Install Maya 2025
+2. Install Redshift for Maya 2025
+3. Add `mayapy` executable to the PATH:
    
    For example, default path of mayapy on OSX is 
 
    ```
-   /Applications/Autodesk/maya<version>/Maya.app/Contents/MacOS
+   /Applications/Autodesk/maya2025/Maya.app/Contents/MacOS
    ```
-2. Use hatch to run submitter tests:
+
+   So you can run:
+   ```
+   export PATH="/Applications/Autodesk/maya2025/Maya.app/Contents/MacOS:$PATH"
+   ```
+4. Navigate to your local checkout of this repository:
+   ```
+   cd </path/to/deadline-cloud-for-maya>
+   ```
+5. Install your local `deadline-cloud-for-maya` repository into Maya's Python environment:
+   ```
+   mayapy -m pip install -e . --force-reinstall
+   ```
+6. Install the testing dependencies into Maya's Python environment:
+   ```
+   mayapy -m pip install -r requirements-testing.txt
+   ```
+7. Install the integration testing dependencies into Maya's Python environment:
+   ```
+   mayapy -m pip install -r requirements-integ-testing.txt
+   ```
+8. Use hatch to run submitter tests:
    ```bash
    hatch run integ:test_submitters
    ```
-3. (Optional) Use hatch to run all integ tests:
+9. (Optional) Use hatch to run all integ tests:
    ```bash
    hatch run integ:test
    ```
@@ -311,6 +334,10 @@ To run the integ tests, you need to:
    ```
 
 ### Submitter Installer Development Workflow
+
+#### Prerequisites
+- Install [InstallBuilder](https://installbuilder.com/)
+
 #### Build the package
 
 ```bash
@@ -320,12 +347,10 @@ hatch run build
 #### Build the installer
 
 ```bash
-hatch run installer:build-installer --local-dev-build --platform <PLATFORM> [--install-builder-location <LOCATION> --output-dir <DIR>]
+hatch run installer:build-installer --local-dev --platform <PLATFORM> [--install-builder-location <LOCATION> --output-dir <DIR>]
 ```
 
 Run `hatch run installer:build-installer -h` to see the full list of arguments.
-
-
 
 #### Test a local installer
 ```bash
