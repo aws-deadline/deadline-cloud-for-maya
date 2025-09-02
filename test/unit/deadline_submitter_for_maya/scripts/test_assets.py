@@ -137,6 +137,43 @@ class TestParseSceneAssets:
             any_order=True,
         )
 
+    @patch.object(assets_module.AssetIntrospector, "_get_node_attr_paths")
+    def test_gets_node_attr_paths(
+        self,
+        mock_get_node_attr_paths: MagicMock,
+        mock_expand_path: MagicMock,
+        scene_name: str,
+    ) -> None:
+        # GIVEN
+        node_attr_paths = [
+            "/path/to/project/test_scene/object1/cacheFile",
+            "/path/to/project/test_scene/object1/input1_####.png",
+            "/path/to/project/test_scene/object1/input2_<f>.png",
+            "/path/to/project/test_scene/object1/input3_<frame>.png",
+        ]
+        mock_get_node_attr_paths.return_value = node_attr_paths
+        progress_callback = MagicMock()
+
+        # WHEN
+        results = assets_module.AssetIntrospector().parse_scene_assets(progress_callback)
+
+        # THEN
+        expected_results = {
+            Path("/path/to/project/test_scene/object1/cacheFile"),
+            Path("/path/to/project/test_scene/object1/input1_####.png"),
+            Path("/path/to/project/test_scene/object1/input2_<f>.png"),
+            Path("/path/to/project/test_scene/object1/input3_<frame>.png"),
+            Path(scene_name),
+        }
+        assert expected_results.issubset(results)
+        mock_expand_path.assert_has_calls(
+            [
+                call("/path/to/project/test_scene/object1/input1_####.png"),
+                call("/path/to/project/test_scene/object1/input2_<f>.png"),
+                call("/path/to/project/test_scene/object1/input3_<frame>.png"),
+            ],
+        )
+
 
 @patch.object(assets_module.AssetIntrospector, "_expand_path")
 @patch.object(assets_module.Scene, "yeti_cache_files")
@@ -456,3 +493,72 @@ class TestExpandPath:
         # THEN
         assert next(third_result) == path
         assert mock_findAllFilesForPattern.call_count == 2
+
+
+@patch.object(assets_module, "maya")
+def test_expand_tokens(mock_maya: MagicMock) -> None:
+    # GIVEN
+    object_name = "test_object"
+    mock_maya.cmds.internalVar.return_value = "/path/to/project"
+    mock_maya.cmds.file.return_value = "/path/to/project/folder1/test_scene.ma"
+    input_path = "<project>/folder1/<scene>/folder2/<object>/cache_texture1"
+
+    # WHEN
+    result_path = assets_module.AssetIntrospector()._expand_tokens(input_path, object_name)
+
+    # THEN
+    assert result_path == "/path/to/project/folder1/test_scene/folder2/test_object/cache_texture1"
+
+
+@pytest.mark.parametrize("expand_tokens", [True, False])
+@patch.object(assets_module.AssetIntrospector, "_expand_tokens")
+@patch.object(assets_module, "maya")
+def test_get_node_attr_paths(
+    mock_maya: MagicMock,
+    mock_expand_tokens: MagicMock,
+    expand_tokens: bool,
+) -> None:
+    # GIVEN
+    file_node = MagicMock()
+    file_node_attrs = [f"{file_node}.texture1", f"{file_node}.texture2"]
+
+    bifrost_node = MagicMock()
+    bifrost_node_attrs = [f"{bifrost_node}.texture1", f"{bifrost_node}.texture2"]
+
+    mock_maya.cmds.ls.return_value = [file_node, bifrost_node]
+    mock_maya.cmds.listAttr.side_effect = [file_node_attrs, bifrost_node_attrs]
+    mock_maya.cmds.attributeQuery.side_effect = [False, True]
+
+    mock_expand_tokens.side_effect = (
+        lambda path, object_name: path.replace("<object>", str(object_name))
+        .replace("<scene>", "test_scene")
+        .replace("<project>", "/path/to/project")
+    )
+
+    attr_map = {
+        f"{file_node}.texture1": "<project>/<scene>/<object>/happy",
+        f"{file_node}.texture2": "<project>/<scene>/<object>/sad",
+        f"{bifrost_node}.texture1": "<project>/<scene>/<object>/water",
+        f"{bifrost_node}.texture2": None,
+        f"{bifrost_node}.absoluteCacheName": "<project>/<scene>/<object>/cacheFile",
+    }
+    mock_maya.cmds.getAttr.side_effect = lambda attr: attr_map[attr]
+
+    # WHEN
+    result = assets_module.AssetIntrospector()._get_node_attr_paths(expand_tokens)
+
+    # THEN
+    if expand_tokens:
+        assert result == [
+            f"/path/to/project/test_scene/{file_node}/happy",
+            f"/path/to/project/test_scene/{file_node}/sad",
+            f"/path/to/project/test_scene/{bifrost_node}/water",
+            f"/path/to/project/test_scene/{bifrost_node}/cacheFile",
+        ]
+    else:
+        assert result == [
+            "<project>/<scene>/<object>/happy",
+            "<project>/<scene>/<object>/sad",
+            "<project>/<scene>/<object>/water",
+            "<project>/<scene>/<object>/cacheFile",
+        ]

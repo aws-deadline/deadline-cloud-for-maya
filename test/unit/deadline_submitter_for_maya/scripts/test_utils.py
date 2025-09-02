@@ -64,6 +64,7 @@ def test_join_paths(first_path: str, second_path: str, expected_output: str):
     assert join_paths(first_path, second_path) == expected_output
 
 
+@pytest.mark.parametrize("frame_symbol", ["<f>", "<frame>"])
 @patch.object(utils_module.os.path, "isfile", return_value=True)
 @patch.object(utils_module.os, "listdir")
 @patch.object(utils_module.os.path, "isdir", return_value=True)
@@ -73,9 +74,10 @@ def test_findAllFilesForPattern(
     mock_isdir: MagicMock,
     mock_listdir: MagicMock,
     mock_isfile: MagicMock,
+    frame_symbol: str,
 ) -> None:
     # GIVEN
-    pattern = "/test/file/path.<f>.png"
+    pattern = f"/test/file/path.{frame_symbol}.png"
     frame_number = 2
     mock_listdir.return_value = [
         "/test/file/path.0001.png",
@@ -85,7 +87,9 @@ def test_findAllFilesForPattern(
         "/test/file/path.2.png",
     ]
     # TODO: Figure out what patternToRegex actually does
-    mock_patternToRegex.return_value = pattern.replace("<f>", f"0*{frame_number}")
+    mock_patternToRegex.return_value = pattern.replace("<f>", f"0*{frame_number}").replace(
+        "<frame>", f"0*{frame_number}"
+    )
 
     # WHEN
     result = utils_module.findAllFilesForPattern(pattern, frame_number)
