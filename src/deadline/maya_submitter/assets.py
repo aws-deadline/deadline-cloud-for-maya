@@ -6,11 +6,13 @@ import re
 import time
 from functools import lru_cache
 from pathlib import Path
-from typing import Generator, Iterable
+from typing import Any, Generator, Iterable
 
 from .file_path_editor import FilePathEditor
 from .scene import Animation, RendererNames, Scene
 from .utils import findAllFilesForPattern
+
+import maya.cmds
 
 _FRAME_RE = re.compile("#+")
 
@@ -66,6 +68,18 @@ class AssetIntrospector:
                 print(f"Processed {i+1}/{total_refs} file references at {time.time()}")
                 if progress_callback:
                     progress_callback(f"Processed {i+1}/{total_refs} file references...")
+
+        # Iterate through every node and list all attributes that are filenames
+        # Then replace all tokens and check if it's a real path
+        # If it's not already in assets, add it to assets
+        for path in self._get_node_attr_paths(expand_tokens=True):
+            normalized_path = os.path.normpath(path)
+            frame_re_matches = _FRAME_RE.findall(normalized_path)
+            if frame_re_matches or "<f>" in normalized_path or "<frame>" in normalized_path:
+                for expanded_path in self._expand_path(normalized_path):
+                    assets.add(expanded_path)
+            else:
+                assets.add(Path(normalized_path))
 
         assets.add(Path(Scene.name()))
 
@@ -224,7 +238,7 @@ class AssetIntrospector:
 
         return arnold_textures_files
 
-    def _get_arnold_texture_files(self):
+    def _get_arnold_texture_files(self) -> dict[str, Any]:
         """
         Imports inner Arnold functions to get list of textures.
 
@@ -253,6 +267,35 @@ class AssetIntrospector:
                 ) from e
             raise
 
+    def _get_node_attr_paths(self, expand_tokens=False):
+        """
+        FilePathEditor by default leaves out many file types like caches.
+        This function iterates through nodes in the scene and filters for filepath attributes
+
+        Returns:
+            [str]: A list of all the paths found
+        """
+        paths: list[str] = []
+        for node in maya.cmds.ls():
+            attrs: list[str] = maya.cmds.listAttr(
+                node, usedAsFilename=True, fullNodeName=True, multi=True
+            )
+            # We need to make sure we're including Bifrost caches, but listAttr won't find them
+            # Bifrost simulation caches use the "absoluteCacheName" attribute, which is not marked with "usedAsFilename"
+            if maya.cmds.attributeQuery("absoluteCacheName", node=node, exists=True):
+                if attrs is None:
+                    attrs = []
+                attrs.append("%s.absoluteCacheName" % node)
+            if attrs is not None:
+                new_paths: list[str] = list(
+                    filter(None, map(maya.cmds.getAttr, attrs))
+                )  # Map attribute to their value, then filter out empty attributes
+                if expand_tokens:
+                    new_paths = [self._expand_tokens(path, object_name=node) for path in new_paths]
+                paths.extend(new_paths)
+
+        return paths
+
     @lru_cache(maxsize=None)
     def _expand_path(self, path: str) -> Generator[Path, None, None]:
         """
@@ -263,7 +306,7 @@ class AssetIntrospector:
         This function expands these tokens and characters to find all the assets which will be
         required at render time.
 
-        This function gets called for a varierty of file groupings (ie. Arnold's txmanager, Maya's FilePathEditor)
+        This function gets called for a variety of file groupings (ie. Arnold's txmanager, Maya's FilePathEditor)
         Since this func has an lru cache and returns a generator, it'll actually skip rechecking these files since
         it returns the original generator which is exhausted. You can, however, force it to recheck
         these files by performing asset_introspector._expand_path.cache_clear() call.
@@ -277,7 +320,7 @@ class AssetIntrospector:
         frame_re_matches = _FRAME_RE.findall(path)
 
         frame_list: Iterable[int] = [0]
-        if frame_re_matches or "<f>" in path:
+        if frame_re_matches or "<f>" in path or "<frame>" in path:
             frame_list = Animation.frame_list()
 
         for frame in frame_list:
@@ -288,3 +331,14 @@ class AssetIntrospector:
             for p in paths:
                 if not p.endswith(":Zone.Identifier"):  # Metadata files that erroneously match
                     yield Path(p)
+
+    def _expand_tokens(self, path: str, object_name="<object>") -> str:
+        path = path.replace("<project>", os.path.normpath(maya.cmds.internalVar(uwd=True)))
+        path = path.replace("<object>", object_name)
+
+        filepath = maya.cmds.file(q=True, sn=True)
+        filename = os.path.basename(filepath)
+        scene_name, _ = os.path.splitext(filename)
+        path = path.replace("<scene>", scene_name)
+
+        return path

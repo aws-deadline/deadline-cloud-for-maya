@@ -30,10 +30,8 @@ classifiers = [
 ]
 
 dependencies = [
-    "deadline == 0.49.*",
-    "openjd-adaptor-runtime == 0.8.*",
-    # TODO we should remove this when migrating deadline-cloud from 0.49.* to >=0.49.*, <0.51.*
-    "psutil == 7.0.*",
+    "deadline == 0.51.*",
+    "openjd-adaptor-runtime == 0.9.*",
 ]
 
 [project.urls]
@@ -205,4 +203,4 @@ trim_blocks = true
 lstrip_blocks = true
 
 [tool.semantic_release.branches.release]
-match = "(mainline|release)"
+match = "(mainline|release|patch_.*)"

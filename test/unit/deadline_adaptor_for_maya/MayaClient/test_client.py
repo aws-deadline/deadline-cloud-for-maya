@@ -9,7 +9,7 @@ from deadline.maya_adaptor.MayaClient.maya_client import MayaClient, main
 
 
 class TestMayaClient:
-    @patch("deadline.maya_adaptor.MayaClient.maya_client.HTTPClientInterface")
+    @patch("deadline.maya_adaptor.MayaClient.maya_client.ClientInterface")
     def test_mayaclient(self, mock_httpclient: Mock) -> None:
         """Tests that the maya client can initialize, set a renderer and close"""
         client = MayaClient(server_path=str(9999))
@@ -19,7 +19,7 @@ class TestMayaClient:
     @patch("deadline.maya_adaptor.MayaClient.maya_client.os.path.exists")
     @patch.dict(os.environ, {"MAYA_ADAPTOR_SERVER_PATH": "server_path"})
     @patch("deadline.maya_adaptor.MayaClient.MayaClient.poll")
-    @patch("deadline.maya_adaptor.MayaClient.maya_client.HTTPClientInterface")
+    @patch("deadline.maya_adaptor.MayaClient.maya_client.ClientInterface")
     def test_main(self, mock_httpclient: Mock, mock_poll: Mock, mock_exists: Mock) -> None:
         """Tests that the main method starts the maya client polling method"""
         # GIVEN

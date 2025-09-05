@@ -47,6 +47,7 @@ class DefaultMayaHandler:
             "project_path": self.set_project_path,
             "render_layer": self.set_render_layer,
             "render_setup_include_lights": self.set_render_setup_include_lights,
+            "cache_pathmapping": self.set_cache_pathmapping,
             "scene_file": self.set_scene_file,
         }
         self.image_width = None
@@ -206,6 +207,23 @@ class DefaultMayaHandler:
         DirectoryMapping.set_activated(True)
         for source, dest in rules.items():
             DirectoryMapping.mappings[source] = dest
+
+    def set_cache_pathmapping(self, data: dict) -> None:
+        """
+        Applies pathmapping to some cache files. Some nodes convert their cache file paths into absolute paths and store them in an attribute named 'absoluteCachePath'.
+        This attribute is only updated when the UI does a refresh, which means when we render headlessly, the attribute doesn't get changed properly.
+        This function searches for nodes with the 'absoluteCacheName' attribute and manually changes it to the correct value.
+
+        Args:
+            data (dict): The data given from the Adaptor. Keys expected: []
+        """
+        if not DirectoryMapping.get_activated():
+            return
+        for node in maya.cmds.ls():
+            if maya.cmds.attributeQuery("absoluteCacheName", node=node, exists=True):
+                attrName: str = "%s.absoluteCacheName" % node
+                new_cache_path: str = DirectoryMapping.convert(maya.cmds.getAttr(attrName))
+                maya.cmds.setAttr(attrName, new_cache_path, type="string")
 
     def set_project_path(self, data: dict) -> None:
         """
