@@ -27,6 +27,8 @@ This library requires:
 1. Python 3.9 or higher; and
 1. Linux, Windows, or a macOS operating system.
 
+Plugin support: MtoA, V-Ray, and Redshift for Maya 2024-2025; only MtoA for Maya 2026.
+
 ## Versioning
 
 This package's version follows [Semantic Versioning 2.0](https://semver.org/), but is still considered to be in its
