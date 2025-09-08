@@ -106,8 +106,8 @@ def are_asset_references_similar(
         expected_asset_references["assetReferences"]["inputs"]["filenames"] = expected_filenames
         actual_asset_reference["assetReferences"]["inputs"]["filenames"] = actual_filenames
         
-        expected_asset_references["assetReferences"]["inputs"]["directories"] = list(expected_input_directories)
-        actual_asset_reference["assetReferences"]["inputs"]["directories"] = list(actual_input_directories)
+        expected_asset_references["assetReferences"]["inputs"]["directories"] = expected_input_directories
+        actual_asset_reference["assetReferences"]["inputs"]["directories"] = actual_input_directories
         
         directories = expected_asset_references["assetReferences"]["outputs"]["directories"]
         expected_asset_references["assetReferences"]["outputs"]["directories"] = [
