@@ -51,6 +51,7 @@ class TestSubmitters:
         asset_folder: str
         frame_list: str
         file_prefix: str
+        expected_scene_file_paths: list[str] = None
 
     def _cleanup_sticky_settings(self, scene_file: Path, script_location: Path):
         """
@@ -77,6 +78,7 @@ class TestSubmitters:
                 asset_folder="redshift_test",
                 frame_list="1",
                 file_prefix="redshift_test",
+                expected_scene_file_paths=[r"config.ocio"],
             ),
         ],
         ids=["Minimal Maya Test", "Redshift Test"],
@@ -203,4 +205,4 @@ class TestSubmitters:
             }
         }
 
-        are_asset_references_similar(job_history_dir, expected_asset_references)
+        are_asset_references_similar(job_history_dir, expected_asset_references, job_configuration.expected_scene_file_paths)
