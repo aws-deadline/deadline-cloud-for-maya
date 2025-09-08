@@ -120,6 +120,7 @@ steps:
           output_file_prefix: '{{Param.OutputFilePrefix}}'
           image_width: {{Param.ImageWidth}}
           image_height: {{Param.ImageHeight}}
+          cache_pathmapping: true
       actions:
         onEnter:
           command: MayaAdaptor
@@ -195,6 +196,7 @@ steps:
           output_file_prefix: '{{Param.OutputFilePrefix}}'
           image_width: {{Param.ImageWidth}}
           image_height: {{Param.ImageHeight}}
+          cache_pathmapping: true
       actions:
         onEnter:
           command: MayaAdaptor
