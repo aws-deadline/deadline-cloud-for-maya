@@ -697,6 +697,7 @@ def show_maya_render_submitter(
 
     # Process assets with progress updates
     processed_files = set()
+    processed_directories = set()
     print(f"Starting to process {total_assets} scene assets...")
 
     for i, asset_path in enumerate(scene_assets):
@@ -704,7 +705,9 @@ def show_maya_render_submitter(
         normalized = os.path.normpath(asset_path)
         if not os.path.exists(normalized):
             continue
-        if os.path.isfile(normalized):
+        if os.path.isdir(normalized):
+            processed_directories.add(normalized)
+        else:
             processed_files.add(normalized)
         # Process in larger batches to improve performance - refresh UI every 100 assets
         if i % 100 == 0 and i > 0:
@@ -713,6 +716,7 @@ def show_maya_render_submitter(
 
     progress_dialog.setValue(total_assets)
     auto_detected_attachments.input_filenames = processed_files
+    auto_detected_attachments.input_directories = processed_directories
     print(f"All {total_assets} assets processed at {time.time()}")
     update_progress(f"All {total_assets} assets processed")
 
