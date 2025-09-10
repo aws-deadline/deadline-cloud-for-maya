@@ -254,6 +254,7 @@ steps:
           output_file_prefix: '{{Param.layerDefaultFramesOutputFilePrefix}}'
           image_width: {{Param.layerDefaultFramesImageWidth}}
           image_height: {{Param.layerDefaultFramesImageHeight}}
+          cache_pathmapping: true
           error_on_arnold_license_fail: {{Param.ArnoldErrorOnLicenseFailure}}
       actions:
         onEnter:
@@ -330,6 +331,7 @@ steps:
           output_file_prefix: '{{Param.layerFrameRange1OutputFilePrefix}}'
           image_width: {{Param.layerFrameRange1ImageWidth}}
           image_height: {{Param.layerFrameRange1ImageHeight}}
+          cache_pathmapping: true
       actions:
         onEnter:
           command: MayaAdaptor
@@ -405,6 +407,7 @@ steps:
           output_file_prefix: '{{Param.masterLayerOutputFilePrefix}}'
           image_width: {{Param.masterLayerImageWidth}}
           image_height: {{Param.masterLayerImageHeight}}
+          cache_pathmapping: true
           error_on_arnold_license_fail: {{Param.ArnoldErrorOnLicenseFailure}}
       actions:
         onEnter:
@@ -482,6 +485,7 @@ steps:
           output_file_prefix: '{{Param.renderSetupLayer2OutputFilePrefix}}'
           image_width: {{Param.renderSetupLayer2ImageWidth}}
           image_height: {{Param.renderSetupLayer2ImageHeight}}
+          cache_pathmapping: true
           error_on_arnold_license_fail: {{Param.ArnoldErrorOnLicenseFailure}}
       actions:
         onEnter:
@@ -558,6 +562,7 @@ steps:
           output_file_prefix: '{{Param.renderSetupLayer4OutputFilePrefix}}'
           image_width: {{Param.renderSetupLayer4ImageWidth}}
           image_height: {{Param.renderSetupLayer4ImageHeight}}
+          cache_pathmapping: true
       actions:
         onEnter:
           command: MayaAdaptor
