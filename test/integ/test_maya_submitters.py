@@ -1,5 +1,5 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-import dataclasses
+from dataclasses import dataclass
 
 import yaml
 import os
@@ -45,12 +45,13 @@ class TestSubmitters:
     Tests that ensure submitters produce the correct job bundle given a scene file.
     """
 
-    @dataclasses.dataclass
+    @dataclass
     class JobConfiguration:
         name: str
         asset_folder: str
         frame_list: str
         file_prefix: str
+        expected_scene_file_paths: list[str]
 
     def _cleanup_sticky_settings(self, scene_file: Path, script_location: Path):
         """
@@ -71,12 +72,14 @@ class TestSubmitters:
                 asset_folder="minimal_test",
                 frame_list="1-2",
                 file_prefix="rs_<RenderLayer>_<Camera>",
+                expected_scene_file_paths=[],
             ),
             JobConfiguration(
                 name="Redshift Test",
                 asset_folder="redshift_test",
                 frame_list="1",
                 file_prefix="redshift_test",
+                expected_scene_file_paths=[r"config.ocio"],
             ),
         ],
         ids=["Minimal Maya Test", "Redshift Test"],
@@ -203,4 +206,6 @@ class TestSubmitters:
             }
         }
 
-        are_asset_references_similar(job_history_dir, expected_asset_references)
+        are_asset_references_similar(
+            job_history_dir, expected_asset_references, job_configuration.expected_scene_file_paths
+        )

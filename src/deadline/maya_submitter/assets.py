@@ -277,6 +277,10 @@ class AssetIntrospector:
         """
         paths: list[str] = []
         for node in maya.cmds.ls():
+            # Excluding vraySettings node because a referenced file path causes issues
+            # when auto-populating the attachment input directories
+            if str(node) == "vraySettings":
+                continue
             attrs: list[str] = maya.cmds.listAttr(
                 node, usedAsFilename=True, fullNodeName=True, multi=True
             )

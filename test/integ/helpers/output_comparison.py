@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Any
 import yaml
+import re
 
 import PIL.Image
 
@@ -70,21 +71,58 @@ def are_parameter_values_similar(job_history_dir: Path, expected_parameter_value
 
 
 def are_asset_references_similar(
-    job_history_dir: Path, expected_asset_references: dict[str, dict[str, Any]]
+    job_history_dir: Path,
+    expected_asset_references: dict[str, dict[str, Any]],
+    expected_scene_file_paths: list[str] = [],
 ):
     """
     Helper function that asserts that asset reference values in the job bundle are what's expected.
     """
     with open(job_history_dir / ASSET_REFERENCES) as actual:
         actual_asset_reference = yaml.safe_load(actual)
-        # We don't care what order the filenames list is in, so turn it into a set for easier comparison.
-        # Compare the lengths before we turn it into a set so that we can cover the case of duplicate assets.
-        assert len(actual_asset_reference["assetReferences"]["inputs"]["filenames"]) == len(
+        actual_filenames = set(actual_asset_reference["assetReferences"]["inputs"]["filenames"])
+        expected_filenames = set(
             expected_asset_references["assetReferences"]["inputs"]["filenames"]
         )
-        actual_asset_reference["assetReferences"]["inputs"]["filenames"] = set(
-            actual_asset_reference["assetReferences"]["inputs"]["filenames"]
+
+        actual_input_directories = set(
+            actual_asset_reference["assetReferences"]["inputs"]["directories"]
         )
+        expected_input_directories = set(
+            expected_asset_references["assetReferences"]["inputs"]["directories"]
+        )
+
+        # If we have expected file paths, find matching files in actual and add them to expected
+        if expected_scene_file_paths:
+            for pattern in expected_scene_file_paths:
+                matching_files = [f for f in actual_filenames if re.search(pattern, f)]
+                assert (
+                    matching_files
+                ), f"Expected to find files matching pattern '{pattern}' in asset references, but found none. Actual filenames: {actual_filenames}"
+                expected_filenames.update(matching_files)
+
+            # Verify job_history_dir is part of the actual input directories and add it to expected
+            job_history_str = str(job_history_dir)
+            for actual_dir in actual_input_directories:
+                if actual_dir in job_history_str:
+                    expected_input_directories.add(actual_dir)
+
+        # We don't care what order the filenames list is in, so turn it into a set for easier comparison.
+        # Compare the lengths before we turn it into a set so that we can cover the case of duplicate assets.
+        assert len(actual_filenames) == len(expected_filenames)
+        assert len(actual_input_directories) == len(expected_input_directories)
+
+        # Update the expected asset references with the matched files and directories
+        expected_asset_references["assetReferences"]["inputs"]["filenames"] = expected_filenames
+        actual_asset_reference["assetReferences"]["inputs"]["filenames"] = actual_filenames
+
+        expected_asset_references["assetReferences"]["inputs"][
+            "directories"
+        ] = expected_input_directories
+        actual_asset_reference["assetReferences"]["inputs"][
+            "directories"
+        ] = actual_input_directories
+
         directories = expected_asset_references["assetReferences"]["outputs"]["directories"]
         expected_asset_references["assetReferences"]["outputs"]["directories"] = [
             d.replace("\\", "/") for d in directories

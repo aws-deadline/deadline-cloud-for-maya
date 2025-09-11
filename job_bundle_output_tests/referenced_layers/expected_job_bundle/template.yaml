@@ -130,6 +130,7 @@ steps:
           output_file_prefix: '{{Param.OutputFilePrefix}}'
           image_width: {{Param.ImageWidth}}
           image_height: {{Param.ImageHeight}}
+          cache_pathmapping: true
           error_on_arnold_license_fail: {{Param.ArnoldErrorOnLicenseFailure}}
       actions:
         onEnter:
