@@ -276,11 +276,15 @@ class AssetIntrospector:
             [str]: A list of all the paths found
         """
         paths: list[str] = []
+        # Excluding vraySettings attributes because the referenced file paths cause issues
+        # when auto-populating the attachment input directories
+        excluded_attrs_by_node: dict[str, set[str]] = {
+            "vraySettings": {
+                "vraySettings.sys_memory_tracking_output_path",
+                "vraySettings.sys_time_tracking_output_dir",
+            }
+        }
         for node in maya.cmds.ls():
-            # Excluding vraySettings node because a referenced file path causes issues
-            # when auto-populating the attachment input directories
-            if str(node) == "vraySettings":
-                continue
             attrs: list[str] = maya.cmds.listAttr(
                 node, usedAsFilename=True, fullNodeName=True, multi=True
             )
@@ -291,6 +295,8 @@ class AssetIntrospector:
                     attrs = []
                 attrs.append("%s.absoluteCacheName" % node)
             if attrs is not None:
+                if excluded_attrs := excluded_attrs_by_node.get(str(node), set()):
+                    attrs = [attr for attr in attrs if attr not in excluded_attrs]
                 new_paths: list[str] = list(
                     filter(None, map(maya.cmds.getAttr, attrs))
                 )  # Map attribute to their value, then filter out empty attributes
