@@ -1,3 +1,13 @@
+## 0.15.9 (2025-09-15)
+
+
+### Features
+* add support for maya 2026 (#304) ([`b9964e0`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/b9964e080394aada92993bcc2a320fa7dbe9fd4b))
+
+### Bug Fixes
+* specified attributes to exclude for autopopulating directories (#325) ([`879ed2d`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/879ed2d75f16b2ba8af8810593aacb1c4970011e))
+* Fixed issues with job attachments caching change (#320) ([`5fe3f02`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/5fe3f02ffe37c8963f7ad93e0a90a6f88507554e))
+
 ## 0.15.8 (2025-07-15)
 
 
