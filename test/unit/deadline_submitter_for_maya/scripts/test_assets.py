@@ -562,3 +562,55 @@ def test_get_node_attr_paths(
             "<project>/<scene>/<object>/water",
             "<project>/<scene>/<object>/cacheFile",
         ]
+
+
+@patch.object(assets_module, "maya")
+def test_get_node_attr_paths_excludes_vray_settings(mock_maya: MagicMock) -> None:
+    """Test that VRay settings attributes are excluded from node attribute paths because of issues with autopopulating asset directories"""
+
+    vray_settings_node = "vraySettings"
+    regular_node = "regularNode"
+
+    # Mock the nodes in the scene
+    mock_maya.cmds.ls.return_value = [vray_settings_node, regular_node]
+
+    # Mock attributes for vraySettings node (including excluded ones)
+    vray_attrs = [
+        "vraySettings.sys_memory_tracking_output_path",  # Should be excluded
+        "vraySettings.sys_time_tracking_output_dir",  # Should be excluded
+        "vraySettings.some_other_path",  # Should be included
+    ]
+
+    # Mock attributes for regular node
+    regular_attrs = [
+        "regularNode.texture_path",
+        "regularNode.cache_file",
+    ]
+
+    mock_maya.cmds.listAttr.side_effect = [vray_attrs, regular_attrs]
+    mock_maya.cmds.attributeQuery.return_value = False  # No bifrost nodes
+
+    # Mock attribute values
+    attr_map = {
+        "vraySettings.sys_memory_tracking_output_path": "/path/to/memory/tracking",
+        "vraySettings.sys_time_tracking_output_dir": "/path/to/time/tracking",
+        "vraySettings.some_other_path": "/path/to/other/file",
+        "regularNode.texture_path": "/path/to/texture",
+        "regularNode.cache_file": "/path/to/cache",
+    }
+    mock_maya.cmds.getAttr.side_effect = lambda attr: attr_map[attr]
+
+    result = assets_module.AssetIntrospector()._get_node_attr_paths(expand_tokens=False)
+
+    # Should include the non-excluded vraySettings attribute and all regular node attributes
+    expected_paths = [
+        "/path/to/other/file",  # vraySettings.some_other_path (not excluded)
+        "/path/to/texture",  # regularNode.texture_path
+        "/path/to/cache",  # regularNode.cache_file
+    ]
+
+    assert result == expected_paths
+
+    # Verify that the excluded attributes were not processed
+    assert "/path/to/memory/tracking" not in result
+    assert "/path/to/time/tracking" not in result
