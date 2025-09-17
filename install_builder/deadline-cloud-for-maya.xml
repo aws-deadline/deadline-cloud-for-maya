@@ -68,6 +68,13 @@
 		</stringParameter>
 	</parameterList>
     <postInstallationActionList>
+        <fnAddPathEnvironmentVariable>
+			<progressText>Registering plug-in with Maya</progressText>
+			<name>MAYA_MODULE_PATH</name>
+			<value>${maya_installdir}</value>
+			<scope>${installscope}</scope>
+			<insertAt>end</insertAt>
+		</fnAddPathEnvironmentVariable>
         <unzip>
             <destinationDirectory>${maya_installdir}/scripts</destinationDirectory>
             <zipFile>${installdir}/tmp/maya_deps/dependency_bundle/deadline_cloud_for_maya_submitter-deps.zip</zipFile>
@@ -92,48 +99,6 @@
                 <copyFile>
                     <origin>${installdir}/DeadlineCloudForMaya.mod</origin>
                     <destination>${user_home_directory}/Library/Preferences/Autodesk/maya/modules/DeadlineCloudForMaya.mod</destination>
-                </copyFile>
-            </actionList>
-        </if>
-        <if>
-            <conditionRuleList>
-                <platformTest type="linux" />
-                <compareText logic="equals" text="${installscope}" value="user"/>
-            </conditionRuleList>
-            <actionList>
-                <runProgram>
-                    <program>bash</program>
-                    <programArguments>-c "
-                        sed -E -i 's#(\+ DeadlineCloudForMaya [^ ]*) \.#\1 '"${installdir}"'#' \"${installdir}/DeadlineCloudForMaya.mod\"
-                    "</programArguments>
-                </runProgram>
-                <createDirectory>
-                    <path>${user_home_directory}/maya/modules</path>
-                </createDirectory>
-                <copyFile>
-                    <origin>${installdir}/DeadlineCloudForMaya.mod</origin>
-                    <destination>${user_home_directory}/maya/modules/DeadlineCloudForMaya.mod</destination>
-                </copyFile>
-            </actionList>
-        </if>
-        <if>
-            <conditionRuleList>
-                <platformTest type="linux" />
-                <compareText logic="equals" text="${installscope}" value="system"/>
-            </conditionRuleList>
-            <actionList>
-                <runProgram>
-                    <program>bash</program>
-                    <programArguments>-c "
-                        sed -E -i 's#(\+ DeadlineCloudForMaya [^ ]*) \.#\1 '"${installdir}"'#' \"${installdir}/DeadlineCloudForMaya.mod\"
-                    "</programArguments>
-                </runProgram>
-                <createDirectory>
-                    <path>/usr/autodesk/modules/maya</path>
-                </createDirectory>
-                <copyFile>
-                    <origin>${installdir}/DeadlineCloudForMaya.mod</origin>
-                    <destination>/usr/autodesk/modules/maya/DeadlineCloudForMaya.mod</destination>
                 </copyFile>
             </actionList>
         </if>
