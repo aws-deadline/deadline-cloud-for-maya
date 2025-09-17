@@ -247,24 +247,6 @@
                 <deleteFile path="${user_home_directory}/Library/Preferences/Autodesk/maya/modules/DeadlineCloudForMaya.mod"/>
             </actionList>
         </if>
-        <if>
-            <conditionRuleList>
-                <platformTest type="linux" />
-                <compareText logic="equals" text="${installscope}" value="user"/>
-            </conditionRuleList>
-            <actionList>
-                <deleteFile path="${user_home_directory}/maya/modules/DeadlineCloudForMaya.mod"/>
-            </actionList>
-        </if>
-        <if>
-            <conditionRuleList>
-                <platformTest type="linux" />
-                <compareText logic="equals" text="${installscope}" value="system"/>
-            </conditionRuleList>
-            <actionList>
-                <deleteFile path="/usr/autodesk/modules/maya/DeadlineCloudForMaya.mod"/>
-            </actionList>
-        </if>
     </preUninstallationActionList>
     <width>550</width>
 </project>
