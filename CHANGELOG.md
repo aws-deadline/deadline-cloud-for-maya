@@ -1,3 +1,10 @@
+## 0.15.10 (2025-09-17)
+
+
+
+### Bug Fixes
+* Revert "chore: change linux install to create a mod file rather than rely on env var (#315)" (#328) ([`3087a96`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/3087a96a90a3f73aaed0b138e621987d01023188))
+
 ## 0.15.9 (2025-09-15)
 
 
