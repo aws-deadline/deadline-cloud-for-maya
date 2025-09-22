@@ -1,3 +1,10 @@
+## 0.15.11 (2025-09-22)
+
+
+### Features
+* add support for Maya Vray 2026 (#327) ([`3a09beb`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/3a09beb05dd915b1eb11a772e3b4e574c5315848))
+
+
 ## 0.15.10 (2025-09-17)
 
 
