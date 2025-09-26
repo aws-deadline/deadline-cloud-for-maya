@@ -27,8 +27,7 @@ This library requires:
 1. Python 3.9 or higher; and
 1. Linux, Windows, or a macOS operating system.
 
-Plugin support: Arnold, V-Ray, and Redshift for Maya 2024-2025; Arnold and V-Ray for Maya 2026.
-Support for Redshift in Maya 2026 is planned for a future release.
+Plugin support: Arnold for Maya 2024-2026; VRay and Redshift for Maya 2025-2026.
 
 ## Versioning
 
