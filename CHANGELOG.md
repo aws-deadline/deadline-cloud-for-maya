@@ -1,3 +1,10 @@
+## 0.15.12 (2025-09-29)
+
+
+### Features
+* Added support for Redshift2025 with Maya2026 (#338) ([`952bbfa`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/952bbfa9b2095c0cb33149cc8d8a32e7ad398fad))
+
+
 ## 0.15.11 (2025-09-22)
 
 
