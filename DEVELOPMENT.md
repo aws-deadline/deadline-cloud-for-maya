@@ -200,6 +200,18 @@ Testing locally like this will allow you to iterate faster on your change than t
 submitting jobs to Deadline Cloud to run using your modified adaptor. Then, test it out on a real render farm only once
 you think that your change is functioning as you'd like.
 
+#### Schema Versioning and the Integration Data Interface Version
+
+The adaptor uses two JSON schema files to define the contract between the Maya submitter (running on artist workstations)
+and the Maya adaptor (running on cloud render workers):
+
+- `src/deadline/maya_adaptor/MayaAdaptor/schemas/init_data.schema.json` - Defines the initialization data passed once when the adaptor starts
+- `src/deadline/maya_adaptor/MayaAdaptor/schemas/run_data.schema.json` - Defines the per-task data passed for each frame/task to render
+
+**Important:** Whenever you modify either of these schema files, you **must** also update the `integration_data_interface_version`
+in `src/deadline/maya_adaptor/MayaAdaptor/adaptor.py` following semantic versioning. 
+
+
 #### Running the Adaptor Locally
 
 To run the adaptor you will first need to create two files:
