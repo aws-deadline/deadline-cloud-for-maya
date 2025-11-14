@@ -1,0 +1,37 @@
+site_name: AWS Deadline Cloud for Autodesk Maya User Guide
+site_url: https://aws-deadline.github.io/deadline-cloud-for-maya/
+repo_url: https://github.com/aws-deadline/deadline-cloud-for-maya
+repo_name: aws-deadline/deadline-cloud-for-maya
+edit_uri: edit/mainline/docs/user_guide/
+
+theme:
+  name: material
+  palette:
+    primary: custom
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.expand
+    - content.code.copy
+extra_css:
+  - extra.css
+
+extra:
+  generator: false # Hide mkdocs-material call out
+
+copyright: Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+
+markdown_extensions:
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Using the Submitter: using-submitter.md
+
+plugins:
+  - search
+
+docs_dir: docs/user_guide
+site_dir: site
