@@ -267,6 +267,40 @@ class AssetIntrospector:
                 ) from e
             raise
 
+    def _flatten_and_validate_paths(self, raw_paths: list[Any]) -> list[str]:
+        """
+        Flattens and validates attribute values from Maya's getAttr command.
+
+        Maya's getAttr returns different types depending on the attribute:
+        - str: Single file path (regular attributes)
+        - list[str]: Multiple file paths (multi-attributes like Bifrost caches)
+        - None: Empty/unset attributes
+
+        This method converts all values to a flat list of strings.
+
+        Args:
+            raw_paths: Raw output from maya.cmds.getAttr calls
+
+        Returns:
+            list[str]: Flattened list of valid string paths
+        """
+        flattened_paths: list[str] = []
+
+        for raw_path in raw_paths:
+            if raw_path is None:
+                # Skip None/empty values
+                continue
+            elif isinstance(raw_path, str):
+                # Single string path - add if not empty
+                if raw_path.strip():
+                    flattened_paths.append(raw_path)
+            elif isinstance(raw_path, list):
+                # List of paths - recursively flatten (handles nested lists if they occur)
+                nested_paths = self._flatten_and_validate_paths(raw_path)
+                flattened_paths.extend(nested_paths)
+
+        return flattened_paths
+
     def _get_node_attr_paths(self, expand_tokens=False):
         """
         FilePathEditor by default leaves out many file types like caches.
@@ -297,9 +331,10 @@ class AssetIntrospector:
             if attrs is not None:
                 if excluded_attrs := excluded_attrs_by_node.get(str(node), set()):
                     attrs = [attr for attr in attrs if attr not in excluded_attrs]
-                new_paths: list[str] = list(
-                    filter(None, map(maya.cmds.getAttr, attrs))
-                )  # Map attribute to their value, then filter out empty attributes
+                # Get raw attribute values (can be strings, lists, or None)
+                raw_attr_values = [maya.cmds.getAttr(attr) for attr in attrs]
+                # Flatten and validate paths to ensure all are strings
+                new_paths: list[str] = self._flatten_and_validate_paths(raw_attr_values)
                 if expand_tokens:
                     new_paths = [self._expand_tokens(path, object_name=node) for path in new_paths]
                 paths.extend(new_paths)

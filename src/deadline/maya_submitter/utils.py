@@ -64,11 +64,20 @@ def findAllFilesForPattern(pattern: str, frameNumber: int) -> list[str]:
             # _patternToRegex handles frame tokens, but this is for only finding files for a specific frame
             basename = basename.replace("<f>", "0*" + str(frameNumber))
             basename = basename.replace("<frame>", "0*" + str(frameNumber))
-        regex = _patternToRegex(basename)
-        result = [
-            os.path.join(dirname, f)
-            for f in os.listdir(dirname)
-            if re.match(regex, f, flags=re.IGNORECASE) and os.path.isfile(os.path.join(dirname, f))
-        ]
+        try:
+            regex = _patternToRegex(basename)
+            result = [
+                os.path.join(dirname, f)
+                for f in os.listdir(dirname)
+                if re.match(regex, f, flags=re.IGNORECASE)
+                and os.path.isfile(os.path.join(dirname, f))
+            ]
+        except re.error as e:
+            # Handle paths with regex special characters (e.g., "/path/to/cache[1].bif")
+            # Brackets cause "bad character range" errors when compiled as regex patterns.
+            # Fall back to literal file check since these are typically filenames, not patterns.
+            print(f"Warning: Skipping pattern due to regex error: {pattern} - {e}")
+            if os.path.isfile(pattern):
+                result = [pattern]
 
     return result
