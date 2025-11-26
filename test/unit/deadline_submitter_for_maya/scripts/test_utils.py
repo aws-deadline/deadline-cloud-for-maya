@@ -100,3 +100,90 @@ def test_findAllFilesForPattern(
         "/test/file/path.000002.png",
         "/test/file/path.2.png",
     ]
+
+
+class TestFindAllFilesForPatternRegexErrors:
+    """Tests for findAllFilesForPattern regex error handling"""
+
+    @patch.object(utils_module.os.path, "isfile")
+    @patch.object(utils_module.os, "listdir")
+    @patch.object(utils_module.os.path, "isdir", return_value=True)
+    @patch.object(utils_module, "_patternToRegex")
+    def test_handles_regex_error_with_brackets_file_exists(
+        self,
+        mock_patternToRegex: MagicMock,
+        mock_isdir: MagicMock,
+        mock_listdir: MagicMock,
+        mock_isfile: MagicMock,
+    ) -> None:
+        """Test that regex errors with special characters fall back to escaped regex matching"""
+        # GIVEN
+        pattern = "/path/to/cache[1].bif"
+        mock_patternToRegex.side_effect = re.error("bad character range")
+        mock_isfile.return_value = True
+        mock_listdir.return_value = ["cache[1].bif", "cache[2].bif"]
+
+        # WHEN
+        result = utils_module.findAllFilesForPattern(pattern, 0)
+
+        # THEN
+        assert result == [pattern]
+        mock_isfile.assert_called_once_with(pattern)
+
+    @patch.object(utils_module.os.path, "isfile")
+    @patch.object(utils_module.os, "listdir")
+    @patch.object(utils_module.os.path, "isdir", return_value=True)
+    @patch.object(utils_module, "_patternToRegex")
+    def test_handles_regex_error_with_brackets_file_not_exists(
+        self,
+        mock_patternToRegex: MagicMock,
+        mock_isdir: MagicMock,
+        mock_listdir: MagicMock,
+        mock_isfile: MagicMock,
+    ) -> None:
+        """Test that regex errors return empty list when no matching files exist"""
+        # GIVEN
+        pattern = "/path/to/cache[1].bif"
+        mock_patternToRegex.side_effect = re.error("bad character range")
+        mock_isfile.return_value = True
+        mock_listdir.return_value = ["cache[2].bif", "cache[3].bif"]
+
+        # WHEN
+        result = utils_module.findAllFilesForPattern(pattern, 0)
+
+        # THEN
+        assert result == []
+
+    @pytest.mark.parametrize(
+        "pattern",
+        [
+            "/path/to/file[1].abc",
+            "/path/to/file(1).abc",
+            "/path/to/file{1}.abc",
+            "/path/to/file[1-2].abc",
+        ],
+    )
+    @patch.object(utils_module.os.path, "isfile")
+    @patch.object(utils_module.os, "listdir")
+    @patch.object(utils_module.os.path, "isdir", return_value=True)
+    @patch.object(utils_module, "_patternToRegex")
+    def test_handles_various_special_characters(
+        self,
+        mock_patternToRegex: MagicMock,
+        mock_isdir: MagicMock,
+        mock_listdir: MagicMock,
+        mock_isfile: MagicMock,
+        pattern: str,
+    ) -> None:
+        """Test that various regex special characters are handled correctly"""
+        # GIVEN
+        dirname, basename = pattern.rsplit("/", 1)
+        mock_patternToRegex.side_effect = re.error("bad character range")
+        mock_isfile.return_value = True
+        mock_listdir.return_value = [basename]
+
+        # WHEN
+        result = utils_module.findAllFilesForPattern(pattern, 0)
+
+        # THEN
+        assert result == [pattern]
