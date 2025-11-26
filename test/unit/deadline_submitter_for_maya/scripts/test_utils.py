@@ -116,7 +116,7 @@ class TestFindAllFilesForPatternRegexErrors:
         mock_listdir: MagicMock,
         mock_isfile: MagicMock,
     ) -> None:
-        """Test that regex errors with special characters fall back to literal file check"""
+        """Test that regex errors with special characters fall back to escaped regex matching"""
         # GIVEN
         pattern = "/path/to/cache[1].bif"
         mock_patternToRegex.side_effect = re.error("bad character range")
@@ -141,11 +141,11 @@ class TestFindAllFilesForPatternRegexErrors:
         mock_listdir: MagicMock,
         mock_isfile: MagicMock,
     ) -> None:
-        """Test that regex errors return empty list when file doesn't exist"""
+        """Test that regex errors return empty list when no matching files exist"""
         # GIVEN
         pattern = "/path/to/cache[1].bif"
         mock_patternToRegex.side_effect = re.error("bad character range")
-        mock_isfile.return_value = False
+        mock_isfile.return_value = True
         mock_listdir.return_value = ["cache[2].bif", "cache[3].bif"]
 
         # WHEN
@@ -153,7 +153,6 @@ class TestFindAllFilesForPatternRegexErrors:
 
         # THEN
         assert result == []
-        mock_isfile.assert_called_once_with(pattern)
 
     @pytest.mark.parametrize(
         "pattern",
@@ -178,13 +177,13 @@ class TestFindAllFilesForPatternRegexErrors:
     ) -> None:
         """Test that various regex special characters are handled correctly"""
         # GIVEN
+        dirname, basename = pattern.rsplit("/", 1)
         mock_patternToRegex.side_effect = re.error("bad character range")
         mock_isfile.return_value = True
-        mock_listdir.return_value = []
+        mock_listdir.return_value = [basename]
 
         # WHEN
         result = utils_module.findAllFilesForPattern(pattern, 0)
 
         # THEN
         assert result == [pattern]
-        mock_isfile.assert_called_once_with(pattern)

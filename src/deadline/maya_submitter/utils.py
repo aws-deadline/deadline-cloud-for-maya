@@ -75,9 +75,14 @@ def findAllFilesForPattern(pattern: str, frameNumber: int) -> list[str]:
         except re.error as e:
             # Handle paths with regex special characters (e.g., "/path/to/cache[1].bif")
             # Brackets cause "bad character range" errors when compiled as regex patterns.
-            # Fall back to literal file check since these are typically filenames, not patterns.
-            print(f"Warning: Skipping pattern due to regex error: {pattern} - {e}")
-            if os.path.isfile(pattern):
-                result = [pattern]
+            # Use re.escape to treat the basename as a literal string instead of a pattern.
+            print(f"Warning: Regex error for pattern '{pattern}': {e}. Using literal matching.")
+            escaped_basename = re.escape(basename)
+            result = [
+                os.path.join(dirname, f)
+                for f in os.listdir(dirname)
+                if re.match(escaped_basename, f, flags=re.IGNORECASE)
+                and os.path.isfile(os.path.join(dirname, f))
+            ]
 
     return result

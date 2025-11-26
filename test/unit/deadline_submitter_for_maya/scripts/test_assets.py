@@ -755,3 +755,25 @@ class TestFlattenAndValidatePaths:
             "/path/to/valid/cache.bif",
             "/path/to/another/cache.bif",
         ]
+
+    def test_handles_unexpected_data_types(self) -> None:
+        """Test that unexpected data types are handled gracefully with debugging info"""
+        # GIVEN
+        raw_paths = [
+            "/path/to/valid/file.png",
+            42,  # Unexpected integer
+            3.14,  # Unexpected float
+            True,  # Unexpected boolean
+            {"path": "/invalid/dict"},  # Unexpected dict
+            "/path/to/another/valid.jpg",
+        ]
+
+        # WHEN
+        result = assets_module.AssetIntrospector()._flatten_and_validate_paths(raw_paths)
+
+        # THEN
+        # Only valid string paths should be included, unexpected types are just logged
+        assert result == [
+            "/path/to/valid/file.png",
+            "/path/to/another/valid.jpg",
+        ]

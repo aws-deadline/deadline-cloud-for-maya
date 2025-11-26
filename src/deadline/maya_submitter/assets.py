@@ -298,6 +298,11 @@ class AssetIntrospector:
                 # List of paths - recursively flatten (handles nested lists if they occur)
                 nested_paths = self._flatten_and_validate_paths(raw_path)
                 flattened_paths.extend(nested_paths)
+            else:
+                # Handle unexpected data types for better debugging
+                print(
+                    f"Warning: Unexpected data type in asset paths: {type(raw_path)} = {raw_path}"
+                )
 
         return flattened_paths
 
