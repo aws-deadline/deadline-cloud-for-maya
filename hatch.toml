@@ -26,14 +26,7 @@ install = "python {root}/scripts/install_dev_submitter.py {args:}"
 python = ["3.9", "3.10", "3.11", "3.12"]
 
 [envs.default.env-vars]
-SKIP_BOOTSTRAP_TEST_RESOURCES="True"
 MAYA_ENV_DIR="{root}/plugin_env"
-
-[envs.codebuild.scripts]
-build = "hatch build"
-
-[envs.codebuild.env-vars]
-SKIP_BOOTSTRAP_TEST_RESOURCES="True"
 
 [envs.integ]
 pre-install-commands = [
