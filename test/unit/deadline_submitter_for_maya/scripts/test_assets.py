@@ -614,3 +614,166 @@ def test_get_node_attr_paths_excludes_vray_settings(mock_maya: MagicMock) -> Non
     # Verify that the excluded attributes were not processed
     assert "/path/to/memory/tracking" not in result
     assert "/path/to/time/tracking" not in result
+
+
+class TestFlattenAndValidatePaths:
+    """Tests for AssetIntrospector._flatten_and_validate_paths"""
+
+    def test_handles_string_attributes(self) -> None:
+        """Test that string attributes are handled correctly (existing behavior)"""
+        # GIVEN
+        raw_paths = ["/path/to/texture1.png", "/path/to/texture2.jpg", "/path/to/cache/file.abc"]
+
+        # WHEN
+        result = assets_module.AssetIntrospector()._flatten_and_validate_paths(raw_paths)
+
+        # THEN
+        assert result == [
+            "/path/to/texture1.png",
+            "/path/to/texture2.jpg",
+            "/path/to/cache/file.abc",
+        ]
+
+    def test_handles_list_attributes(self) -> None:
+        """Test that list attributes are flattened correctly (new functionality)"""
+        # GIVEN
+        raw_paths = [
+            ["/path/to/texture1.png", "/path/to/texture2.jpg"],
+            ["/path/to/cache1.abc", "/path/to/cache2.abc"],
+            "/path/to/single/file.png",
+        ]
+
+        # WHEN
+        result = assets_module.AssetIntrospector()._flatten_and_validate_paths(raw_paths)
+
+        # THEN
+        assert result == [
+            "/path/to/texture1.png",
+            "/path/to/texture2.jpg",
+            "/path/to/cache1.abc",
+            "/path/to/cache2.abc",
+            "/path/to/single/file.png",
+        ]
+
+    def test_handles_mixed_attribute_types(self) -> None:
+        """Test that mixed string and list attributes are handled correctly"""
+        # GIVEN
+        raw_paths = [
+            "/path/to/single/texture.png",
+            ["/path/to/multi1.jpg", "/path/to/multi2.jpg"],
+            "/path/to/another/single.abc",
+            ["/path/to/multi3.exr"],
+        ]
+
+        # WHEN
+        result = assets_module.AssetIntrospector()._flatten_and_validate_paths(raw_paths)
+
+        # THEN
+        assert result == [
+            "/path/to/single/texture.png",
+            "/path/to/multi1.jpg",
+            "/path/to/multi2.jpg",
+            "/path/to/another/single.abc",
+            "/path/to/multi3.exr",
+        ]
+
+    def test_handles_empty_and_none_values(self) -> None:
+        """Test that empty strings, None values, and empty lists are filtered out"""
+        # GIVEN
+        raw_paths = [
+            "/path/to/valid/file.png",
+            None,
+            "",
+            "   ",  # whitespace only
+            [],
+            [None, "", "   "],
+            "/path/to/another/valid.jpg",
+        ]
+
+        # WHEN
+        result = assets_module.AssetIntrospector()._flatten_and_validate_paths(raw_paths)
+
+        # THEN
+        assert result == ["/path/to/valid/file.png", "/path/to/another/valid.jpg"]
+
+    def test_handles_nested_lists(self) -> None:
+        """Test that nested lists are recursively flattened"""
+        # GIVEN
+        raw_paths = [
+            "/path/to/single.png",
+            [
+                "/path/to/level1a.jpg",
+                ["/path/to/level2a.exr", "/path/to/level2b.tif"],
+                "/path/to/level1b.abc",
+            ],
+            "/path/to/another/single.png",
+        ]
+
+        # WHEN
+        result = assets_module.AssetIntrospector()._flatten_and_validate_paths(raw_paths)
+
+        # THEN
+        assert result == [
+            "/path/to/single.png",
+            "/path/to/level1a.jpg",
+            "/path/to/level2a.exr",
+            "/path/to/level2b.tif",
+            "/path/to/level1b.abc",
+            "/path/to/another/single.png",
+        ]
+
+    def test_handles_complex_bifrost_scenario(self) -> None:
+        """Test a complex scenario similar to Bifrost cache attributes that caused the original bug"""
+        # GIVEN - Simulating what Maya's getAttr might return for Bifrost multi-attributes
+        raw_paths = [
+            # Regular single file attribute
+            "/path/to/regular/texture.png",
+            # Bifrost cache files (list of paths)
+            [
+                "/path/to/bifrost/cache_001.bif",
+                "/path/to/bifrost/cache_002.bif",
+                "/path/to/bifrost/cache_003.bif",
+            ],
+            # Another regular attribute
+            "/path/to/another/texture.jpg",
+            # Empty bifrost attribute
+            [],
+            # Bifrost with some None values
+            ["/path/to/valid/cache.bif", None, "/path/to/another/cache.bif"],
+        ]
+
+        # WHEN
+        result = assets_module.AssetIntrospector()._flatten_and_validate_paths(raw_paths)
+
+        # THEN
+        assert result == [
+            "/path/to/regular/texture.png",
+            "/path/to/bifrost/cache_001.bif",
+            "/path/to/bifrost/cache_002.bif",
+            "/path/to/bifrost/cache_003.bif",
+            "/path/to/another/texture.jpg",
+            "/path/to/valid/cache.bif",
+            "/path/to/another/cache.bif",
+        ]
+
+    def test_handles_unexpected_data_types(self) -> None:
+        """Test that unexpected data types are handled gracefully with debugging info"""
+        # GIVEN
+        raw_paths = [
+            "/path/to/valid/file.png",
+            42,  # Unexpected integer
+            3.14,  # Unexpected float
+            True,  # Unexpected boolean
+            {"path": "/invalid/dict"},  # Unexpected dict
+            "/path/to/another/valid.jpg",
+        ]
+
+        # WHEN
+        result = assets_module.AssetIntrospector()._flatten_and_validate_paths(raw_paths)
+
+        # THEN
+        # Only valid string paths should be included, unexpected types are just logged
+        assert result == [
+            "/path/to/valid/file.png",
+            "/path/to/another/valid.jpg",
+        ]

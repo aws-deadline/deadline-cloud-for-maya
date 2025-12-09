@@ -7,4 +7,8 @@ on:
 jobs:
   check-for-stales:
     uses: aws-deadline/.github/.github/workflows/reusable_stale_prs_and_issues.yml@mainline
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
 
