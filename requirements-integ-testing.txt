@@ -1,4 +1,4 @@
-pillow == 11.*
+pillow == 12.*
 numpy == 2.*
 openjd-cli == 0.7.*
 flaky == 3.*
