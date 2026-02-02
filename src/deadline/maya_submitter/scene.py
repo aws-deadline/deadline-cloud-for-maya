@@ -189,6 +189,32 @@ class Scene:
                 files.append(cache_file)
         return files
 
+    @staticmethod
+    def ocio_config_file() -> Optional[str]:
+        """
+        Returns the OCIO config file path if color management is enabled
+        and using a custom OCIO configuration.
+
+        Returns:
+            Optional[str]: The absolute path to the OCIO config file,
+                          or None if using default color management or no custom config
+        """
+        # Check if color management is enabled
+        cm_enabled = maya.cmds.colorManagementPrefs(query=True, cmEnabled=True)
+        if not cm_enabled:
+            return None
+
+        # Get the config file path - Maya returns bool if no path set
+        config_path = maya.cmds.colorManagementPrefs(query=True, configFilePath=True)
+        if not isinstance(config_path, str):
+            return None
+
+        # Skip Maya default configs
+        if "<MAYA_RESOURCES>" in config_path:
+            return None
+
+        return config_path
+
 
 @dataclass
 class FrameRange:
