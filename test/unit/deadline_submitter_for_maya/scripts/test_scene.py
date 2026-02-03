@@ -75,3 +75,66 @@ class TestScene:
         output_path: str = Scene.output_path()
 
         assert output_path == test_project_path
+
+
+class TestOcioConfigFile:
+    """Tests for Scene.ocio_config_file"""
+
+    @patch("deadline.maya_submitter.scene.maya.cmds")
+    def test_ocio_config_file_cm_disabled(self, mock_maya_cmds: Mock) -> None:
+        """Tests that None is returned when color management is disabled"""
+        # GIVEN
+        mock_maya_cmds.colorManagementPrefs.return_value = False
+
+        # WHEN
+        result = Scene.ocio_config_file()
+
+        # THEN
+        assert result is None
+        mock_maya_cmds.colorManagementPrefs.assert_called_once_with(query=True, cmEnabled=True)
+
+    @patch("deadline.maya_submitter.scene.maya.cmds")
+    def test_ocio_config_file_returns_bool(self, mock_maya_cmds: Mock) -> None:
+        """Tests that None is returned when Maya returns bool instead of string for configFilePath"""
+        # GIVEN
+        mock_maya_cmds.colorManagementPrefs.side_effect = [
+            True,
+            True,
+        ]  # cmEnabled=True, configFilePath=True (bool)
+
+        # WHEN
+        result = Scene.ocio_config_file()
+
+        # THEN
+        assert result is None
+
+    @patch("deadline.maya_submitter.scene.maya.cmds")
+    def test_ocio_config_file_maya_default_resources(self, mock_maya_cmds: Mock) -> None:
+        """Tests that None is returned for Maya default OCIO configs with MAYA_RESOURCES"""
+        # GIVEN
+        mock_maya_cmds.colorManagementPrefs.side_effect = [
+            True,  # cmEnabled
+            "<MAYA_RESOURCES>/OCIO-configs/Maya2022-default/config.ocio",  # configFilePath
+        ]
+
+        # WHEN
+        result = Scene.ocio_config_file()
+
+        # THEN
+        assert result is None
+
+    @patch("deadline.maya_submitter.scene.maya.cmds")
+    def test_ocio_config_file_custom_config(self, mock_maya_cmds: Mock) -> None:
+        """Tests that custom OCIO config path is returned"""
+        # GIVEN
+        custom_path = "/projects/show/config/aces_1.2/config.ocio"
+        mock_maya_cmds.colorManagementPrefs.side_effect = [
+            True,  # cmEnabled
+            custom_path,  # configFilePath
+        ]
+
+        # WHEN
+        result = Scene.ocio_config_file()
+
+        # THEN
+        assert result == custom_path

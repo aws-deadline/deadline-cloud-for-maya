@@ -30,6 +30,7 @@ EXPECTED_INIT_DATA_PROPERTIES = {
     "error_on_arnold_license_fail": True,
     "image_height": 1080,
     "image_width": 1920,
+    "ocio_config_file": "/path/to/config.ocio",
     "output_file_path": "/path/to/output",
     "output_file_prefix": "<Scene>/<RenderLayer>",
     "project_path": "/path/to/project",
@@ -61,7 +62,7 @@ EXPECTED_RUN_DATA_REQUIRED = ["frame"]
 
 # Expected version - must be bumped when schemas change
 EXPECTED_SCHEMA_VERSION_MAJOR = 0
-EXPECTED_SCHEMA_VERSION_MINOR = 1
+EXPECTED_SCHEMA_VERSION_MINOR = 2
 
 
 @pytest.fixture()
@@ -512,7 +513,7 @@ class TestMayaAdaptor_on_start:
     def test_semantic_version(self, init_data: dict) -> None:
         """Tests that the adaptor semantic version is in the expected format"""
         adaptor = MayaAdaptor(init_data)
-        assert adaptor.integration_data_interface_version == SemanticVersion(major=0, minor=1)
+        assert adaptor.integration_data_interface_version == SemanticVersion(major=0, minor=2)
 
     def test_if_init_data_and_run_data_schema_are_changed_schema_version_is_bumped(
         self, init_data: dict

@@ -279,3 +279,108 @@ class TestDefaultMayaHandler:
             mock_get_attr.assert_called_once_with("defaultRenderGlobals.preMel")
             mock_mel_eval.assert_called_once_with(mock_get_attr.return_value)
             assert "Unrecognized value" in output.getvalue()
+
+
+class TestSetOcioConfigFile:
+    """Tests for DefaultMayaHandler.set_ocio_config_file"""
+
+    @patch("os.path.isfile")
+    def test_set_ocio_config_file_empty_path(
+        self, mock_isfile: Mock, mayahandlerbase: DefaultMayaHandler
+    ):
+        """Tests that empty ocio_config_file path returns early without setting anything"""
+        # WHEN
+        mayahandlerbase.set_ocio_config_file({"ocio_config_file": ""})
+
+        # THEN
+        mock_isfile.assert_not_called()
+
+    @patch("os.path.isfile")
+    def test_set_ocio_config_file_missing_key(
+        self, mock_isfile: Mock, mayahandlerbase: DefaultMayaHandler
+    ):
+        """Tests that missing ocio_config_file key returns early without setting anything"""
+        # WHEN
+        mayahandlerbase.set_ocio_config_file({})
+
+        # THEN
+        mock_isfile.assert_not_called()
+
+    @patch("os.path.isfile")
+    @patch.object(DirectoryMapping, "get_activated")
+    @patch.object(DirectoryMapping, "convert")
+    @patch(
+        "deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds.colorManagementPrefs"
+    )
+    def test_set_ocio_config_file_with_path_mapping(
+        self,
+        mock_color_prefs: Mock,
+        mock_convert: Mock,
+        mock_get_activated: Mock,
+        mock_isfile: Mock,
+        mayahandlerbase: DefaultMayaHandler,
+    ):
+        """Tests that path mapping is applied when activated"""
+        # GIVEN
+        mock_get_activated.return_value = True
+        mock_convert.return_value = "/mapped/path/config.ocio"
+        mock_isfile.return_value = True
+
+        # WHEN
+        mayahandlerbase.set_ocio_config_file({"ocio_config_file": "/original/path/config.ocio"})
+
+        # THEN
+        mock_convert.assert_called_once_with("/original/path/config.ocio")
+        mock_isfile.assert_called_once_with("/mapped/path/config.ocio")
+        mock_color_prefs.assert_called_once_with(e=True, configFilePath="/mapped/path/config.ocio")
+
+    @patch("os.path.isfile")
+    @patch.object(DirectoryMapping, "get_activated")
+    @patch(
+        "deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds.colorManagementPrefs"
+    )
+    def test_set_ocio_config_file_without_path_mapping(
+        self,
+        mock_color_prefs: Mock,
+        mock_get_activated: Mock,
+        mock_isfile: Mock,
+        mayahandlerbase: DefaultMayaHandler,
+    ):
+        """Tests that original path is used when path mapping is not activated"""
+        # GIVEN
+        mock_get_activated.return_value = False
+        mock_isfile.return_value = True
+
+        # WHEN
+        mayahandlerbase.set_ocio_config_file({"ocio_config_file": "/path/to/config.ocio"})
+
+        # THEN
+        mock_isfile.assert_called_once_with("/path/to/config.ocio")
+        mock_color_prefs.assert_called_once_with(e=True, configFilePath="/path/to/config.ocio")
+
+    @patch("os.path.isfile")
+    @patch.object(DirectoryMapping, "get_activated")
+    @patch(
+        "deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds.colorManagementPrefs"
+    )
+    def test_set_ocio_config_file_not_found(
+        self,
+        mock_color_prefs: Mock,
+        mock_get_activated: Mock,
+        mock_isfile: Mock,
+        mayahandlerbase: DefaultMayaHandler,
+    ):
+        """Tests that colorManagementPrefs is not called when file doesn't exist"""
+        # GIVEN
+        mock_get_activated.return_value = False
+        mock_isfile.return_value = False
+
+        # WHEN
+        with patch("sys.stdout", new=StringIO()) as output:
+            mayahandlerbase.set_ocio_config_file({"ocio_config_file": "/nonexistent/config.ocio"})
+
+            # THEN
+            mock_isfile.assert_called_once_with("/nonexistent/config.ocio")
+            mock_color_prefs.assert_not_called()
+            assert "WARNING" in output.getvalue()
+            assert "/nonexistent/config.ocio" in output.getvalue()

@@ -394,6 +394,11 @@ def _get_parameter_values(
         }
     )
 
+    # Add OCIO config file parameter if present
+    ocio_config = Scene.ocio_config_file()
+    if ocio_config:
+        parameter_values.append({"name": "OCIOConfigFile", "value": ocio_config})
+
     # Set the Arnold-specific parameter values
     if "arnold" in renderers:
         parameter_values.append(

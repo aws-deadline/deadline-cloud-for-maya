@@ -41,6 +41,7 @@ class DefaultMayaHandler:
             "camera": self.set_camera,
             "image_height": self.set_image_height,
             "image_width": self.set_image_width,
+            "ocio_config_file": self.set_ocio_config_file,
             "output_file_path": self.set_output_file_path,
             "output_file_prefix": self.set_output_file_prefix,
             "path_mapping": self.set_path_mapping,
@@ -284,3 +285,29 @@ class DefaultMayaHandler:
                 maya.mel.eval(pre_render_mel)
             except Exception as e:
                 print("Warning: preMel Failed: %s" % e)
+
+    def set_ocio_config_file(self, data: dict) -> None:
+        """
+        Sets the OCIO config file path for color management.
+
+        This should be called after the scene file is opened to override
+        the scene's embedded OCIO config path with the remapped path.
+
+        Args:
+            data (dict): The data given from the Adaptor. Keys expected: ['ocio_config_file']
+        """
+        ocio_path = data.get("ocio_config_file", "")
+        if not ocio_path:
+            return
+
+        # Apply path mapping to convert the source path to the worker's path
+        if DirectoryMapping.get_activated():
+            ocio_path = DirectoryMapping.convert(ocio_path)
+
+        if not os.path.isfile(ocio_path):
+            print(f"WARNING: OCIO config file not found: '{ocio_path}'", flush=True)
+            return
+
+        # Set the OCIO config file path in Maya's color management preferences
+        print(f"Setting OCIO config: '{ocio_path}'", flush=True)
+        maya.cmds.colorManagementPrefs(e=True, configFilePath=ocio_path)

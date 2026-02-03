@@ -79,7 +79,7 @@ class TestSubmitters:
                 asset_folder="redshift_test",
                 frame_list="1",
                 file_prefix="redshift_test",
-                expected_scene_file_paths=[r"config.ocio"],
+                expected_scene_file_paths=[],
             ),
         ],
         ids=["Minimal Maya Test", "Redshift Test"],
