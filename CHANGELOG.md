@@ -1,3 +1,14 @@
+## 0.15.13 (2026-02-11)
+
+
+### Features
+* Add region rendering support to VRay (#343) ([`5c267f8`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/5c267f8a1d97f1cfd0b37974fb303048f310bf61))
+* Remember last used shared job settings for job submissions. Add more sticky settings. ([`920ad5f`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/920ad5ffa3da9acc21f3c64b20c8b973635269eb))
+
+### Bug Fixes
+* enable custom oco config for submitter (#361) ([`bcb3be2`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/bcb3be27e5a21060b3b05c86a69f7098720b462a))
+* Fixed Maya submitter crashes with list attributes and special characters in file paths (#350) ([`4a7d204`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/4a7d204f9f92e7ecf771675a17052316685c0a73))
+
 ## 0.15.12 (2025-09-29)
 
 
