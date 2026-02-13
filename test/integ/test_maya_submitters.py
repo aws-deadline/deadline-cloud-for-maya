@@ -64,6 +64,44 @@ class TestSubmitters:
         )
         Path(script_location / sticky_settings_location).unlink(missing_ok=True)
 
+    def _get_expected_parameter_values(
+        self,
+        scene_location: Path,
+        project_path: Path,
+        output_path: Path,
+        job_configuration: JobConfiguration,
+    ) -> dict[str, list]:
+        """
+        Build expected parameter values dynamically based on renderer type.
+        """
+        # Base parameters common to all renderers
+        base_params = [
+            {"name": "MayaSceneFile", "value": str(scene_location)},
+            {"name": "OutputFilePrefix", "value": str(job_configuration.file_prefix)},
+            {"name": "Frames", "value": job_configuration.frame_list},
+            {"name": "ImageWidth", "value": 960},
+            {"name": "ImageHeight", "value": 540},
+            {"name": "ProjectPath", "value": str(project_path) + "/"},
+            {"name": "OutputFilePath", "value": str(output_path)},
+            {"name": "RenderSetupIncludeLights", "value": "false"},
+            {"name": "deadline:targetTaskRunStatus", "value": "READY"},
+            {"name": "deadline:maxFailedTasksCount", "value": 20},
+            {"name": "deadline:maxRetriesPerTask", "value": 5},
+            {"name": "deadline:priority", "value": 50},
+        ]
+
+        # Add renderer-specific parameters
+        renderer_params = {
+            "Arnold Test": [
+                {"name": "ArnoldErrorOnLicenseFailure", "value": "false"},
+            ]
+        }
+
+        # Combine base + renderer-specific params
+        all_params = base_params + renderer_params.get(job_configuration.name, [])
+
+        return {"parameterValues": all_params}
+
     @pytest.mark.parametrize(
         "job_configuration",
         [
@@ -81,8 +119,22 @@ class TestSubmitters:
                 file_prefix="redshift_test",
                 expected_scene_file_paths=[],
             ),
+            JobConfiguration(
+                name="Arnold Test",
+                asset_folder="mtoa_test",
+                frame_list="1",
+                file_prefix="arnoldmayascene",
+                expected_scene_file_paths=[],
+            ),
+            JobConfiguration(
+                name="VRay Test",
+                asset_folder="vray_test",
+                frame_list="1",
+                file_prefix="vraymayascene",
+                expected_scene_file_paths=[],
+            ),
         ],
-        ids=["Minimal Maya Test", "Redshift Test"],
+        ids=["Minimal Maya Test", "Redshift Test", "Arnold Test", "VRay Test"],
     )
     def test_scene_submitter(
         self,
@@ -173,22 +225,12 @@ class TestSubmitters:
             assert yaml.safe_load(expected) == yaml.safe_load(actual)
 
         # Check that the parameter values are as expected.
-        expected_parameter_values = {
-            "parameterValues": [
-                {"name": "MayaSceneFile", "value": str(scene_location)},
-                {"name": "OutputFilePrefix", "value": str(job_configuration.file_prefix)},
-                {"name": "Frames", "value": job_configuration.frame_list},
-                {"name": "ImageWidth", "value": 960},
-                {"name": "ImageHeight", "value": 540},
-                {"name": "ProjectPath", "value": str(project_path) + "/"},
-                {"name": "OutputFilePath", "value": str(output_path)},
-                {"name": "RenderSetupIncludeLights", "value": "false"},
-                {"name": "deadline:targetTaskRunStatus", "value": "READY"},
-                {"name": "deadline:maxFailedTasksCount", "value": 20},
-                {"name": "deadline:maxRetriesPerTask", "value": 5},
-                {"name": "deadline:priority", "value": 50},
-            ]
-        }
+        expected_parameter_values = self._get_expected_parameter_values(
+            scene_location,
+            project_path,
+            output_path,
+            job_configuration,
+        )
 
         are_parameter_values_similar(job_history_dir, expected_parameter_values)
 
