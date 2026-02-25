@@ -3,5 +3,5 @@
 set -e
 
 pip install --upgrade pip
-pip install --upgrade hatch
+pip install --upgrade hatch "virtualenv<21"
 hatch run integ:test
