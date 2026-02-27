@@ -7,5 +7,5 @@ mypy == 1.*
 black == 25.*
 ruff == 0.15.*
 moto[s3,sts] == 5.*
-pipgrip == 0.12.*
+pipgrip == 0.13.*
 types-pyyaml == 6.*
