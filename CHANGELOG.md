@@ -1,3 +1,9 @@
+## 0.15.14 (2026-03-23)
+
+### Bug Fixes
+* Rebuilt deadline-cloud-for-maya with the latest dependencies to fix the "Job bundle validation failed" error for OCIOConfigFile
+
+
 ## 0.15.13 (2026-02-11)
 
 
