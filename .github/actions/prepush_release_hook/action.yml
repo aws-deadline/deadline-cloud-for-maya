@@ -12,8 +12,10 @@ runs:
   steps:
   - name: Zip submitter plugin
     shell: bash
+    env:
+      SEMVER: ${{ inputs.semver }}
     run: |
       mkdir dist_extras
       cd maya_submitter_plugin 
-      zip -r  ../dist_extras/maya_submitter_plugin_${{inputs.semver}}.zip .
+      zip -r  "../dist_extras/maya_submitter_plugin_${SEMVER}.zip" .
       cd ..
