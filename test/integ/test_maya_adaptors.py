@@ -25,6 +25,37 @@ class TestAdaptors:
     """
 
     @pytest.mark.maya_renderer
+    def test_token_resolution_adaptor(self, script_location: Path, tmp_path: Path) -> None:
+        """Tests that <Scene> and <RenderLayer> tokens in OutputFilePrefix are resolved
+        to actual values in the rendered output file paths."""
+        test_file_location = script_location / "minimal_test"
+        scene_location = test_file_location / TEST_SCENE_FOLDER / "test.ma"
+        output_path = tmp_path / OUTPUT_FOLDER
+
+        job_params: dict = {
+            "MayaSceneFile": str(scene_location),
+            "OutputFilePrefix": "<Scene>/<RenderLayer>/<RenderLayer>",
+            "Frames": "1",
+            "ImageWidth": 960,
+            "ImageHeight": 540,
+            "OutputFilePath": str(output_path),
+            "ProjectPath": str(test_file_location / "scene") + "/",
+            "RenderSetupIncludeLights": "false",
+        }
+
+        run_adaptor_test(test_file_location / EXPECTED_JOB_BUNDLE_FOLDER / TEMPLATE, job_params)
+
+        # Verify tokens were resolved: output should be under {scene_name}/{layer_name}/
+        # and NOT contain literal "<Scene>" or "<RenderLayer>" in file paths
+        output_files: list[Path] = list(output_path.rglob("*"))
+        rendered_files: list[Path] = [f for f in output_files if f.is_file()]
+        assert len(rendered_files) > 0, "No rendered files found"
+        for rendered_file in rendered_files:
+            relative: str = str(rendered_file.relative_to(output_path))
+            assert "<Scene>" not in relative, f"Unresolved <Scene> token in: {relative}"
+            assert "<RenderLayer>" not in relative, f"Unresolved <RenderLayer> token in: {relative}"
+
+    @pytest.mark.maya_renderer
     def test_minimal_scene_adaptor(self, script_location: Path, tmp_path: Path) -> None:
         test_file_location = script_location / "minimal_test"
         scene_location = test_file_location / TEST_SCENE_FOLDER / "test.ma"

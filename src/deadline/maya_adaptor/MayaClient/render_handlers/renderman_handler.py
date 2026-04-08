@@ -1,5 +1,7 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
+from typing import Optional
+
 from .default_maya_handler import DefaultMayaHandler
 
 import maya.cmds
@@ -71,7 +73,7 @@ class RenderManHandler(DefaultMayaHandler):
         self.render_kwargs["seq"] = frame
 
         # In order of preference, use the task's output_file_prefix, the step's output_file_prefix, or the scene file setting.
-        output_file_prefix = data.get("output_file_prefix", self.output_file_prefix)
+        output_file_prefix: Optional[str] = self._resolve_output_file_prefix(data)
         if output_file_prefix:
             maya.cmds.setAttr(
                 "defaultRenderGlobals.imageFilePrefix", output_file_prefix, type="string"

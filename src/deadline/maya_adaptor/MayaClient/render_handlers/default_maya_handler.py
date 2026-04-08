@@ -9,6 +9,7 @@ import maya.cmds
 import maya.mel
 
 from ..dir_map import DirectoryMapping
+from ..filename_utils import resolve_tokens
 
 
 def _get_render_layer_display_name(render_layer_name: str) -> str:
@@ -97,6 +98,49 @@ class DefaultMayaHandler:
         else:
             return None
 
+    def _resolve_output_file_prefix(self, data: dict) -> Optional[str]:
+        """
+        Resolve supported tokens in the output file prefix.
+
+        Replaces <Scene>, <RenderLayer>/<Layer>/%l, and <Camera>/%c with actual values.
+        Unknown tokens (e.g., <RenderPass>) pass through for Maya/the renderer to handle.
+
+        Args:
+            data (dict): The run-data for the current task. May contain 'camera' and 'output_file_prefix'.
+
+        Returns:
+            The resolved prefix string, or None if no prefix is set.
+        """
+        raw_prefix: Optional[str] = data.get("output_file_prefix", self.output_file_prefix)
+        if not raw_prefix:
+            return raw_prefix
+
+        scene_file: str = maya.cmds.file(query=True, sceneName=True)
+        scene_name: str = os.path.splitext(os.path.basename(scene_file))[0] if scene_file else ""
+
+        camera: str = data.get("camera", self.camera_name) or ""
+        # Maya natively resolves <Camera> to the shape node name, so we do the same.
+        if camera:
+            shapes: Optional[List[str]] = maya.cmds.listRelatives(
+                camera, shapes=True, type="camera"
+            )
+            if shapes:
+                camera = shapes[0]
+
+        render_layer: str = self.render_kwargs.get("layer", "")
+        if not render_layer:
+            render_layer = (
+                maya.cmds.editRenderLayerGlobals(query=True, currentRenderLayer=True) or ""
+            )
+        if render_layer:
+            render_layer = _get_render_layer_display_name(render_layer)
+
+        resolved: str = resolve_tokens(
+            raw_prefix, scene_name=scene_name, render_layer=render_layer, camera=camera
+        )
+        print(f"Resolved output_file_prefix: '{raw_prefix}' -> '{resolved}'", flush=True)
+        return resolved
+
     def start_render(self, data: dict) -> None:
         """
         Starts a render in the mayasoftware renderer.
@@ -117,8 +161,7 @@ class DefaultMayaHandler:
         camera = self.get_camera_to_render(data)
         print(f"Rendering camera: {camera}", flush=True)
 
-        # In order of preference, use the task's output_file_prefix, the step's output_file_prefix, or the scene file setting.
-        output_file_prefix = data.get("output_file_prefix", self.output_file_prefix)
+        output_file_prefix: Optional[str] = self._resolve_output_file_prefix(data)
         if output_file_prefix:
             maya.cmds.setAttr(
                 "defaultRenderGlobals.imageFilePrefix", output_file_prefix, type="string"

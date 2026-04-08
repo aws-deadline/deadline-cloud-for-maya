@@ -1,5 +1,7 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
+from typing import Optional
+
 import maya.cmds
 
 from .default_maya_handler import DefaultMayaHandler
@@ -43,7 +45,7 @@ class RedshiftHandler(DefaultMayaHandler):
         maya.cmds.setAttr("defaultRenderGlobals.animation", 1)
 
         # In order of preference, use the task's output_file_prefix, the step's output_file_prefix, or the scene file setting.
-        output_file_prefix = data.get("output_file_prefix", self.output_file_prefix)
+        output_file_prefix: Optional[str] = self._resolve_output_file_prefix(data)
         if output_file_prefix:
             maya.cmds.setAttr(
                 "defaultRenderGlobals.imageFilePrefix", output_file_prefix, type="string"

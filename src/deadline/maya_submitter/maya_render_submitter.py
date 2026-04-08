@@ -23,7 +23,7 @@ from qtpy.QtCore import Qt  # type: ignore
 
 from . import Animation, Scene  # type: ignore
 from .assets import AssetIntrospector
-from .renderers import get_output_prefix_with_tokens, get_height, get_width
+from .renderers import get_output_prefix_with_tokens, get_height, get_width, get_base_output_prefix
 from .data_classes import (
     RenderSubmitterUISettings,
 )
@@ -461,7 +461,10 @@ def _set_render_setting(load_sticky_setting: bool = False) -> RenderSubmitterUIS
     render_settings.project_path = Scene.project_path()
     render_settings.output_path = Scene.output_path()
 
-    # Load the sticky settings
+    # Default output file prefix pattern from scene render globals
+    render_settings.output_file_prefix_pattern = get_base_output_prefix()
+
+    # Load the sticky settings (may override the pattern)
     if load_sticky_setting:
         render_settings.load_sticky_settings(Scene.name())
 
@@ -594,6 +597,12 @@ def on_create_job_bundle_callback(
     if per_layer_frames_parameters:
         for layer_data in submit_render_layers:
             layer_data.frames_parameter_name = f"{layer_data.display_name}Frames"
+
+    # If the user set an output file prefix pattern in the UI, use it for all layers.
+    # The pattern contains raw tokens — the adaptor resolves them at render time.
+    if settings.output_file_prefix_pattern:
+        for layer_data in submit_render_layers:
+            layer_data.output_file_prefix = settings.output_file_prefix_pattern
 
     first_output_file_prefix = submit_render_layers[0].output_file_prefix
     per_layer_output_file_prefix = any(

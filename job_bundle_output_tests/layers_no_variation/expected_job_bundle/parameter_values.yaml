@@ -10,7 +10,7 @@
   },
   {
    "name": "OutputFilePrefix",
-   "value": "<Layer>/<Scene>"
+   "value": "<Scene>"
   },
   {
    "name": "ImageWidth",

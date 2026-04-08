@@ -25,7 +25,13 @@ def are_images_similar(
         # Open the two image files with Pillow https://pillow.readthedocs.io/en/stable/index.html
         # and put them in numpy arrays. Pillow doesn't have a good built-in way to do image comparison
         # with tolerance.
-        actual = np.asarray(PIL.Image.open(actual_image_directory / image.name))
+        # Maya may render into subdirectories (e.g. <layer>/<camera>/), so search recursively.
+        matches = list(actual_image_directory.rglob(image.name))
+        if not matches:
+            raise FileNotFoundError(
+                f"No file named '{image.name}' found under {actual_image_directory}"
+            )
+        actual = np.asarray(PIL.Image.open(matches[0]))
         expected = np.asarray(PIL.Image.open(image))
 
         # Check that the two images are the same within a tolerance.

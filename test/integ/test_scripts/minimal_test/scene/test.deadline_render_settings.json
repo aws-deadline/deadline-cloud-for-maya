@@ -7,9 +7,10 @@
  "max_retries_per_task": 5,
  "max_worker_count": -1,
  "override_frame_range": true,
- "frame_list": "1-2",
+ "frame_list": "1",
  "input_filenames": [],
  "input_directories": [],
  "output_directories": [],
- "include_adaptor_wheels": false
+ "include_adaptor_wheels": false,
+ "output_file_prefix_pattern": "<Scene>/<RenderLayer>/<RenderLayer>"
 }

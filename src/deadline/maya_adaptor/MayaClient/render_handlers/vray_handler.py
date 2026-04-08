@@ -1,5 +1,7 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
+from typing import Optional
+
 from .default_maya_handler import DefaultMayaHandler
 
 import maya.cmds
@@ -74,7 +76,7 @@ class VRayHandler(DefaultMayaHandler):
             )
 
         # In order of preference, use the task's output_file_prefix, the step's output_file_prefix, or the scene file setting.
-        output_file_prefix = data.get("output_file_prefix", self.output_file_prefix)
+        output_file_prefix: Optional[str] = self._resolve_output_file_prefix(data)
         if output_file_prefix:
             maya.cmds.setAttr(
                 "defaultRenderGlobals.imageFilePrefix", output_file_prefix, type="string"
@@ -130,9 +132,7 @@ class VRayHandler(DefaultMayaHandler):
                 )
 
             # Set the output filename
-            maya.cmds.setAttr(
-                "vraySettings.fileNamePrefix", data.get("output_file_prefix"), type="string"
-            )
+            maya.cmds.setAttr("vraySettings.fileNamePrefix", output_file_prefix, type="string")
 
             # Set to allow region in batch rendering
             maya.cmds.setAttr("vraySettings.vfbRgnOffBatch", 0)

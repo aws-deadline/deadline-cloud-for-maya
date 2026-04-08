@@ -11,5 +11,6 @@
  "input_filenames": [],
  "input_directories": [],
  "output_directories": [],
- "include_adaptor_wheels": false
+ "include_adaptor_wheels": false,
+ "output_file_prefix_pattern": "arnoldmayascene"
 }

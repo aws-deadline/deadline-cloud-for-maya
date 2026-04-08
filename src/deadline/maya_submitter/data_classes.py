@@ -48,6 +48,10 @@ class RenderSubmitterUISettings:
     # developer options
     include_adaptor_wheels: bool = field(default=False, metadata={"sticky": True})
 
+    # Output file prefix pattern with optional tokens (<Scene>, <RenderLayer>, <Camera>).
+    # Resolved by the adaptor at render time. Empty string means use scene default.
+    output_file_prefix_pattern: str = field(default="", metadata={"sticky": True})
+
     def load_sticky_settings(self, scene_filename: str):
         sticky_settings_filename = Path(scene_filename).with_suffix(
             RENDER_SUBMITTER_SETTINGS_FILE_EXT

@@ -25,24 +25,8 @@
    "value": "1-20"
   },
   {
-   "name": "layerDefaultFramesOutputFilePrefix",
-   "value": "<Layer>/layer_specific_file_prefix_"
-  },
-  {
-   "name": "layerFrameRange1OutputFilePrefix",
-   "value": "<Layer>/<Camera>/<Scene>"
-  },
-  {
-   "name": "masterLayerOutputFilePrefix",
-   "value": "<Layer>/<Camera>/<Scene>"
-  },
-  {
-   "name": "renderSetupLayer2OutputFilePrefix",
-   "value": "<Layer>/<Camera>/<Scene>"
-  },
-  {
-   "name": "renderSetupLayer4OutputFilePrefix",
-   "value": "<Layer>/<Camera>/<Scene>"
+   "name": "OutputFilePrefix",
+   "value": "<Scene>"
   },
   {
    "name": "layerDefaultFramesImageWidth",

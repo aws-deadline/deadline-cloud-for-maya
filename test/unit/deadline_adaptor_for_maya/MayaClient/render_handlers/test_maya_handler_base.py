@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from io import StringIO
 import os
+from typing import Optional
 from unittest.mock import Mock, patch
 
 import pytest
@@ -384,3 +385,85 @@ class TestSetOcioConfigFile:
             mock_color_prefs.assert_not_called()
             assert "WARNING" in output.getvalue()
             assert "/nonexistent/config.ocio" in output.getvalue()
+
+
+class TestResolveOutputFilePrefix:
+    """Tests for DefaultMayaHandler._resolve_output_file_prefix"""
+
+    @patch(
+        "deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds.file",
+        return_value="/path/to/test.ma",
+    )
+    @patch(
+        "deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds.editRenderLayerGlobals",
+        return_value="rs_layer1",
+    )
+    @patch(
+        "deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.mel.eval",
+        return_value="layer1",
+    )
+    def test_resolves_init_data_prefix(
+        self,
+        mock_mel_eval: Mock,
+        mock_edit_render_layer: Mock,
+        mock_file: Mock,
+        mayahandlerbase: DefaultMayaHandler,
+    ) -> None:
+        """Tests that tokens in init-data prefix are resolved."""
+        # GIVEN
+        mayahandlerbase.output_file_prefix = "<Scene>/<RenderLayer>"
+
+        # WHEN
+        result: Optional[str] = mayahandlerbase._resolve_output_file_prefix({})
+
+        # THEN
+        assert result == "test/layer1"
+
+    @patch(
+        "deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds.file",
+        return_value="/path/to/scene.ma",
+    )
+    @patch(
+        "deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds.editRenderLayerGlobals",
+        return_value="defaultRenderLayer",
+    )
+    @patch(
+        "deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.mel.eval",
+        return_value="masterLayer",
+    )
+    @patch(
+        "deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds.listRelatives",
+        return_value=["cam1Shape"],
+    )
+    def test_run_data_overrides_init_data(
+        self,
+        mock_list_relatives: Mock,
+        mock_mel_eval: Mock,
+        mock_edit_render_layer: Mock,
+        mock_file: Mock,
+        mayahandlerbase: DefaultMayaHandler,
+    ) -> None:
+        """Tests that run-data prefix overrides init-data prefix and camera resolves to shape."""
+        # GIVEN
+        mayahandlerbase.output_file_prefix = "<Scene>_init"
+        data: dict = {"output_file_prefix": "<Camera>_out", "camera": "cam1"}
+
+        # WHEN
+        result: Optional[str] = mayahandlerbase._resolve_output_file_prefix(data)
+
+        # THEN
+        assert result == "cam1Shape_out"
+
+    def test_no_prefix_returns_none(
+        self,
+        mayahandlerbase: DefaultMayaHandler,
+    ) -> None:
+        """Tests that None is returned when no prefix is set."""
+        # GIVEN
+        mayahandlerbase.output_file_prefix = None
+
+        # WHEN
+        result = mayahandlerbase._resolve_output_file_prefix({})
+
+        # THEN
+        assert result is None

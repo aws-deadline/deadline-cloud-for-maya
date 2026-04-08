@@ -251,3 +251,82 @@ class TestSubmitters:
         are_asset_references_similar(
             job_history_dir, expected_asset_references, job_configuration.expected_scene_file_paths
         )
+
+    def test_output_prefix_pattern_wysiwyg(
+        self,
+        initialize_maya,
+        script_location: Path,
+        tmp_path: Path,
+    ) -> None:
+        """Tests that the output_file_prefix_pattern is passed through to the job bundle
+        exactly as set (WYSIWYG), without auto-prepending tokens."""
+        show_maya_render_submitter = initialize_maya[0]
+        on_create_job_bundle_callback = initialize_maya[1]
+
+        job_history_dir: Path = tmp_path / "jobhistory"
+        output_path: Path = tmp_path / "output"
+        project_path: Path = script_location / "minimal_test" / "scene"
+        scene_location: Path = project_path / "test.ma"
+
+        self._cleanup_sticky_settings(scene_location, script_location)
+
+        os.makedirs(job_history_dir, exist_ok=True)
+        os.makedirs(output_path, exist_ok=True)
+
+        cmds.workspace(project_path, openWorkspace=True)
+        cmds.workspace(fileRule=["images", output_path])
+        cmds.file(scene_location, open=True, force=True)
+        cmds.setAttr("defaultResolution.width", 960)
+        cmds.setAttr("defaultResolution.height", 540)
+        cmds.optionVar(iv=("renderSetup_includeAllLights", 0))
+
+        raw_pattern: str = "<Scene>/<RenderLayer>/<RenderLayer>"
+
+        widget = show_maya_render_submitter(None)
+
+        settings = widget.job_settings_type()
+        widget.shared_job_settings.update_settings(settings)
+        widget.job_settings.update_settings(settings)
+
+        settings.output_file_prefix_pattern = raw_pattern
+        settings.override_frame_range = True
+        settings.frame_list = "1"
+        settings.description = ""
+        settings.include_adaptor_wheels = False
+
+        widget.shared_job_settings.shared_job_properties_box.set_parameter_value(
+            {"name": "deadline:targetTaskRunStatus", "value": "READY"}
+        )
+        widget.shared_job_settings.shared_job_properties_box.set_parameter_value(
+            {"name": "deadline:maxFailedTasksCount", "value": 20}
+        )
+        widget.shared_job_settings.shared_job_properties_box.set_parameter_value(
+            {"name": "deadline:maxRetriesPerTask", "value": 5}
+        )
+        widget.shared_job_settings.shared_job_properties_box.set_parameter_value(
+            {"name": "deadline:priority", "value": 50}
+        )
+
+        on_create_job_bundle_callback(
+            widget,
+            job_history_dir,
+            settings,
+            widget.shared_job_settings.get_parameters(),
+            widget.job_attachments.get_asset_references(),
+            widget.host_requirements.get_requirements(),
+            purpose="export",
+        )
+        widget.close()
+
+        # Verify the raw pattern appears in parameter_values.yaml exactly as set
+        with open(job_history_dir / "parameter_values.yaml") as f:
+            param_values: dict = yaml.safe_load(f)
+
+        prefix_params: list = [
+            p for p in param_values["parameterValues"] if "OutputFilePrefix" in p["name"]
+        ]
+        assert len(prefix_params) > 0, "No OutputFilePrefix parameter found"
+        for param in prefix_params:
+            assert (
+                param["value"] == raw_pattern
+            ), f"Expected raw pattern '{raw_pattern}', got '{param['value']}'"

@@ -58,6 +58,14 @@ parameterDefinitions:
   allowedValues:
   - 'true'
   - 'false'
+- name: OCIOConfigFile
+  type: PATH
+  objectType: FILE
+  dataFlow: IN
+  userInterface:
+    control: HIDDEN
+  description: The OCIO configuration file path (auto-detected from scene).
+  default: ''
 - name: layerDefaultFramesFrames
   type: STRING
   userInterface:
@@ -98,41 +106,13 @@ parameterDefinitions:
     groupLabel: Layer renderSetupLayer4 Settings (mayaSoftware renderer)
   description: The frames to render. E.g. 1-3,8,11-15
   minLength: 1
-- name: layerDefaultFramesOutputFilePrefix
+- name: OutputFilePrefix
   type: STRING
   userInterface:
     control: LINE_EDIT
     label: Output File Prefix
-    groupLabel: Layer layerDefaultFrames Settings (arnold renderer)
-  description: The output filename prefix for layer layerDefaultFrames
-- name: layerFrameRange1OutputFilePrefix
-  type: STRING
-  userInterface:
-    control: LINE_EDIT
-    label: Output File Prefix
-    groupLabel: Layer layerFrameRange1 Settings (mayaHardware2 renderer)
-  description: The output filename prefix for layer layerFrameRange1
-- name: masterLayerOutputFilePrefix
-  type: STRING
-  userInterface:
-    control: LINE_EDIT
-    label: Output File Prefix
-    groupLabel: Layer masterLayer Settings (arnold renderer)
-  description: The output filename prefix for layer masterLayer
-- name: renderSetupLayer2OutputFilePrefix
-  type: STRING
-  userInterface:
-    control: LINE_EDIT
-    label: Output File Prefix
-    groupLabel: Layer renderSetupLayer2 Settings (arnold renderer)
-  description: The output filename prefix for layer renderSetupLayer2
-- name: renderSetupLayer4OutputFilePrefix
-  type: STRING
-  userInterface:
-    control: LINE_EDIT
-    label: Output File Prefix
-    groupLabel: Layer renderSetupLayer4 Settings (mayaSoftware renderer)
-  description: The output filename prefix for layer renderSetupLayer4
+    groupLabel: Maya Settings
+  description: The output filename prefix.
 - name: layerDefaultFramesImageWidth
   type: INT
   userInterface:
@@ -251,7 +231,8 @@ steps:
           output_file_path: '{{Param.OutputFilePath}}'
           render_setup_include_lights: {{Param.RenderSetupIncludeLights}}
           strict_error_checking: {{Param.StrictErrorChecking}}
-          output_file_prefix: '{{Param.layerDefaultFramesOutputFilePrefix}}'
+          ocio_config_file: '{{Param.OCIOConfigFile}}'
+          output_file_prefix: '{{Param.OutputFilePrefix}}'
           image_width: {{Param.layerDefaultFramesImageWidth}}
           image_height: {{Param.layerDefaultFramesImageHeight}}
           cache_pathmapping: true
@@ -328,7 +309,8 @@ steps:
           output_file_path: '{{Param.OutputFilePath}}'
           render_setup_include_lights: {{Param.RenderSetupIncludeLights}}
           strict_error_checking: {{Param.StrictErrorChecking}}
-          output_file_prefix: '{{Param.layerFrameRange1OutputFilePrefix}}'
+          ocio_config_file: '{{Param.OCIOConfigFile}}'
+          output_file_prefix: '{{Param.OutputFilePrefix}}'
           image_width: {{Param.layerFrameRange1ImageWidth}}
           image_height: {{Param.layerFrameRange1ImageHeight}}
           cache_pathmapping: true
@@ -404,7 +386,8 @@ steps:
           output_file_path: '{{Param.OutputFilePath}}'
           render_setup_include_lights: {{Param.RenderSetupIncludeLights}}
           strict_error_checking: {{Param.StrictErrorChecking}}
-          output_file_prefix: '{{Param.masterLayerOutputFilePrefix}}'
+          ocio_config_file: '{{Param.OCIOConfigFile}}'
+          output_file_prefix: '{{Param.OutputFilePrefix}}'
           image_width: {{Param.masterLayerImageWidth}}
           image_height: {{Param.masterLayerImageHeight}}
           cache_pathmapping: true
@@ -482,7 +465,8 @@ steps:
           output_file_path: '{{Param.OutputFilePath}}'
           render_setup_include_lights: {{Param.RenderSetupIncludeLights}}
           strict_error_checking: {{Param.StrictErrorChecking}}
-          output_file_prefix: '{{Param.renderSetupLayer2OutputFilePrefix}}'
+          ocio_config_file: '{{Param.OCIOConfigFile}}'
+          output_file_prefix: '{{Param.OutputFilePrefix}}'
           image_width: {{Param.renderSetupLayer2ImageWidth}}
           image_height: {{Param.renderSetupLayer2ImageHeight}}
           cache_pathmapping: true
@@ -559,7 +543,8 @@ steps:
           output_file_path: '{{Param.OutputFilePath}}'
           render_setup_include_lights: {{Param.RenderSetupIncludeLights}}
           strict_error_checking: {{Param.StrictErrorChecking}}
-          output_file_prefix: '{{Param.renderSetupLayer4OutputFilePrefix}}'
+          ocio_config_file: '{{Param.OCIOConfigFile}}'
+          output_file_prefix: '{{Param.OutputFilePrefix}}'
           image_width: {{Param.renderSetupLayer4ImageWidth}}
           image_height: {{Param.renderSetupLayer4ImageHeight}}
           cache_pathmapping: true

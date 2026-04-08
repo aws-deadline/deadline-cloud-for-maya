@@ -1,12 +1,15 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 import os
 
+import maya.cmds  # type: ignore
+
 from qtpy.QtCore import QSize, Qt, QRegularExpression  # type: ignore
 from qtpy.QtWidgets import (  # type: ignore
     QCheckBox,
     QComboBox,
     QFileDialog,
     QGridLayout,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -19,6 +22,10 @@ from qtpy.QtGui import QRegularExpressionValidator  # type: ignore
 from deadline.client.ui import block_signals
 
 from ...render_layers import LayerSelection
+from deadline.maya_adaptor.MayaClient.filename_utils import (
+    get_tokens_tooltip,
+    resolve_tokens,
+)
 
 """
 UI widgets for the Scene Settings tab.
@@ -109,37 +116,57 @@ class SceneSettingsWidget(QWidget):
         lyt.addWidget(QLabel("Output Path"), 1, 0)
         lyt.addWidget(self.op_path_txt, 1, 1)
 
+        # Output File Prefix pattern with live preview
+        prefix_group: QGroupBox = QGroupBox("Output File Prefix")
+        prefix_lyt: QGridLayout = QGridLayout(prefix_group)
+
+        self.output_prefix_txt = QLineEdit(self)
+        self.output_prefix_txt.setToolTip(get_tokens_tooltip())
+        self.output_prefix_txt.setPlaceholderText("<Scene>/<RenderLayer>/<RenderLayer>")
+        self.output_prefix_txt.textChanged.connect(self._update_prefix_preview)
+        prefix_lyt.addWidget(QLabel("Pattern"), 0, 0)
+        prefix_lyt.addWidget(self.output_prefix_txt, 0, 1)
+
+        self.output_prefix_preview = QLabel("")
+        self.output_prefix_preview.setToolTip("Preview of the resolved output file prefix")
+        self.output_prefix_preview.setStyleSheet("color: gray;")
+        prefix_lyt.addWidget(QLabel("Preview"), 1, 0)
+        prefix_lyt.addWidget(self.output_prefix_preview, 1, 1)
+
+        lyt.addWidget(prefix_group, 2, 0, 1, 2)
+
         self.layers_box = QComboBox(self)
-        layer_items = [
+        layer_items: list[tuple[LayerSelection, str]] = [
             (LayerSelection.ALL, "All Renderable Layers"),
             (LayerSelection.CURRENT, "Current Layer"),
         ]
         for layer_value, text in layer_items:
             self.layers_box.addItem(text, layer_value)
-        lyt.addWidget(QLabel("Render Layers"), 2, 0)
-        lyt.addWidget(self.layers_box, 2, 1)
+        lyt.addWidget(QLabel("Render Layers"), 3, 0)
+        lyt.addWidget(self.layers_box, 3, 1)
         self.layers_box.currentIndexChanged.connect(self._fill_cameras_box)
 
         self.cameras_box = QComboBox(self)
-        lyt.addWidget(QLabel("Cameras"), 3, 0)
-        lyt.addWidget(self.cameras_box, 3, 1)
+        lyt.addWidget(QLabel("Cameras"), 4, 0)
+        lyt.addWidget(self.cameras_box, 4, 1)
+        self.cameras_box.currentIndexChanged.connect(self._update_prefix_preview)
 
         self.frame_override_chck = QCheckBox("Override Frame Range", self)
         self.frame_override_txt = QLineEdit(self)
         # Only allow numbers, colons, dashes, commas, and whitespace for frame ranges
         frame_pattern = QRegularExpression(r"^[0-9:\-,\s]*$")
         self.frame_override_txt.setValidator(QRegularExpressionValidator(frame_pattern))
-        lyt.addWidget(self.frame_override_chck, 4, 0)
-        lyt.addWidget(self.frame_override_txt, 4, 1)
+        lyt.addWidget(self.frame_override_chck, 5, 0)
+        lyt.addWidget(self.frame_override_txt, 5, 1)
         self.frame_override_chck.stateChanged.connect(self.activate_frame_override_changed)
 
         if self.developer_options:
             self.include_adaptor_wheels = QCheckBox(
                 "Developer Option: Include Adaptor Wheels", self
             )
-            lyt.addWidget(self.include_adaptor_wheels, 5, 0)
+            lyt.addWidget(self.include_adaptor_wheels, 6, 0)
 
-        lyt.addItem(QSpacerItem(0, 0, QSizePolicy.Minimum, QSizePolicy.Expanding), 10, 0)
+        lyt.addItem(QSpacerItem(0, 0, QSizePolicy.Minimum, QSizePolicy.Expanding), 11, 0)
 
         self._fill_cameras_box(0)
 
@@ -165,6 +192,7 @@ class SceneSettingsWidget(QWidget):
     def _configure_settings(self, settings):
         self.proj_path_txt.setText(settings.project_path)
         self.op_path_txt.setText(settings.output_path)
+        self.output_prefix_txt.setText(settings.output_file_prefix_pattern)
         self.frame_override_chck.setChecked(settings.override_frame_range)
         self.frame_override_txt.setEnabled(settings.override_frame_range)
         self.frame_override_txt.setText(settings.frame_list)
@@ -180,6 +208,39 @@ class SceneSettingsWidget(QWidget):
         if self.developer_options:
             self.include_adaptor_wheels.setChecked(settings.include_adaptor_wheels)
 
+        self._update_prefix_preview()
+
+    def _update_prefix_preview(self) -> None:
+        """Update the live preview label with resolved tokens."""
+        pattern: str = self.output_prefix_txt.text()
+        if not pattern:
+            self.output_prefix_preview.setText("")
+            return
+
+        # Use first camera as example for preview
+        camera: str = self.cameras_box.currentData() or ""
+        if camera == "ALL_CAMERAS" or camera == "All Cameras":
+            # Use first non-"all" camera if available
+            if self.cameras_box.count() > 1:
+                camera = self.cameras_box.itemData(1) or ""
+            else:
+                camera = ""
+
+        # Scene name from the scene file
+        scene_file: str = maya.cmds.file(query=True, sceneName=True)
+        scene_name: str = (
+            os.path.splitext(os.path.basename(scene_file))[0] if scene_file else "untitled"
+        )
+
+        # Render layer: use "masterLayer" as example since it exists in every Maya scene.
+        # The actual layer name is resolved at render time per-step on the farm.
+        render_layer: str = "masterLayer"
+
+        preview: str = resolve_tokens(
+            pattern, scene_name=scene_name, render_layer=render_layer, camera=camera
+        )
+        self.output_prefix_preview.setText(preview)
+
     def update_settings(self, settings):
         """
         Update a scene settings object with the latest values.
@@ -187,6 +248,7 @@ class SceneSettingsWidget(QWidget):
 
         settings.project_path = self.proj_path_txt.text()
         settings.output_path = self.op_path_txt.text()
+        settings.output_file_prefix_pattern = self.output_prefix_txt.text()
 
         settings.override_frame_range = self.frame_override_chck.isChecked()
         settings.frame_list = self.frame_override_txt.text()
