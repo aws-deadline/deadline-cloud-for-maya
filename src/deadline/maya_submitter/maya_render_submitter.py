@@ -11,7 +11,11 @@ from dataclasses import dataclass
 
 import maya.cmds  # pylint: disable=import-error
 
-from deadline.client.api import get_deadline_cloud_library_telemetry_client
+from deadline.client.api import (
+    get_deadline_cloud_library_telemetry_client,
+    get_queue_parameter_definitions,
+)
+from deadline.client.config import get_setting
 from deadline.client.job_bundle.parameters import JobParameter
 from deadline.client.job_bundle._yaml import deadline_yaml_dump
 from deadline.client.ui.dialogs.submit_job_to_deadline_dialog import (  # pylint: disable=import-error
@@ -435,18 +439,23 @@ def _get_parameter_values(
                 conda_param = param
         # Remove the deadline_cloud_for_maya/maya-openjd package
         if rez_param:
+            current_value = rez_param.get("value", rez_param.get("default", ""))
             rez_param["value"] = " ".join(
                 pkg
-                for pkg in rez_param["value"].split()
+                for pkg in current_value.split()
                 if not pkg.startswith("deadline_cloud_for_maya")
             )
         if conda_param:
+            current_value = conda_param.get("value", conda_param.get("default", ""))
             conda_param["value"] = " ".join(
-                pkg for pkg in conda_param["value"].split() if not pkg.startswith("maya-openjd")
+                pkg for pkg in current_value.split() if not pkg.startswith("maya-openjd")
             )
 
+    # Only include queue parameters that have a value set (either explicitly or from default)
     parameter_values.extend(
-        {"name": param["name"], "value": param["value"]} for param in queue_parameters
+        {"name": param["name"], "value": param.get("value", param.get("default", ""))}
+        for param in queue_parameters
+        if "value" in param or "default" in param
     )
 
     return parameter_values
@@ -518,6 +527,282 @@ def _set_render_layer_data() -> list[RenderLayerData]:
 
     return render_layers
 
+def get_submit_render_layers(use_current_layer: bool) -> list[RenderLayerData]:
+    """Returns the list of RenderLayerData that should be submitted.
+    
+    Args:
+        use_current_layer (bool): Whether to only submit the current render layer, or all render layers.
+
+    Returns:
+        list[RenderLayerData]: The list of RenderLayerData that should be submitted.
+
+    Raises:
+        DeadlineOperationError: If use_current_layer is True but the current render layer is not renderable.
+    
+    """
+    render_layers: list[RenderLayerData] = _set_render_layer_data()
+    # If we're only submitting the current layer, filter our list of layers by that
+    if use_current_layer:
+        current_render_layer_name = get_current_render_layer_name()
+        submit_render_layers = [
+            layer for layer in render_layers if layer.name == current_render_layer_name
+        ]
+        if not submit_render_layers:
+            raise DeadlineOperationError(
+                f"The current render layer, {current_render_layer_name}, is not set as renderable. It must be renderable to submit as a job."
+            )
+        return submit_render_layers
+    
+    return render_layers
+
+def get_submit_renderers(use_current_layer: bool) -> set[str]:
+    """Returns the set of renderers that should be submitted.
+    
+    Args:
+        use_current_layer (bool): Whether to only submit the current render layer, or all render layers.
+
+    Returns:
+        set[str]: The set of renderers that should be submitted.
+    
+    """
+    render_layers = get_submit_render_layers(use_current_layer)
+    return {layer_data.renderer_name for layer_data in render_layers}
+
+def get_default_job_template() -> dict[str, Any]:
+    """Returns the default job template for Maya render submissions.
+    
+    Returns:
+        dict[str, Any]: The default job template for Maya render submissions.
+    
+    """
+    with open(Path(__file__).parent / "default_maya_job_template.yaml") as fh:
+        default_job_template = yaml.safe_load(fh)
+
+    return default_job_template
+
+
+def _prepare_render_layers_for_submission(
+    settings: RenderSubmitterUISettings,
+) -> tuple[list[RenderLayerData], set[str], list[str], list[str]]:
+    """Prepare render layers with per-layer parameter names set based on settings.
+
+    Args:
+        settings: The render submitter UI settings.
+
+    Returns:
+        A tuple containing:
+        - submit_render_layers: The list of render layers to submit with parameter names set.
+        - renderers: The set of renderer names used by the layers.
+        - all_layer_selectable_cameras: Cameras selectable across all layers.
+        - current_layer_selectable_cameras: Cameras selectable for the current layer.
+    """
+    render_layers: list[RenderLayerData] = _set_render_layer_data()
+
+    # Get selectable cameras for current layer
+    current_layer_selectable_cameras: list[str] = get_renderable_camera_names()
+
+    # Get selectable cameras for all layers
+    all_layer_selectable_cameras_set: set[str] = set(render_layers[0].renderable_camera_names)
+    for layer in render_layers:
+        all_layer_selectable_cameras_set = all_layer_selectable_cameras_set.intersection(
+            layer.renderable_camera_names
+        )
+    all_layer_selectable_cameras: list[str] = list(sorted(all_layer_selectable_cameras_set))
+
+    # Determine which render layers to submit based on the settings
+    submit_render_layers = get_submit_render_layers(
+        settings.render_layer_selection == LayerSelection.CURRENT
+    )
+
+    # Check if there are multiple frame ranges across the layers
+    first_frame_range = submit_render_layers[0].frame_range
+    per_layer_frames_parameters = not settings.override_frame_range and any(
+        layer.frame_range != first_frame_range for layer in submit_render_layers
+    )
+
+    # If there are multiple frame ranges and we're not overriding the range,
+    # then we create per-layer Frames parameters.
+    if per_layer_frames_parameters:
+        for layer_data in submit_render_layers:
+            layer_data.frames_parameter_name = f"{layer_data.display_name}Frames"
+
+    first_output_file_prefix = submit_render_layers[0].output_file_prefix
+    per_layer_output_file_prefix = any(
+        layer.output_file_prefix != first_output_file_prefix for layer in submit_render_layers
+    )
+
+    if per_layer_output_file_prefix:
+        for layer_data in submit_render_layers:
+            layer_data.output_file_prefix_parameter_name = (
+                f"{layer_data.display_name}OutputFilePrefix"
+            )
+
+    first_image_resolution = submit_render_layers[0].image_resolution
+    per_layer_image_resolution = any(
+        layer.image_resolution != first_image_resolution for layer in submit_render_layers
+    )
+
+    if per_layer_image_resolution:
+        for layer_data in submit_render_layers:
+            layer_data.image_width_parameter_name = f"{layer_data.display_name}ImageWidth"
+            layer_data.image_height_parameter_name = f"{layer_data.display_name}ImageHeight"
+
+    renderers = get_submit_renderers(settings.render_layer_selection == LayerSelection.CURRENT)
+
+    return (
+        submit_render_layers,
+        renderers,
+        all_layer_selectable_cameras,
+        current_layer_selectable_cameras,
+    )
+
+
+def get_job_template_for_submission(
+    settings: RenderSubmitterUISettings,
+    host_requirements: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
+    """Generate the job template for Maya render submissions.
+
+    This function returns the job template in its final state, ready to be
+    serialized to YAML. It can be used for external integrations.
+
+    Args:
+        settings: The render submitter UI settings.
+        host_requirements: Optional host requirements to inject into job steps.
+
+    Returns:
+        The job template dictionary ready for serialization.
+    """
+    default_job_template = get_default_job_template()
+
+    (
+        submit_render_layers,
+        renderers,
+        all_layer_selectable_cameras,
+        current_layer_selectable_cameras,
+    ) = _prepare_render_layers_for_submission(settings)
+
+    job_template = _get_job_template(
+        default_job_template=default_job_template,
+        settings=settings,
+        renderers=renderers,
+        render_layers=submit_render_layers,
+        all_layer_selectable_cameras=all_layer_selectable_cameras,
+        current_layer_selectable_cameras=current_layer_selectable_cameras,
+    )
+
+    # If "HostRequirements" is provided, inject it into each of the "Step"
+    if host_requirements:
+        for step in job_template["steps"]:
+            step["hostRequirements"] = host_requirements
+
+    return job_template
+
+
+def get_parameter_values_for_submission(
+    settings: RenderSubmitterUISettings,
+    queue_parameters: Optional[list[dict[str, Any]]] = None,
+) -> list[dict[str, Any]]:
+    """Generate the parameter values for Maya render submissions.
+
+    This function returns the parameter values in their final state, ready to be
+    serialized to YAML. It can be used for external integrations.
+
+    Args:
+        settings: The render submitter UI settings.
+        queue_parameters: Optional queue parameters from the job bundle. These are
+            typically provided by the SubmitJobToDeadlineDialog but can be omitted
+            for external API usage. When omitted, no queue-specific parameters
+            (like RezPackages or CondaPackages) will be included.
+
+    Returns:
+        The parameter values list ready for serialization.
+    """
+    if queue_parameters is None:
+        queue_parameters = []
+
+    (
+        submit_render_layers,
+        renderers,
+        _all_layer_selectable_cameras,
+        _current_layer_selectable_cameras,
+    ) = _prepare_render_layers_for_submission(settings)
+
+    return _get_parameter_values(
+        settings, renderers, submit_render_layers, queue_parameters
+    )
+
+
+def get_asset_references_for_submission(
+    asset_references: AssetReferences,
+) -> dict[str, Any]:
+    """Get the asset references in dictionary form for Maya render submissions.
+
+    This function returns the asset references in their final state, ready to be
+    serialized to YAML. It can be used for external integrations.
+
+    Args:
+        asset_references: The asset references object.
+
+    Returns:
+        The asset references dictionary ready for serialization.
+    """
+    return asset_references.to_dict()
+
+
+def get_queue_parameters(
+    farm_id: Optional[str] = None,
+    queue_id: Optional[str] = None,
+    initial_values: Optional[dict[str, Any]] = None,
+) -> list[dict[str, Any]]:
+    """Get queue parameters from Deadline Cloud for external API usage.
+
+    This function retrieves queue parameter definitions from the Deadline Cloud API
+    and optionally applies initial values. It can be used to construct queue_parameters
+    for get_parameter_values_for_submission() without going through the UI.
+
+    Args:
+        farm_id: The farm ID. If not provided, uses the default from settings.
+        queue_id: The queue ID. If not provided, uses the default from settings.
+        initial_values: Optional dict of {parameter_name: value} to override
+            default parameter values. For example:
+            {"RezPackages": "maya-2024 deadline_cloud_for_maya"}
+
+    Returns:
+        A list of parameter definition dicts with "name" and "value" keys,
+        suitable for passing to get_parameter_values_for_submission().
+
+    Raises:
+        DeadlineOperationError: If farm_id or queue_id are not configured.
+
+    Example:
+        >>> queue_params = get_queue_parameters(
+        ...     initial_values={"RezPackages": "maya-2024"}
+        ... )
+        >>> param_values = get_parameter_values_for_submission(settings, queue_params)
+    """
+    if farm_id is None:
+        farm_id = get_setting("defaults.farm_id")
+    if queue_id is None:
+        queue_id = get_setting("defaults.queue_id")
+
+    if not farm_id or not queue_id:
+        raise DeadlineOperationError(
+            "Farm ID and Queue ID must be configured. "
+            "Either provide them as arguments or configure them in Deadline Cloud settings."
+        )
+
+    # Fetch queue parameter definitions from the API
+    queue_parameters = get_queue_parameter_definitions(farmId=farm_id, queueId=queue_id)
+
+    # Apply initial values if provided
+    if initial_values:
+        for parameter in queue_parameters:
+            if parameter["name"] in initial_values:
+                parameter["value"] = initial_values[parameter["name"]]
+
+    return cast(list[dict[str, Any]], queue_parameters)
+
 
 def on_create_job_bundle_callback(
     widget: SubmitJobToDeadlineDialog,
@@ -528,11 +813,7 @@ def on_create_job_bundle_callback(
     host_requirements: Optional[dict[str, Any]] = None,
     purpose: JobBundlePurpose = JobBundlePurpose.SUBMISSION,
 ) -> dict[str, Any]:
-    with open(Path(__file__).parent / "default_maya_job_template.yaml") as fh:
-        default_job_template = yaml.safe_load(fh)
-
     render_settings = _set_render_setting()
-
     render_layers: list[RenderLayerData] = _set_render_layer_data()
 
     # Tell the settings tab the selectable cameras when only the current layer is in the job
@@ -570,71 +851,12 @@ def on_create_job_bundle_callback(
 
     job_bundle_path = Path(job_bundle_dir)
 
-    # If we're only submitting the current layer, filter our list of layers by that
-    if settings.render_layer_selection == LayerSelection.CURRENT:
-        current_render_layer_name = get_current_render_layer_name()
-        submit_render_layers = [
-            layer for layer in render_layers if layer.name == current_render_layer_name
-        ]
-        if not submit_render_layers:
-            raise DeadlineOperationError(
-                f"The current render layer, {current_render_layer_name}, is not set as renderable. It must be renderable to submit as a job."
-            )
-    else:
-        submit_render_layers = render_layers
-
-    # Check if there are multiple frame ranges across the layers
-    first_frame_range = submit_render_layers[0].frame_range
-    per_layer_frames_parameters = not settings.override_frame_range and any(
-        layer.frame_range != first_frame_range for layer in submit_render_layers
+    # Get job bundle content using the extracted functions
+    job_template = get_job_template_for_submission(settings, host_requirements)
+    parameter_values = get_parameter_values_for_submission(
+        settings, cast(list[dict[str, Any]], queue_parameters)
     )
-
-    # If there are multiple frame ranges and we're not overriding the range,
-    # then we create per-layer Frames parameters.
-    if per_layer_frames_parameters:
-        for layer_data in submit_render_layers:
-            layer_data.frames_parameter_name = f"{layer_data.display_name}Frames"
-
-    first_output_file_prefix = submit_render_layers[0].output_file_prefix
-    per_layer_output_file_prefix = any(
-        layer.output_file_prefix != first_output_file_prefix for layer in submit_render_layers
-    )
-
-    if per_layer_output_file_prefix:
-        for layer_data in submit_render_layers:
-            layer_data.output_file_prefix_parameter_name = (
-                f"{layer_data.display_name}OutputFilePrefix"
-            )
-
-    first_image_resolution = submit_render_layers[0].image_resolution
-    per_layer_image_resolution = any(
-        layer.image_resolution != first_image_resolution for layer in submit_render_layers
-    )
-
-    if per_layer_image_resolution:
-        for layer_data in submit_render_layers:
-            layer_data.image_width_parameter_name = f"{layer_data.display_name}ImageWidth"
-            layer_data.image_height_parameter_name = f"{layer_data.display_name}ImageHeight"
-
-    renderers: set[str] = {layer_data.renderer_name for layer_data in submit_render_layers}
-
-    job_template = _get_job_template(
-        default_job_template=default_job_template,
-        settings=settings,
-        renderers=renderers,
-        render_layers=submit_render_layers,
-        all_layer_selectable_cameras=all_layer_selectable_cameras,
-        current_layer_selectable_cameras=current_layer_selectable_cameras,
-    )
-    parameter_values = _get_parameter_values(
-        settings, renderers, submit_render_layers, cast(list[dict[str, Any]], queue_parameters)
-    )
-
-    # If "HostRequirements" is provided, inject it into each of the "Step"
-    if host_requirements:
-        # for each step in the template, append the same host requirements.
-        for step in job_template["steps"]:
-            step["hostRequirements"] = host_requirements
+    asset_references_dict = get_asset_references_for_submission(asset_references)
 
     with open(job_bundle_path / "template.yaml", "w", encoding="utf8") as f:
         deadline_yaml_dump(job_template, f, indent=1)
@@ -643,7 +865,7 @@ def on_create_job_bundle_callback(
         deadline_yaml_dump({"parameterValues": parameter_values}, f, indent=1)
 
     with open(job_bundle_path / "asset_references.yaml", "w", encoding="utf8") as f:
-        deadline_yaml_dump(asset_references.to_dict(), f, indent=1)
+        deadline_yaml_dump(asset_references_dict, f, indent=1)
 
     # Save Sticky Settings
     attachments: AssetReferences = widget.job_attachments.attachments
