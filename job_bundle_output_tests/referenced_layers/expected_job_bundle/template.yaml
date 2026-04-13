@@ -66,6 +66,14 @@ parameterDefinitions:
   allowedValues:
   - 'true'
   - 'false'
+- name: OCIOConfigFile
+  type: PATH
+  objectType: FILE
+  dataFlow: IN
+  userInterface:
+    control: HIDDEN
+  description: The OCIO configuration file path (auto-detected from scene).
+  default: ''
 - name: OutputFilePrefix
   type: STRING
   userInterface:
@@ -127,6 +135,7 @@ steps:
           output_file_path: '{{Param.OutputFilePath}}'
           render_setup_include_lights: {{Param.RenderSetupIncludeLights}}
           strict_error_checking: {{Param.StrictErrorChecking}}
+          ocio_config_file: '{{Param.OCIOConfigFile}}'
           output_file_prefix: '{{Param.OutputFilePrefix}}'
           image_width: {{Param.ImageWidth}}
           image_height: {{Param.ImageHeight}}

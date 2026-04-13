@@ -197,6 +197,9 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
         )
         _vray_license_error = "error: Could not obtain a license"
         _renderman_license_error = r".*{SEVERE}\s+License.*"
+        _legacy_render_layer_error = (
+            r"Error:[^\n]*contains legacy render layers[^\n]*uses render setup"
+        )
         callback_list = []
         completed_regexes = [re.compile("MayaClient: Finished Rendering Frame [0-9]+")]
         progress_regexes = [
@@ -237,6 +240,12 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
             )
         )
         callback_list.append(RegexCallback(version_regexes, self._handle_maya_version))
+        callback_list.append(
+            RegexCallback(
+                [re.compile(_legacy_render_layer_error)],
+                self._handle_legacy_render_layer_error,
+            )
+        )
 
         return callback_list
 
@@ -270,6 +279,24 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
             RuntimeError: Always raises a runtime error to halt the adaptor.
         """
         self._exc_info = RuntimeError(f"Maya Encountered an Error: {match.group(0)}")
+
+    def _handle_legacy_render_layer_error(self, match: re.Match) -> None:
+        """
+        Callback for stderr that indicates a legacy render layer incompatibility.
+        Args:
+            match (re.Match): The match object from the regex pattern that was matched the message
+
+        Raises:
+            RuntimeError: Always raises a runtime error to halt the adaptor.
+        """
+        self._exc_info = RuntimeError(
+            "This scene contains legacy render layers but Maya is running in Render Setup mode. "
+            "This combination is unsupported by Maya and will cause render layers to be ignored, "
+            "resulting in all frames rendering under 'masterLayer'. "
+            "Please convert your scene to use Render Setup layers, or switch your scene to "
+            "Legacy Render Layers mode (Preferences > Rendering > Preferred Render Setup System) "
+            "before submitting."
+        )
 
     def _handle_license_error(self, match: re.Match) -> None:
         """
