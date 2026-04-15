@@ -270,20 +270,6 @@ def _get_job_template(
             }
         )
 
-    # Set the OCIO environment variable in the job template so the worker
-    # picks up the correct color config. OCIOConfigFile is a PATH param with
-    # dataFlow: IN, so Deadline Cloud handles path mapping automatically.
-    # When OCIOConfigFile is empty (no custom OCIO config), this is a no-op.
-    if "jobEnvironments" not in job_template:
-        job_template["jobEnvironments"] = []
-    job_template["jobEnvironments"].insert(
-        0,
-        {
-            "name": "Set OCIO Config Path",
-            "variables": {"OCIO": "{{Param.OCIOConfigFile}}"},
-        },
-    )
-
     # If this developer option is enabled, merge the adaptor_override_environment
     if settings.include_adaptor_wheels:
         with open(Path(__file__).parent / "adaptor_override_environment.yaml") as f:

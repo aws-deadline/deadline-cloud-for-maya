@@ -232,10 +232,6 @@ parameterDefinitions:
   allowedValues:
   - 'true'
   - 'false'
-jobEnvironments:
-- name: Set OCIO Config Path
-  variables:
-    OCIO: '{{Param.OCIOConfigFile}}'
 steps:
 - name: layerDefaultFrames
   parameterSpace:

@@ -97,10 +97,6 @@ parameterDefinitions:
     groupLabel: Maya Settings
   minValue: 1
   description: The image height of the output.
-jobEnvironments:
-- name: Set OCIO Config Path
-  variables:
-    OCIO: '{{Param.OCIOConfigFile}}'
 steps:
 - name: masterLayer
   parameterSpace:
