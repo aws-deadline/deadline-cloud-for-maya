@@ -43,7 +43,6 @@ _MAYA_INIT_KEYS = {
     "camera",
     "image_height",
     "image_width",
-    "ocio_config_file",
     "output_file_path",
     "output_file_prefix",
     "render_layer",
@@ -51,6 +50,10 @@ _MAYA_INIT_KEYS = {
     "cache_pathmapping",
     "error_on_arnold_license_fail",
 }
+# Actions that must be queued before scene_file opens, but are optional
+_PRE_SCENE_OPTIONAL_KEYS = [
+    "ocio_config_file",
+]
 
 
 def _check_for_exception(func: Callable) -> Callable:
@@ -443,6 +446,13 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
                 },
             )
         )
+
+        # Set up optional actions that must run before scene_file opens
+        # (e.g. OCIO config must be set before scene open, otherwise renderers
+        # like V-Ray initialize their color pipeline with the wrong config)
+        for action_name in _PRE_SCENE_OPTIONAL_KEYS:
+            if action_name in self.init_data:
+                self._action_queue.enqueue_action(self._action_from_action_item(action_name))
 
         for action_name in _FIRST_MAYA_ACTIONS:
             self._action_queue.enqueue_action(self._action_from_action_item(action_name))

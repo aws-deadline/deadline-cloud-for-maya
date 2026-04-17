@@ -320,19 +320,24 @@ class TestSetOcioConfigFile:
         mock_isfile: Mock,
         mayahandlerbase: DefaultMayaHandler,
     ):
-        """Tests that path mapping is applied when activated"""
+        """Tests that path mapping is applied and env var + prefs + pending path are set"""
         # GIVEN
         mock_get_activated.return_value = True
         mock_convert.return_value = "/mapped/path/config.ocio"
         mock_isfile.return_value = True
 
         # WHEN
-        mayahandlerbase.set_ocio_config_file({"ocio_config_file": "/original/path/config.ocio"})
+        with patch.dict(os.environ, {}, clear=False):
+            mayahandlerbase.set_ocio_config_file({"ocio_config_file": "/original/path/config.ocio"})
 
-        # THEN
-        mock_convert.assert_called_once_with("/original/path/config.ocio")
-        mock_isfile.assert_called_once_with("/mapped/path/config.ocio")
-        mock_color_prefs.assert_called_once_with(e=True, configFilePath="/mapped/path/config.ocio")
+            # THEN
+            mock_convert.assert_called_once_with("/original/path/config.ocio")
+            mock_isfile.assert_called_once_with("/mapped/path/config.ocio")
+            mock_color_prefs.assert_called_once_with(
+                e=True, configFilePath="/mapped/path/config.ocio"
+            )
+            assert os.environ.get("OCIO") == "/mapped/path/config.ocio"
+            assert mayahandlerbase._pending_ocio_path == "/mapped/path/config.ocio"
 
     @patch("os.path.isfile")
     @patch.object(DirectoryMapping, "get_activated")
@@ -352,35 +357,66 @@ class TestSetOcioConfigFile:
         mock_isfile.return_value = True
 
         # WHEN
-        mayahandlerbase.set_ocio_config_file({"ocio_config_file": "/path/to/config.ocio"})
+        with patch.dict(os.environ, {}, clear=False):
+            mayahandlerbase.set_ocio_config_file({"ocio_config_file": "/path/to/config.ocio"})
 
-        # THEN
-        mock_isfile.assert_called_once_with("/path/to/config.ocio")
-        mock_color_prefs.assert_called_once_with(e=True, configFilePath="/path/to/config.ocio")
+            # THEN
+            mock_isfile.assert_called_once_with("/path/to/config.ocio")
+            mock_color_prefs.assert_called_once_with(e=True, configFilePath="/path/to/config.ocio")
+            assert os.environ.get("OCIO") == "/path/to/config.ocio"
+            assert mayahandlerbase._pending_ocio_path == "/path/to/config.ocio"
 
     @patch("os.path.isfile")
     @patch.object(DirectoryMapping, "get_activated")
     @patch(
         "deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds.colorManagementPrefs"
     )
-    def test_set_ocio_config_file_not_found(
+    def test_set_ocio_config_file_sets_ocio_env_var(
         self,
         mock_color_prefs: Mock,
         mock_get_activated: Mock,
         mock_isfile: Mock,
         mayahandlerbase: DefaultMayaHandler,
     ):
-        """Tests that colorManagementPrefs is not called when file doesn't exist"""
+        """Tests that the OCIO environment variable is set for renderers that read it directly"""
+        # GIVEN
+        mock_get_activated.return_value = False
+        mock_isfile.return_value = True
+
+        # WHEN
+        with patch.dict(os.environ, {}, clear=False):
+            if "OCIO" in os.environ:
+                del os.environ["OCIO"]
+            mayahandlerbase.set_ocio_config_file({"ocio_config_file": "/studio/ocio/config.ocio"})
+
+            # THEN
+            assert os.environ["OCIO"] == "/studio/ocio/config.ocio"
+
+    @patch("os.path.isfile")
+    @patch.object(DirectoryMapping, "get_activated")
+    def test_set_ocio_config_file_not_found(
+        self,
+        mock_get_activated: Mock,
+        mock_isfile: Mock,
+        mayahandlerbase: DefaultMayaHandler,
+    ):
+        """Tests that env var is not set when file doesn't exist"""
         # GIVEN
         mock_get_activated.return_value = False
         mock_isfile.return_value = False
 
         # WHEN
-        with patch("sys.stdout", new=StringIO()) as output:
-            mayahandlerbase.set_ocio_config_file({"ocio_config_file": "/nonexistent/config.ocio"})
+        with patch.dict(os.environ, {}, clear=False):
+            if "OCIO" in os.environ:
+                del os.environ["OCIO"]
+            with patch("sys.stdout", new=StringIO()) as output:
+                mayahandlerbase.set_ocio_config_file(
+                    {"ocio_config_file": "/nonexistent/config.ocio"}
+                )
 
-            # THEN
-            mock_isfile.assert_called_once_with("/nonexistent/config.ocio")
-            mock_color_prefs.assert_not_called()
-            assert "WARNING" in output.getvalue()
-            assert "/nonexistent/config.ocio" in output.getvalue()
+                # THEN
+                mock_isfile.assert_called_once_with("/nonexistent/config.ocio")
+                assert "WARNING" in output.getvalue()
+                assert "/nonexistent/config.ocio" in output.getvalue()
+                assert os.environ.get("OCIO") is None
+                assert mayahandlerbase._pending_ocio_path is None

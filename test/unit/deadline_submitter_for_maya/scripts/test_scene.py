@@ -110,18 +110,55 @@ class TestOcioConfigFile:
 
     @patch("deadline.maya_submitter.scene.maya.cmds")
     def test_ocio_config_file_maya_default_resources(self, mock_maya_cmds: Mock) -> None:
-        """Tests that None is returned for Maya default OCIO configs with MAYA_RESOURCES"""
+        """Tests that MAYA_RESOURCES path falls back to OCIO env var"""
         # GIVEN
         mock_maya_cmds.colorManagementPrefs.side_effect = [
             True,  # cmEnabled
             "<MAYA_RESOURCES>/OCIO-configs/Maya2022-default/config.ocio",  # configFilePath
         ]
 
-        # WHEN
-        result = Scene.ocio_config_file()
+        # WHEN - no OCIO env var set
+        with patch.dict(os.environ, {}, clear=True):
+            result = Scene.ocio_config_file()
 
         # THEN
         assert result is None
+
+    @patch("deadline.maya_submitter.scene.maya.cmds")
+    def test_ocio_config_file_maya_default_resources_with_ocio_env(
+        self, mock_maya_cmds: Mock
+    ) -> None:
+        """Tests that MAYA_RESOURCES path falls back to OCIO env var when set"""
+        # GIVEN
+        mock_maya_cmds.colorManagementPrefs.side_effect = [
+            True,  # cmEnabled
+            "<MAYA_RESOURCES>/OCIO-configs/Maya2022-default/config.ocio",  # configFilePath
+        ]
+        ocio_env_path = "/studio/ocio/Maya2022-default/config.ocio"
+
+        # WHEN
+        with patch.dict(os.environ, {"OCIO": ocio_env_path}):
+            result = Scene.ocio_config_file()
+
+        # THEN
+        assert result == ocio_env_path
+
+    @patch("deadline.maya_submitter.scene.maya.cmds")
+    def test_ocio_config_file_ocio_env_fallback(self, mock_maya_cmds: Mock) -> None:
+        """Tests that OCIO env var is used when colorManagementPrefs returns bool"""
+        # GIVEN
+        mock_maya_cmds.colorManagementPrefs.side_effect = [
+            True,  # cmEnabled
+            True,  # configFilePath returns bool (no path set)
+        ]
+        ocio_env_path = "Z:\\OCIO\\Maya2022-default\\config.ocio"
+
+        # WHEN
+        with patch.dict(os.environ, {"OCIO": ocio_env_path}):
+            result = Scene.ocio_config_file()
+
+        # THEN
+        assert result == ocio_env_path
 
     @patch("deadline.maya_submitter.scene.maya.cmds")
     def test_ocio_config_file_custom_config(self, mock_maya_cmds: Mock) -> None:
