@@ -30,6 +30,9 @@ def _check_for_update() -> UpdateCheckResult:
     Returns:
         An UpdateCheckResult describing whether an update is available.
     """
+    # Unlike the maya_render_submitter.py (which only extracts the major+minor version), we
+    # compare major.minor.patch so users are also notified about any new features,
+    # not just breaking changes.
     current_version = ".".join(str(v) for v in adaptor_version_tuple[:3])
     return safe_check_for_updates(
         integration_name="deadline-cloud-for-maya",
