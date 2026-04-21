@@ -9,10 +9,14 @@ from qtpy.QtWidgets import (  # type: ignore
 
 
 @patch("deadline.maya_submitter.mel_commands.show_maya_render_submitter")
+@patch("deadline.maya_submitter.mel_commands.check_and_show_update_dialog", return_value=False)
 @patch.object(QApplication, "instance")
 @patch.object(om.MGlobal, "mayaState")
 def test_deadline_cloud_submitter_cmd_sticky_setting_load_only_once(
-    mock_maya_state: Mock, mock_q_app: Mock, mock_show_maya_render_submitter: Mock
+    mock_maya_state: Mock,
+    mock_q_app: Mock,
+    mock_update_check: Mock,
+    mock_show_maya_render_submitter: Mock,
 ) -> None:
     mock_maya_state.return_value = om.MGlobal.kInteractive
     maya_widget: Mock = Mock()
