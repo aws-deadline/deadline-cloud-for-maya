@@ -60,11 +60,6 @@ class RenderManHandler(DefaultMayaHandler):
             RuntimeError: If Renderman for Maya was not loaded
         """
 
-        if not maya.cmds.pluginInfo("RenderManForMaya.py", query=True, loaded=True):
-            raise RuntimeError(
-                "MayaClient: The RenderMan for Maya plugin was not loaded. Please verify that it is installed."
-            )
-
         frame = data.get("frame")
         if frame is None:
             raise RuntimeError("MayaClient: start_render called without a frame number.")
@@ -95,7 +90,13 @@ class RenderManHandler(DefaultMayaHandler):
 
         # Note that some overrides are currently not implemented (camera, resolution, etc...)
 
-        import rfm2
+        try:
+            import rfm2
+        except ImportError:
+            raise RuntimeError(
+                "MayaClient: Could not import the rfm2 module. "
+                "Please verify that RenderMan for Maya is installed and loaded."
+            )
 
         rfm2.render.RNDR.set_render_type(rfm2.render.RT_BATCH)
         rfm2.render_with_renderman()

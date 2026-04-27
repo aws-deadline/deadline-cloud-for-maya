@@ -5,7 +5,6 @@ from typing import Any
 
 import pytest
 
-import maya.cmds
 from unittest.mock import patch
 from deadline.maya_adaptor.MayaClient.render_handlers.renderman_handler import RenderManHandler
 
@@ -38,17 +37,12 @@ class TestRenderManHandler:
         # THEN
         mock_cmds.setAttr.assert_called_with("defaultResolution.width", args["image_width"])
 
-    @patch.object(maya.cmds, "pluginInfo")
-    def test_no_renderman(self, plguinInfo) -> None:
+    @patch.dict("sys.modules", {"rfm2": None})
+    def test_no_renderman(self) -> None:
         """Tests that the handler detects missing RenderMan for Maya installation"""
         # GIVEN
         handler = RenderManHandler()
-        plguinInfo.return_value = False
 
         # WHEN/THEN
-        with pytest.raises(RuntimeError) as exc_info:
-            handler.start_render({})
-            assert (
-                str(exc_info.value)
-                == "MayaClient: The RenderMan for Maya plugin was not loaded. Please verify that it is installed."
-            )
+        with pytest.raises(RuntimeError, match="Could not import the rfm2 module"):
+            handler.start_render({"frame": 1})
