@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "autodesk-product-help": {
+      "url": "https://developer.api.autodesk.com/knowledge/public/v1/mcp",
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
