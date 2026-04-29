@@ -1,8 +1,18 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
 from .default_maya_handler import DefaultMayaHandler
+from ..dir_map import DirectoryMapping
 
 import maya.cmds
+
+# RenderMan node types that have a "filename" attribute containing texture paths
+_RMAN_TEXTURE_NODE_TYPES = [
+    "PxrTexture",
+    "PxrNormalMap",
+    "PxrBump",
+    "PxrPtexture",
+    "PxrMultiTexture",
+]
 
 
 class RenderManHandler(DefaultMayaHandler):
@@ -14,6 +24,7 @@ class RenderManHandler(DefaultMayaHandler):
         """
         super().__init__()
         self.render_layer = "defaultRenderLayer"
+        self.action_dict["renderman_texture_pathmapping"] = self.set_renderman_texture_pathmapping
 
     def set_render_layer(self, data: dict) -> None:
         """
@@ -48,6 +59,36 @@ class RenderManHandler(DefaultMayaHandler):
         """
         xresolution = int(data.get("image_width", 0))
         maya.cmds.setAttr("defaultResolution.width", xresolution)
+
+    def set_renderman_texture_pathmapping(self, data: dict) -> None:
+        """
+        Applies path mapping to RenderMan texture node attributes.
+
+        RfM's texture manager reads texture paths directly from Maya node
+        attributes and bypasses Maya's dirmap. This method manually applies
+        dirmap to the filename attributes of RenderMan texture nodes so that
+        the paths are correct when the texture manager processes them.
+
+        This follows the same pattern as set_cache_pathmapping in the base
+        class, which solves the same problem for cache node attributes.
+        """
+        if not DirectoryMapping.get_activated():
+            return
+
+        # Iterate each RenderMan node type that references texture files.
+        # All these node types have a "filename" attribute by definition.
+        for node_type in _RMAN_TEXTURE_NODE_TYPES:
+            for node in maya.cmds.ls(type=node_type) or []:
+                attr: str = f"{node}.filename"
+                old_path: str = maya.cmds.getAttr(attr)
+                # Apply dirmap to convert the path (e.g. Windows -> Linux)
+                new_path: str = DirectoryMapping.convert(old_path)
+                if new_path != old_path:
+                    maya.cmds.setAttr(attr, new_path, type="string")
+                    print(
+                        f"RenderMan texture pathmapping: {old_path} -> {new_path}",
+                        flush=True,
+                    )
 
     def start_render(self, data: dict) -> None:
         """
