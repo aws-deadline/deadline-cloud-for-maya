@@ -461,6 +461,12 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
             if action_name in self.init_data:
                 self._action_queue.enqueue_action(self._action_from_action_item(action_name))
 
+        # RenderMan's texture manager bypasses Maya's dirmap, so we need to
+        # manually apply path mapping to RenderMan texture node attributes
+        # after the scene is loaded.
+        if self.init_data["renderer"] == "renderman" and self.path_mapping_rules:
+            self._action_queue.enqueue_action(Action("renderman_texture_pathmapping", {}))
+
     def on_start(self) -> None:
         """
         For job stickiness. Will start everything required for the Task.

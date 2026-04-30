@@ -440,6 +440,64 @@ class TestMayaAdaptor_on_start:
                 expected_json, mock_open.return_value.__enter__.return_value
             )
 
+    @pytest.mark.parametrize(
+        "renderer, has_rules, expected",
+        [
+            ("renderman", True, True),
+            ("renderman", False, False),
+            ("arnold", True, False),
+            ("mayaSoftware", True, False),
+        ],
+    )
+    @patch.object(MayaAdaptor, "map_path")
+    @patch.object(MayaAdaptor, "path_mapping_rules", new_callable=PropertyMock)
+    @patch.object(MayaAdaptor, "_action_queue")
+    def test_renderman_texture_pathmapping_action_enqueued(
+        self,
+        mock_actions_queue: Mock,
+        mock_rules: Mock,
+        mock_map: Mock,
+        renderer: str,
+        has_rules: bool,
+        expected: bool,
+    ):
+        """Tests that renderman_texture_pathmapping action is enqueued only for renderman with rules"""
+        # GIVEN
+        if has_rules:
+            mock_rules.return_value = [
+                PathMappingRule(
+                    source_path_format="windows",
+                    source_path="C:\\Users",
+                    destination_os="linux",
+                    destination_path="/mnt/storage",
+                )
+            ]
+        else:
+            mock_rules.return_value = []
+
+        adaptor = MayaAdaptor(
+            {
+                "renderer": renderer,
+                "scene_file": "/path/to/file",
+                "project_path": "/path/to/dir",
+                "animation": True,
+                "version": 2022,
+                "render_layer": "layer",
+            }
+        )
+
+        # WHEN
+        adaptor._populate_action_queue()
+
+        # THEN
+        enqueued_actions = [
+            call.args[0].name for call in mock_actions_queue.enqueue_action.call_args_list
+        ]
+        if expected:
+            assert "renderman_texture_pathmapping" in enqueued_actions
+        else:
+            assert "renderman_texture_pathmapping" not in enqueued_actions
+
     @patch.object(MayaAdaptor, "_maya_is_running", False)
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.ActionsQueue.__len__", return_value=1)
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
