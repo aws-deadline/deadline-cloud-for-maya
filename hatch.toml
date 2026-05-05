@@ -43,6 +43,23 @@ test_adaptors_mtoa = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numproc
 test_adaptors_vray = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "adaptor and vray_renderer"'
 test_adaptors_redshift = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "adaptor and redshift_renderer"'
 
+[envs.integ-ci]
+pre-install-commands = [
+  "pip install -r requirements-integ-testing.txt -r requirements-testing.txt",
+]
+
+# CI runs Maya native renderer only. TODO: Add renderer-specific matrix entries
+# for Arnold (mtoa), V-Ray, and Redshift once their installers are in S3.
+[[envs.integ-ci.matrix]]
+maya = ["2025", "2026"]
+
+[envs.integ-ci.env-vars]
+MAYA_VERSION = "{matrix:maya}"
+
+[envs.integ-ci.scripts]
+setup = "python ./pipeline/setup-runner.py --versions {matrix:maya} {args}"
+test = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "not (mtoa_renderer or vray_renderer or redshift_renderer)"'
+
 [envs.e2e.scripts]
 test = "pytest --no-cov {args:test/*/e2e}"
 
