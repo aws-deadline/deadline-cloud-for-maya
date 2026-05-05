@@ -11,6 +11,8 @@ Use --renderers to select which renderers to install (default: none).
 On Windows, installs the pywin32 support DLLs so child processes (mayapy) can
 load win32file. This mirrors the pattern used by deadline-cloud-for-3ds-max.
 """
+from __future__ import annotations
+
 import argparse
 import hashlib
 import os
@@ -21,6 +23,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any, Sequence
 
 import boto3
 from botocore.config import Config
@@ -29,7 +32,7 @@ from botocore.config import Config
 # Maya
 # ---------------------------------------------------------------------------
 
-MAYA_VERSION_CONFIG = {
+MAYA_VERSION_CONFIG: dict[str, dict[str, Any]] = {
     "2025": {
         "python": "3.11",
         "installer": {
@@ -48,7 +51,7 @@ MAYA_VERSION_CONFIG = {
     },
 }
 
-MAYA_CHECKSUMS = {
+MAYA_CHECKSUMS: dict[str, dict[str, str]] = {
     "2025": {
         "linux": "a4c46a576aea91e1e52a06355b413f98000b884feb8eb1349a7459990e212395",
         "windows": "0f9ce4abc7febbef07b0ef5ecd2526a45200a9b068a6272f6f2afdd29925a845",
@@ -66,7 +69,7 @@ MAYA_CHECKSUMS = {
 # ---------------------------------------------------------------------------
 
 # Arnold (MtoA) — one installer per Maya version, bundled under mtoa/5.5/.
-MTOA_CONFIG = {
+MTOA_CONFIG: dict[str, dict[str, Any]] = {
     "2025": {
         "s3_key": "mtoa/5.5/MtoA-5.5.6.1-linux-2025.run",
         "checksums": {
@@ -82,7 +85,7 @@ MTOA_CONFIG = {
 }
 
 # V-Ray for Maya — Chaos RHEL8 self-extracting installer per Maya version.
-VRAY_CONFIG = {
+VRAY_CONFIG: dict[str, dict[str, Any]] = {
     "2025": {
         "s3_key": "maya-vray/72002/vray_adv_72002_maya2025_dr2_rhel8",
         "checksums": {
@@ -98,14 +101,14 @@ VRAY_CONFIG = {
 }
 
 # Redshift — single installer supports both Maya 2025 and 2026.
-REDSHIFT_CONFIG = {
+REDSHIFT_CONFIG: dict[str, dict[str, str]] = {
     "linux": {
         "s3_key": "redshift/2026/redshift_2026.3.1_2336394021_linux_x64.run",
         "checksum": "a95e48d2f4dd68e923c7f40693823d206d11acb51e145038d5625b748294777c",
     },
 }
 
-SUPPORTED_RENDERERS = ("mtoa", "vray", "redshift")
+SUPPORTED_RENDERERS: tuple[str, ...] = ("mtoa", "vray", "redshift")
 
 
 # ---------------------------------------------------------------------------
@@ -113,7 +116,11 @@ SUPPORTED_RENDERERS = ("mtoa", "vray", "redshift")
 # ---------------------------------------------------------------------------
 
 
-def run(cmd, check=True, cwd=None):
+def run(
+    cmd: str | Sequence[str],
+    check: bool = True,
+    cwd: str | os.PathLike[str] | None = None,
+) -> subprocess.CompletedProcess[bytes]:
     print(f"Running: {cmd if isinstance(cmd, str) else shlex.join(cmd)}")
     result = subprocess.run(cmd, check=False, cwd=cwd)
     if check and result.returncode != 0:
@@ -121,7 +128,7 @@ def run(cmd, check=True, cwd=None):
     return result
 
 
-def download_from_s3(s3_path, local_path):
+def download_from_s3(s3_path: str, local_path: str | os.PathLike[str]) -> None:
     bucket = os.environ.get("INSTALLER_BUCKET")
     if not bucket:
         print("ERROR: INSTALLER_BUCKET not set")
@@ -143,7 +150,7 @@ def download_from_s3(s3_path, local_path):
     )
 
 
-def verify_checksum(file_path, expected_checksum):
+def verify_checksum(file_path: str | os.PathLike[str], expected_checksum: str) -> bool:
     """Verify SHA256 checksum of downloaded file."""
     if not expected_checksum:
         print(f"WARNING: No checksum configured for {file_path}, skipping verification")
@@ -163,7 +170,7 @@ def verify_checksum(file_path, expected_checksum):
     return True
 
 
-def _platform_key():
+def _platform_key() -> str:
     """Return our S3-folder / config key for the current OS."""
     system = platform.system()
     return {"Linux": "linux", "Windows": "windows", "Darwin": "macos"}.get(system, system.lower())
@@ -174,7 +181,7 @@ def _platform_key():
 # ---------------------------------------------------------------------------
 
 
-def _install_maya_linux(version):
+def _install_maya_linux(version: str) -> Path:
     config = MAYA_VERSION_CONFIG[version]
     installer_name = config["installer"]["linux"]
     maya_dir = Path(f"/opt/Autodesk/mayaio/{version}")
@@ -240,7 +247,7 @@ def _install_maya_linux(version):
     return maya_dir
 
 
-def _install_mtoa_linux(version):
+def _install_mtoa_linux(version: str) -> None:
     """Install MtoA (Arnold for Maya) for the given Maya version."""
     if version not in MTOA_CONFIG:
         print(f"ERROR: No MtoA config for Maya {version}")
@@ -305,7 +312,7 @@ def _install_mtoa_linux(version):
         lock_file.unlink(missing_ok=True)
 
 
-def _install_vray_linux(version):
+def _install_vray_linux(version: str) -> None:
     """Install V-Ray for Maya for the given Maya version."""
     if version not in VRAY_CONFIG:
         print(f"ERROR: No V-Ray config for Maya {version}")
@@ -373,7 +380,7 @@ def _install_vray_linux(version):
         lock_file.unlink(missing_ok=True)
 
 
-def _install_redshift_linux():
+def _install_redshift_linux() -> None:
     """Install Redshift once; it plugs into every Maya version at runtime."""
     redshift_root = Path("/usr/redshift")
     marker = redshift_root / ".installed"
@@ -430,7 +437,7 @@ def _install_redshift_linux():
         lock_file.unlink(missing_ok=True)
 
 
-def setup_linux(maya_versions, renderers):
+def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
     pkg_mgr = (
         "dnf"
         if subprocess.run(["command", "-v", "dnf"], capture_output=True, check=False).returncode
@@ -518,7 +525,7 @@ def setup_linux(maya_versions, renderers):
 # ---------------------------------------------------------------------------
 
 
-def _install_maya_windows(version):
+def _install_maya_windows(version: str) -> Path:
     config = MAYA_VERSION_CONFIG[version]
     installer_name = config["installer"]["windows"]
     maya_dir = Path(f"C:/Program Files/Autodesk/Maya{version}")
@@ -588,7 +595,7 @@ def _install_maya_windows(version):
     return maya_dir
 
 
-def _register_pywin32():
+def _register_pywin32() -> None:
     """Register pywin32 DLLs so child processes (mayapy) can load win32file.
 
     Mirrors the pattern used by deadline-cloud-for-3ds-max setup-runner.
@@ -616,7 +623,7 @@ def _register_pywin32():
             shutil.copy2(str(dll), str(dest))
 
 
-def setup_windows(maya_versions, renderers):
+def setup_windows(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
     for version in maya_versions:
         _install_maya_windows(version)
 
@@ -661,7 +668,7 @@ def setup_windows(maya_versions, renderers):
 # ---------------------------------------------------------------------------
 
 
-def _install_maya_macos(version):
+def _install_maya_macos(version: str) -> Path:
     config = MAYA_VERSION_CONFIG[version]
     installer_name = config["installer"]["macos"]
     maya_app = Path(f"/Applications/Autodesk/maya{version}/Maya.app")
@@ -733,7 +740,7 @@ def _install_maya_macos(version):
     return maya_app
 
 
-def setup_macos(maya_versions, renderers):
+def setup_macos(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
     for version in maya_versions:
         _install_maya_macos(version)
 
