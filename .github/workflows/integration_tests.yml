@@ -39,6 +39,10 @@ jobs:
         include:
           - os: linux
             name: Linux
+          - os: windows
+            name: Windows
+          - os: macos
+            name: macOS
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
