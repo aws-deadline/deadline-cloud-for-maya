@@ -454,7 +454,6 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
             "libGLU",
             "mesa-libGL",
             "mesa-libEGL",
-            "libXp",
             "libXmu",
             "libXt",
             "libXi",
