@@ -23,10 +23,13 @@ on:
   push:
     branches:
       - 'mainline'
+      - 'feat/integ-test-cicd'
 
 jobs:
   IntegrationTests:
     name: ${{ matrix.name }} Integration Tests
+    runs-on: ubuntu-latest
+    environment: mainline
     permissions:
       id-token: write
       contents: read
@@ -34,13 +37,25 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Linux only for now. TODO: Add Windows and macOS once installers are in S3.
           - os: linux
             name: Linux
-    uses: aws-deadline/.github/.github/workflows/reusable_integration_test.yml@mainline
-    secrets: inherit
-    with:
-      repository: ${{ github.event.repository.name }}
-      branch: ${{ github.event.inputs.ref_type == 'branch' && github.event.inputs.branch || 'mainline' }}
-      tag: ${{ github.event.inputs.ref_type == 'tag' && github.event.inputs.tag || '' }}
-      os: ${{ matrix.os }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_CODEBUILD_MAINLINE_INTEG_ROLE }}
+          aws-region: us-west-2
+          mask-aws-account-id: true
+
+      - name: Run Integration Tests
+        uses: aws-actions/aws-codebuild-run-build@v1
+        with:
+          project-name: deadline-cloud-for-maya-mainline-${{ matrix.os }}-integ
+          hide-cloudwatch-logs: true
+          source-version-override: ${{ github.event.inputs.ref_type == 'tag' && format('refs/tags/{0}', github.event.inputs.tag) || github.event.inputs.branch || github.ref }}
+          env-vars-for-codebuild: |
+            TEST_TYPE,
+            OPERATING_SYSTEM
+        env:
+          TEST_TYPE: WHEEL
+          OPERATING_SYSTEM: ${{ matrix.os }}
