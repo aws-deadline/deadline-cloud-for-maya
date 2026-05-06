@@ -1,3 +1,13 @@
+## 0.15.15 (2026-05-06)
+
+### Features
+* The submitter now notifies you if a newer version of the submitter is available. (#393)
+
+### Bug Fixes
+* Fixed RenderMan texture path mapping so that texture paths are correctly resolved when rendering on Deadline Cloud workers. (#401)
+* Fixed RenderMan plugin detection by replacing a brittle plugin name check with a reliable `rfm2` import check. This resolves issues where RenderMan was not detected depending on how the plugin registered itself. (#400)
+* Fixed OCIO color management detection when the `OCIO` environment variable is set by pipeline tools (e.g., AYON, ShotGrid) instead of Maya's internal color management preferences. The OCIO config file path is now correctly detected and remapped on the worker before scene open. (#390)
+* Fixed an error that occurred when using legacy render layers in combination with Render Setup. The submitter now handles this combination gracefully. (#388)
 ## 0.15.14 (2026-03-23)
 
 ### Bug Fixes
