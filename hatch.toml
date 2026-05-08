@@ -43,6 +43,36 @@ test_adaptors_mtoa = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numproc
 test_adaptors_vray = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "adaptor and vray_renderer"'
 test_adaptors_redshift = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "adaptor and redshift_renderer"'
 
+[envs.integ-ci]
+pre-install-commands = [
+  "pip install -r requirements-integ-testing.txt -r requirements-testing.txt",
+]
+# pywin32 is only needed on Windows so that mayapy child processes can load
+# win32file; on other platforms this constraint is a no-op.
+dependencies = [
+  "pywin32; sys_platform == 'win32'",
+]
+
+# Matrix across Maya versions. All renderers (mtoa, vray, redshift) are
+# installed by default on Linux and Windows.
+[[envs.integ-ci.matrix]]
+maya = ["2025", "2026"]
+
+[envs.integ-ci.env-vars]
+MAYA_VERSION = "{matrix:maya}"
+
+[envs.integ-ci.scripts]
+setup = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers mtoa vray redshift {args}"
+setup-mtoa = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers mtoa {args}"
+setup-vray = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers vray {args}"
+setup-redshift = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers redshift {args}"
+setup-all-renderers = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers mtoa vray redshift {args}"
+test = "python ./pipeline/run-integ-tests.py"
+test-submitters = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "not adaptor"'
+test-mtoa = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "adaptor and mtoa_renderer"'
+test-vray = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "adaptor and vray_renderer"'
+test-redshift = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "adaptor and redshift_renderer"'
+
 [envs.e2e.scripts]
 test = "pytest --no-cov {args:test/*/e2e}"
 
