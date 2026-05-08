@@ -850,9 +850,9 @@ def on_create_job_bundle_callback(
     render_settings.current_layer_selectable_cameras = [ALL_CAMERAS] + sorted(
         context.current_layer_selectable_cameras
     )
-    render_settings.all_layer_selectable_cameras = (
-        [ALL_CAMERAS] + context.all_layer_selectable_cameras
-    )
+    render_settings.all_layer_selectable_cameras = [
+        ALL_CAMERAS
+    ] + context.all_layer_selectable_cameras
 
     # if submitting, warn if the current scene has been modified
     scene_modified = maya.cmds.file(q=True, mf=True) == 1
@@ -875,9 +875,7 @@ def on_create_job_bundle_callback(
     job_bundle_path = Path(job_bundle_dir)
 
     # Reuse the same context — no redundant computation
-    job_template = get_job_template_for_submission(
-        settings, host_requirements, context=context
-    )
+    job_template = get_job_template_for_submission(settings, host_requirements, context=context)
     parameter_values = get_parameter_values_for_submission(
         settings, cast(list[dict[str, Any]], queue_parameters), context=context
     )
