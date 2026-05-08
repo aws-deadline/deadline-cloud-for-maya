@@ -38,3 +38,4 @@ jobs:
           project-name: deadline-cloud-for-maya-mainline-${{ matrix.project_suffix }}
           source-location-override: ${{ github.server_url }}/${{ github.repository }}.git
           source-version-override: refs/heads/${{ github.ref_name }}
+          hide-cloudwatch-logs: true
