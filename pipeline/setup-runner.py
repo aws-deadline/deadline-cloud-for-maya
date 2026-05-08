@@ -391,7 +391,7 @@ def _install_mtoa_linux(version: str) -> None:
         # Unzip the package into the install dir
         pkg_zip = next(extract_tmp.glob("*.zip"), None)
         if pkg_zip:
-            run(["unzip", "-q", str(pkg_zip), "-d", str(mtoa_install_dir)])
+            run(["unzip", "-qo", str(pkg_zip), "-d", str(mtoa_install_dir)])
         else:
             print(f"ERROR: No .zip found in {extract_tmp}")
             run(["ls", "-la", str(extract_tmp)], check=False)
@@ -945,12 +945,17 @@ def setup_windows(maya_versions: Sequence[str], renderers: Sequence[str]) -> Non
     seven_zip = Path("C:/Program Files/7-Zip/7z.exe")
     if not seven_zip.exists():
         print("Installing 7-Zip...")
+        installer_path = Path("C:/temp/7z-install.exe")
+        installer_path.parent.mkdir(parents=True, exist_ok=True)
+        download_from_s3("tools/7z2408-x64.exe", installer_path)
+        verify_checksum(
+            installer_path, "67cb9d3452c9dd974b04f4a5fd842dbcba8184f2344ff72e3662d7cdb68b099b"
+        )
         run(
             [
                 "powershell",
                 "-Command",
-                "Invoke-WebRequest -Uri 'https://www.7-zip.org/a/7z2408-x64.exe' -OutFile C:\\temp\\7z-install.exe; "
-                + "Start-Process C:\\temp\\7z-install.exe -ArgumentList '/S' -Wait",
+                f"Start-Process '{installer_path}' -ArgumentList '/S' -Wait",
             ]
         )
 
