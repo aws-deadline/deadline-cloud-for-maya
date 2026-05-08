@@ -2,46 +2,39 @@ name: Maya Integration Tests
 
 on:
   workflow_dispatch:
-    inputs:
-      ref_type:
-        description: 'Reference type to test'
-        required: true
-        default: 'branch'
-        type: choice
-        options:
-          - branch
-          - tag
-      branch:
-        description: 'Branch to test (e.g., mainline, feature-branch)'
-        required: false
-        default: 'mainline'
-        type: string
-      tag:
-        description: 'Tag to test (only used when ref_type is "tag")'
-        required: false
-        type: string
   push:
     branches:
-      - 'mainline'
+      - 'feat/integ-test-cicd-v2-fork-test'
 
 jobs:
   IntegrationTests:
     name: ${{ matrix.name }} Integration Tests
+    runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
+    environment: mainline
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: linux
             name: Linux
+            project_suffix: linux-integ
           - os: windows
             name: Windows
-    uses: aws-deadline/.github/.github/workflows/reusable_integration_test.yml@mainline
-    secrets: inherit
-    with:
-      repository: ${{ github.event.repository.name }}
-      branch: ${{ github.event.inputs.ref_type == 'branch' && github.event.inputs.branch || 'mainline' }}
-      tag: ${{ github.event.inputs.ref_type == 'tag' && github.event.inputs.tag || '' }}
-      os: ${{ matrix.os }}
+            project_suffix: windows-integ
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_CODEBUILD_MAINLINE_INTEG_ROLE }}
+          aws-region: us-west-2
+
+      - name: Start CodeBuild
+        id: codebuild
+        uses: aws-actions/aws-codebuild-run-build@v1
+        with:
+          project-name: deadline-cloud-for-maya-mainline-${{ matrix.project_suffix }}
+          source-location-override: ${{ github.server_url }}/${{ github.repository }}.git
+          source-version-override: refs/heads/${{ github.ref_name }}
