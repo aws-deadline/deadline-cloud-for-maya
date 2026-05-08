@@ -36,6 +36,5 @@ jobs:
         uses: aws-actions/aws-codebuild-run-build@v1
         with:
           project-name: deadline-cloud-for-maya-mainline-${{ matrix.project_suffix }}
-          source-location-override: https://github.com/${{ github.repository }}.git
-          source-version-override: ${{ github.sha }}
+          source-version-override: feat/integ-test-cicd-v2
           hide-cloudwatch-logs: true
