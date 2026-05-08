@@ -10,31 +10,35 @@ jobs:
   IntegrationTests:
     name: ${{ matrix.name }} Integration Tests
     runs-on: ubuntu-latest
+    environment: mainline
     permissions:
       id-token: write
       contents: read
-    environment: mainline
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: linux
             name: Linux
-            project_suffix: linux-integ
           - os: windows
             name: Windows
-            project_suffix: windows-integ
     steps:
-      - name: Configure AWS Credentials
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_CODEBUILD_MAINLINE_INTEG_ROLE }}
           aws-region: us-west-2
+          mask-aws-account-id: true
 
-      - name: Start CodeBuild
-        id: codebuild
+      - name: Run Integration Tests
         uses: aws-actions/aws-codebuild-run-build@v1
         with:
-          project-name: deadline-cloud-for-maya-mainline-${{ matrix.project_suffix }}
-          source-version-override: feat/integ-test-cicd-v2
+          project-name: deadline-cloud-for-maya-mainline-${{ matrix.os }}-integ
           hide-cloudwatch-logs: true
+          source-version-override: ${{ github.ref }}
+          env-vars-for-codebuild: |
+            TEST_TYPE,
+            OPERATING_SYSTEM
+        env:
+          TEST_TYPE: WHEEL
+          OPERATING_SYSTEM: ${{ matrix.os }}
