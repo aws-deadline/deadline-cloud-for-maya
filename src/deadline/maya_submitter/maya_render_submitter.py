@@ -45,6 +45,30 @@ import time
 logger = getLogger(__name__)
 
 
+def _populate_selectable_cameras(
+    render_settings: "RenderSubmitterUISettings",
+    render_layers: list["RenderLayerData"],
+) -> None:
+    """Populate the selectable camera lists on render_settings for the UI dropdowns.
+
+    - current_layer_selectable_cameras: all renderable cameras in the current layer
+    - all_layer_selectable_cameras: only cameras common to ALL render layers (intersection)
+    """
+    current_layer_selectable_cameras: list[str] = get_renderable_camera_names()
+    render_settings.current_layer_selectable_cameras = [ALL_CAMERAS] + sorted(
+        current_layer_selectable_cameras
+    )
+
+    all_layer_selectable_cameras_set: set[str] = set(render_layers[0].renderable_camera_names)
+    for layer in render_layers:
+        all_layer_selectable_cameras_set = all_layer_selectable_cameras_set.intersection(
+            layer.renderable_camera_names
+        )
+    render_settings.all_layer_selectable_cameras = [ALL_CAMERAS] + sorted(
+        all_layer_selectable_cameras_set
+    )
+
+
 @dataclass
 class RenderLayerData:
     name: str
@@ -535,20 +559,8 @@ def on_create_job_bundle_callback(
 
     render_layers: list[RenderLayerData] = _set_render_layer_data()
 
-    # Tell the settings tab the selectable cameras when only the current layer is in the job
-    current_layer_selectable_cameras: list[str] = get_renderable_camera_names()
-    render_settings.current_layer_selectable_cameras = [ALL_CAMERAS] + sorted(
-        current_layer_selectable_cameras
-    )
-
-    # Tell the settings tab the selectable cameras when all layers are in the job
-    all_layer_selectable_cameras_set: set[str] = set(render_layers[0].renderable_camera_names)
-    for layer in render_layers:
-        all_layer_selectable_cameras_set = all_layer_selectable_cameras_set.intersection(
-            layer.renderable_camera_names
-        )
-    all_layer_selectable_cameras: list[str] = list(sorted(all_layer_selectable_cameras_set))
-    render_settings.all_layer_selectable_cameras = [ALL_CAMERAS] + all_layer_selectable_cameras
+    # Tell the settings tab the selectable cameras
+    _populate_selectable_cameras(render_settings, render_layers)
 
     # if submitting, warn if the current scene has been modified
     scene_modified = maya.cmds.file(q=True, mf=True) == 1
@@ -623,8 +635,8 @@ def on_create_job_bundle_callback(
         settings=settings,
         renderers=renderers,
         render_layers=submit_render_layers,
-        all_layer_selectable_cameras=all_layer_selectable_cameras,
-        current_layer_selectable_cameras=current_layer_selectable_cameras,
+        all_layer_selectable_cameras=render_settings.all_layer_selectable_cameras,
+        current_layer_selectable_cameras=render_settings.current_layer_selectable_cameras,
     )
     parameter_values = _get_parameter_values(
         settings, renderers, submit_render_layers, cast(list[dict[str, Any]], queue_parameters)
@@ -688,6 +700,9 @@ def show_maya_render_submitter(
     render_layers: list[RenderLayerData] = _set_render_layer_data()
     print(f"Render layers processed at {time.time()}")
     all_renderers: set[str] = {layer_data.renderer_name for layer_data in render_layers}
+
+    # Populate the selectable cameras for the UI dropdowns
+    _populate_selectable_cameras(render_settings, render_layers)
 
     auto_detected_attachments = AssetReferences()
     introspector = AssetIntrospector()
