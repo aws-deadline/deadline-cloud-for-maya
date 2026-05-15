@@ -60,13 +60,19 @@ maya = ["2025", "2026"]
 
 [envs.integ-ci.env-vars]
 MAYA_VERSION = "{matrix:maya}"
+# Force unbuffered Python stdout/stderr so prints from setup-runner.py appear
+# in CodeBuild's CloudWatch log in real time. Block-buffering hid a hung Maya
+# silent installer for ~70 minutes — never again.
+PYTHONUNBUFFERED = "1"
 
 [envs.integ-ci.scripts]
-setup = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers mtoa vray redshift {args}"
-setup-mtoa = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers mtoa {args}"
-setup-vray = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers vray {args}"
-setup-redshift = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers redshift {args}"
-setup-all-renderers = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers mtoa vray redshift {args}"
+# `python -u` is belt-and-suspenders alongside PYTHONUNBUFFERED=1; both are
+# needed because hatch can launch sub-processes that don't always inherit env.
+setup = "python -u ./pipeline/setup-runner.py --versions {matrix:maya} --renderers mtoa vray redshift {args}"
+setup-mtoa = "python -u ./pipeline/setup-runner.py --versions {matrix:maya} --renderers mtoa {args}"
+setup-vray = "python -u ./pipeline/setup-runner.py --versions {matrix:maya} --renderers vray {args}"
+setup-redshift = "python -u ./pipeline/setup-runner.py --versions {matrix:maya} --renderers redshift {args}"
+setup-all-renderers = "python -u ./pipeline/setup-runner.py --versions {matrix:maya} --renderers mtoa vray redshift {args}"
 test = "python ./pipeline/run-integ-tests.py"
 test-submitters = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "not adaptor"'
 test-mtoa = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "adaptor and mtoa_renderer"'

@@ -11,6 +11,7 @@ Use --renderers to select which renderers to install (default: none).
 On Windows, installs the pywin32 support DLLs so child processes (mayapy) can
 load win32file. This mirrors the pattern used by deadline-cloud-for-3ds-max.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -27,6 +28,17 @@ from typing import Sequence, TypedDict
 
 import boto3
 from botocore.config import Config
+
+# Force line-buffered stdout/stderr so prints appear in CodeBuild's CloudWatch
+# log in real time. Python defaults to block-buffering when stdout is not a
+# TTY (which it never is in CodeBuild), so without this an install that takes
+# 30 min appears as a dead log until the buffer happens to flush.
+# Combined with `python -u` in hatch.toml as belt-and-suspenders.
+try:
+    sys.stdout.reconfigure(line_buffering=True)  # type: ignore[attr-defined]
+    sys.stderr.reconfigure(line_buffering=True)  # type: ignore[attr-defined]
+except AttributeError:
+    pass
 
 
 # ---------------------------------------------------------------------------
@@ -158,9 +170,16 @@ def run_with_timeout(
     label: str = "",
     env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[bytes]:
-    """Run a command with a timeout. Prints stdout/stderr on failure for diagnostics."""
+    """Run a command with a timeout, streaming stdout/stderr to our log.
+
+    We intentionally do NOT use ``capture_output=True``: in CodeBuild we want
+    every line from a slow installer (V-Ray, MtoA, Maya itself) to appear in
+    CloudWatch as it happens, not in a single block at the end. This is what
+    makes the difference between "we can see the build is alive" and "70
+    minutes of empty log".
+    """
     desc = label or (cmd if isinstance(cmd, str) else shlex.join(cmd))
-    print(f"Running (timeout={timeout}s): {desc}")
+    print(f"Running (timeout={timeout}s): {desc}", flush=True)
     run_env = None
     if env:
         run_env = {**os.environ, **env}
@@ -170,25 +189,99 @@ def run_with_timeout(
             check=False,
             cwd=cwd,
             timeout=timeout,
-            capture_output=True,
             env=run_env,
         )
-        # Always print output for visibility
-        if result.stdout:
-            print(result.stdout.decode("utf-8", errors="replace"))
-        if result.stderr:
-            print(result.stderr.decode("utf-8", errors="replace"))
         if result.returncode != 0:
-            print(f"ERROR: Command failed with exit code {result.returncode}")
+            print(f"ERROR: Command failed with exit code {result.returncode}", flush=True)
             sys.exit(result.returncode)
         return result
-    except subprocess.TimeoutExpired as e:
-        print(f"TIMEOUT: Command did not complete within {timeout}s: {desc}")
-        if e.stdout:
-            print(f"stdout so far:\n{e.stdout.decode('utf-8', errors='replace')[-2000:]}")
-        if e.stderr:
-            print(f"stderr so far:\n{e.stderr.decode('utf-8', errors='replace')[-2000:]}")
+    except subprocess.TimeoutExpired:
+        print(f"TIMEOUT: Command did not complete within {timeout}s: {desc}", flush=True)
         sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
+# Diagnostics helpers
+# ---------------------------------------------------------------------------
+
+
+def log_disk_usage(label: str) -> None:
+    """Print disk usage at a labeled checkpoint.
+
+    Helps catch the case where a cold-install fleet runs out of disk midway
+    through Maya/MtoA/V-Ray/Redshift installs — historically a silent failure
+    mode where installers hang waiting for space.
+    """
+    try:
+        if platform.system() == "Windows":
+            usage = shutil.disk_usage("C:/")
+            mount = "C:/"
+        else:
+            usage = shutil.disk_usage("/")
+            mount = "/"
+        gb = 1024**3
+        print(
+            f"[disk:{label}] {mount} total={usage.total / gb:.1f}GiB "
+            f"used={usage.used / gb:.1f}GiB free={usage.free / gb:.1f}GiB "
+            f"({usage.used * 100 / usage.total:.1f}% used)",
+            flush=True,
+        )
+    except Exception as e:
+        print(f"[disk:{label}] failed to read disk usage: {e}", flush=True)
+
+
+def print_recent_autodesk_logs(max_logs: int = 5, max_age_sec: int = 60 * 60) -> None:
+    """Tail Autodesk-emitted install logs.
+
+    Maya's silent installer writes log files under ``%LOCALAPPDATA%\\Autodesk``
+    and ``C:\\ProgramData\\Autodesk``. When the installer hangs or exits
+    non-zero we have no other window into what went wrong, so dump the tail
+    of any recently-modified log files there.
+    """
+    if platform.system() != "Windows":
+        return
+
+    candidates: list[Path] = []
+    local_app = os.environ.get("LOCALAPPDATA")
+    if local_app:
+        candidates.append(Path(local_app) / "Autodesk")
+    candidates.append(Path("C:/ProgramData/Autodesk"))
+    candidates.append(Path("C:/Users/Public/Autodesk"))
+
+    now = time.time()
+    found: list[tuple[float, Path]] = []
+    for root in candidates:
+        if not root.exists():
+            continue
+        try:
+            for log_path in root.rglob("*.log"):
+                try:
+                    mtime = log_path.stat().st_mtime
+                except OSError:
+                    continue
+                if now - mtime > max_age_sec:
+                    continue
+                found.append((mtime, log_path))
+        except Exception as e:
+            print(f"[autodesk-logs] error scanning {root}: {e}", flush=True)
+
+    if not found:
+        print("[autodesk-logs] no recent Autodesk install logs found", flush=True)
+        return
+
+    # Newest first, capped at max_logs.
+    found.sort(reverse=True)
+    for mtime, log_path in found[:max_logs]:
+        print(
+            f"--- Autodesk log: {log_path} (mtime={time.ctime(mtime)}) ---",
+            flush=True,
+        )
+        try:
+            text = log_path.read_text(errors="replace")
+            for line in text.splitlines()[-200:]:
+                print(line)
+        except Exception as e:
+            print(f"[autodesk-logs] failed to read {log_path}: {e}", flush=True)
 
 
 def download_from_s3(s3_path: str, local_path: str | os.PathLike[str]) -> None:
@@ -763,22 +856,48 @@ def _install_maya_windows(version: str) -> Path:
         run(["powershell", "-Command", f"Get-ChildItem -Recurse '{setup_dir}'"], check=False)
         sys.exit(1)
 
-    print(f"Starting Maya installation via {setup_exe}...")
-    result = subprocess.run(
-        [
-            "powershell",
-            "-Command",
-            f'Start-Process "{setup_exe}" -ArgumentList "-q" -Wait',
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    print(f"Installation exit code: {result.returncode}")
-    if result.stdout:
-        print(f"Installation output: {result.stdout}")
-    if result.stderr:
-        print(f"Installation errors: {result.stderr}")
+    print(f"Starting Maya installation via {setup_exe}...", flush=True)
+    log_disk_usage(f"before-maya{version}-install")
+
+    # Maya {version} silent install (Setup.exe -q):
+    #   - capture_output is intentionally OFF so any output streams to CodeBuild
+    #     in real time (Maya itself is a GUI app with little console output, but
+    #     the PowerShell wrapper can fail loudly and we want to see it).
+    #   - 45 min timeout so a stuck installer fails fast instead of consuming
+    #     the whole 120 min CodeBuild budget.
+    #   - Setup.exe writes its own logs under %LOCALAPPDATA%\Autodesk; we tail
+    #     them after exit (success or timeout) for diagnostic visibility.
+    maya_install_timeout = 45 * 60
+    install_failed = False
+    try:
+        result = subprocess.run(
+            [
+                "powershell",
+                "-Command",
+                f'$p = Start-Process "{setup_exe}" -ArgumentList "-q" -Wait -PassThru; '
+                f'Write-Host "Maya {version} Setup.exe exited with code $($p.ExitCode)"; '
+                f"exit $p.ExitCode",
+            ],
+            text=True,
+            timeout=maya_install_timeout,
+            check=False,
+        )
+        print(f"Installation exit code: {result.returncode}", flush=True)
+        if result.returncode != 0:
+            install_failed = True
+    except subprocess.TimeoutExpired:
+        print(
+            f"TIMEOUT: Maya {version} install did not complete within "
+            f"{maya_install_timeout}s — assuming hung and aborting.",
+            flush=True,
+        )
+        install_failed = True
+
+    log_disk_usage(f"after-maya{version}-install")
+    print_recent_autodesk_logs()
+
+    if install_failed:
+        sys.exit(1)
 
     mayapy_exe = maya_dir / "bin" / "mayapy.exe"
     if mayapy_exe.exists():
@@ -817,15 +936,19 @@ def _install_vray_windows(version: str) -> None:
     s3_key = vray_win_config[version]
     installer_path = Path(f"C:/temp/vray_{version}.exe")
     installer_path.parent.mkdir(parents=True, exist_ok=True)
-    print(f"Installing V-Ray for Maya {version}...")
+    print(f"Installing V-Ray for Maya {version}...", flush=True)
     download_from_s3(s3_key, installer_path)
-    run(
+    log_disk_usage(f"before-vray{version}-install")
+    run_with_timeout(
         [
             "powershell",
             "-Command",
             f'Start-Process "{installer_path}" -ArgumentList "-gui=0","-auto","-quiet=1" -Wait -NoNewWindow',
-        ]
+        ],
+        timeout=30 * 60,
+        label=f"V-Ray {version} install",
     )
+    log_disk_usage(f"after-vray{version}-install")
     installer_path.unlink(missing_ok=True)
 
 
@@ -845,15 +968,19 @@ def _install_mtoa_windows(version: str) -> None:
     s3_key = mtoa_win_config[version]
     installer_path = Path(f"C:/temp/mtoa_{version}.msi")
     installer_path.parent.mkdir(parents=True, exist_ok=True)
-    print(f"Installing MtoA for Maya {version}...")
+    print(f"Installing MtoA for Maya {version}...", flush=True)
     download_from_s3(s3_key, installer_path)
-    run(
+    log_disk_usage(f"before-mtoa{version}-install")
+    run_with_timeout(
         [
             "powershell",
             "-Command",
             f'Start-Process "msiexec" -ArgumentList "/i","{installer_path}","/quiet","/norestart" -Wait -NoNewWindow',
-        ]
+        ],
+        timeout=15 * 60,
+        label=f"MtoA {version} MSI install",
     )
+    log_disk_usage(f"after-mtoa{version}-install")
     installer_path.unlink(missing_ok=True)
 
 
@@ -867,16 +994,20 @@ def _install_redshift_windows() -> None:
     s3_key = "redshift/2026/redshift_2026.6.0_2497872080_win_x64.exe"
     installer_path = Path("C:/temp/redshift_install.exe")
     installer_path.parent.mkdir(parents=True, exist_ok=True)
-    print("Installing Redshift...")
+    print("Installing Redshift...", flush=True)
     download_from_s3(s3_key, installer_path)
+    log_disk_usage("before-redshift-install")
     # InstallBuilder with Maya plugin components enabled
-    run(
+    run_with_timeout(
         [
             "powershell",
             "-Command",
             f'Start-Process "{installer_path}" -ArgumentList "--mode","unattended","--enable-components","MayaGroup,PluginMaya2025,PluginMaya2026" -Wait -NoNewWindow',
-        ]
+        ],
+        timeout=30 * 60,
+        label="Redshift install",
     )
+    log_disk_usage("after-redshift-install")
     installer_path.unlink(missing_ok=True)
 
     # Register Redshift with each Maya version
@@ -1017,8 +1148,7 @@ if __name__ == "__main__":
         default=[],
         choices=SUPPORTED_RENDERERS,
         help=(
-            "Third-party renderers to install alongside Maya "
-            "(currently supported on Linux only)."
+            "Third-party renderers to install alongside Maya (currently supported on Linux only)."
         ),
     )
     args = parser.parse_args()
