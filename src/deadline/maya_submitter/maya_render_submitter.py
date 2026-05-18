@@ -476,9 +476,7 @@ def _get_parameter_values(
             )
 
     parameter_values.extend(
-        {"name": param["name"], "value": param.get("value", param.get("default", ""))}
-        for param in queue_parameters
-        if "value" in param or "default" in param
+        {"name": param["name"], "value": param["value"]} for param in queue_parameters
     )
 
     return parameter_values
@@ -593,10 +591,18 @@ def create_submission_context() -> SubmissionContext:
     )
 
 
+@dataclass
+class PreparedRenderLayers:
+    """Result of filtering and annotating render layers for submission."""
+
+    layers: list[RenderLayerData]
+    renderers: set[str]
+
+
 def _prepare_render_layers_for_submission(
     settings: RenderSubmitterUISettings,
     context: SubmissionContext,
-) -> tuple[list[RenderLayerData], set[str]]:
+) -> PreparedRenderLayers:
     """Filter and annotate render layers based on settings.
 
     This is a pure transformation — no Maya scene queries. It works on
@@ -608,7 +614,7 @@ def _prepare_render_layers_for_submission(
         context: Pre-computed submission context.
 
     Returns:
-        A tuple of (submit_render_layers, renderers).
+        PreparedRenderLayers with the filtered layers and renderer set.
     """
     render_layers = deepcopy(context.render_layers)
 
@@ -630,6 +636,8 @@ def _prepare_render_layers_for_submission(
         layer.frame_range != first_frame_range for layer in submit_render_layers
     )
 
+    # If there are multiple frame ranges and we're not overriding the range,
+    # then we create per-layer Frames parameters.
     if per_layer_frames_parameters:
         for layer_data in submit_render_layers:
             layer_data.frames_parameter_name = f"{layer_data.display_name}Frames"
@@ -657,7 +665,7 @@ def _prepare_render_layers_for_submission(
 
     renderers: set[str] = {layer_data.renderer_name for layer_data in submit_render_layers}
 
-    return submit_render_layers, renderers
+    return PreparedRenderLayers(layers=submit_render_layers, renderers=renderers)
 
 
 def get_default_job_template() -> dict[str, Any]:
@@ -687,13 +695,13 @@ def get_job_template_for_submission(
         context = create_submission_context()
 
     default_job_template = get_default_job_template()
-    submit_render_layers, renderers = _prepare_render_layers_for_submission(settings, context)
+    prepared = _prepare_render_layers_for_submission(settings, context)
 
     job_template = _get_job_template(
         default_job_template=default_job_template,
         settings=settings,
-        renderers=renderers,
-        render_layers=submit_render_layers,
+        renderers=prepared.renderers,
+        render_layers=prepared.layers,
         all_layer_selectable_cameras=context.all_layer_selectable_cameras,
         current_layer_selectable_cameras=context.current_layer_selectable_cameras,
     )
@@ -729,9 +737,9 @@ def get_parameter_values_for_submission(
     if queue_parameters is None:
         queue_parameters = []
 
-    submit_render_layers, renderers = _prepare_render_layers_for_submission(settings, context)
+    prepared = _prepare_render_layers_for_submission(settings, context)
 
-    return _get_parameter_values(settings, renderers, submit_render_layers, queue_parameters)
+    return _get_parameter_values(settings, prepared.renderers, prepared.layers, queue_parameters)
 
 
 def get_asset_references_for_submission(
@@ -749,9 +757,9 @@ def get_asset_references_for_submission(
 
 
 def get_queue_parameters(
-    farm_id: Optional[str] = None,
-    queue_id: Optional[str] = None,
-    initial_values: Optional[dict[str, Any]] = None,
+    farm_id_override: Optional[str] = None,
+    queue_id_override: Optional[str] = None,
+    initial_values_override: Optional[dict[str, Any]] = None,
 ) -> list[dict[str, Any]]:
     """Get queue parameters from Deadline Cloud for external API usage.
 
@@ -761,9 +769,9 @@ def get_queue_parameters(
     going through the UI.
 
     Args:
-        farm_id: The farm ID. If not provided, uses the default from settings.
-        queue_id: The queue ID. If not provided, uses the default from settings.
-        initial_values: Optional dict of {parameter_name: value} to override
+        farm_id_override: The farm ID. If not provided, uses the default from settings.
+        queue_id_override: The queue ID. If not provided, uses the default from settings.
+        initial_values_override: Optional dict of {parameter_name: value} to override
             default parameter values.
 
     Returns:
@@ -773,10 +781,10 @@ def get_queue_parameters(
     Raises:
         DeadlineOperationError: If farm_id or queue_id are not configured.
     """
-    if farm_id is None:
-        farm_id = get_setting("defaults.farm_id")
-    if queue_id is None:
-        queue_id = get_setting("defaults.queue_id")
+    farm_id = farm_id_override if farm_id_override is not None else get_setting("defaults.farm_id")
+    queue_id = (
+        queue_id_override if queue_id_override is not None else get_setting("defaults.queue_id")
+    )
 
     if not farm_id or not queue_id:
         raise DeadlineOperationError(
@@ -786,10 +794,10 @@ def get_queue_parameters(
 
     queue_parameters = get_queue_parameter_definitions(farmId=farm_id, queueId=queue_id)
 
-    if initial_values:
+    if initial_values_override:
         for parameter in queue_parameters:
-            if parameter["name"] in initial_values:
-                parameter["value"] = initial_values[parameter["name"]]
+            if parameter["name"] in initial_values_override:
+                parameter["value"] = initial_values_override[parameter["name"]]
 
     return cast(list[dict[str, Any]], queue_parameters)
 
