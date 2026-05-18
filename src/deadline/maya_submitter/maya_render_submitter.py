@@ -476,7 +476,9 @@ def _get_parameter_values(
             )
 
     parameter_values.extend(
-        {"name": param["name"], "value": param["value"]} for param in queue_parameters
+        {"name": param["name"], "value": param.get("value", param.get("default", ""))}
+        for param in queue_parameters
+        if "value" in param or "default" in param
     )
 
     return parameter_values
