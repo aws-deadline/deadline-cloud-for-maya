@@ -11,7 +11,11 @@ from dataclasses import dataclass
 
 import maya.cmds  # pylint: disable=import-error
 
-from deadline.client.api import get_deadline_cloud_library_telemetry_client
+from deadline.client.api import (
+    get_deadline_cloud_library_telemetry_client,
+    get_queue_parameter_definitions,
+)
+from deadline.client.config import get_setting
 from deadline.client.job_bundle.parameters import JobParameter
 from deadline.client.job_bundle._yaml import deadline_yaml_dump
 from deadline.client.ui.dialogs.submit_job_to_deadline_dialog import (  # pylint: disable=import-error
@@ -459,18 +463,22 @@ def _get_parameter_values(
                 conda_param = param
         # Remove the deadline_cloud_for_maya/maya-openjd package
         if rez_param:
+            current_value = rez_param.get("value", rez_param.get("default", ""))
             rez_param["value"] = " ".join(
                 pkg
-                for pkg in rez_param["value"].split()
+                for pkg in current_value.split()
                 if not pkg.startswith("deadline_cloud_for_maya")
             )
         if conda_param:
+            current_value = conda_param.get("value", conda_param.get("default", ""))
             conda_param["value"] = " ".join(
-                pkg for pkg in conda_param["value"].split() if not pkg.startswith("maya-openjd")
+                pkg for pkg in current_value.split() if not pkg.startswith("maya-openjd")
             )
 
     parameter_values.extend(
-        {"name": param["name"], "value": param["value"]} for param in queue_parameters
+        {"name": param["name"], "value": param.get("value", param.get("default", ""))}
+        for param in queue_parameters
+        if "value" in param or "default" in param
     )
 
     return parameter_values
@@ -543,46 +551,75 @@ def _set_render_layer_data() -> list[RenderLayerData]:
     return render_layers
 
 
-def on_create_job_bundle_callback(
-    widget: SubmitJobToDeadlineDialog,
-    job_bundle_dir: str,
-    settings: RenderSubmitterUISettings,
-    queue_parameters: list[JobParameter],
-    asset_references: AssetReferences,
-    host_requirements: Optional[dict[str, Any]] = None,
-    purpose: JobBundlePurpose = JobBundlePurpose.SUBMISSION,
-) -> dict[str, Any]:
-    with open(Path(__file__).parent / "default_maya_job_template.yaml") as fh:
-        default_job_template = yaml.safe_load(fh)
+@dataclass
+class SubmissionContext:
+    """Pre-computed scene data for submission.
 
-    render_settings = _set_render_setting()
+    Caches expensive Maya scene queries (render layer switching, camera
+    enumeration, etc.) so that multiple submission functions can share
+    the same data without redundant computation.
 
-    render_layers: list[RenderLayerData] = _set_render_layer_data()
+    Use create_submission_context() to build an instance.
+    """
 
-    # Tell the settings tab the selectable cameras
-    _populate_selectable_cameras(render_settings, render_layers)
+    render_layers: list[RenderLayerData]
+    current_layer_selectable_cameras: list[str]
+    all_layer_selectable_cameras: list[str]
 
-    # if submitting, warn if the current scene has been modified
-    scene_modified = maya.cmds.file(q=True, mf=True) == 1
-    if scene_modified and purpose == JobBundlePurpose.SUBMISSION:
-        scene_name = maya.cmds.file(q=True, sn=True)
-        button = maya.cmds.confirmDialog(
-            title="Warning: Scene Changes not Saved",
-            message=(
-                "The scene has unsaved local changes that will not be included in the job submission.\n\nDo you want to save the scene to %s before submitting?"
-                % scene_name
-            ),
-            button=["Yes", "No"],
-            defaultButton="No",
-            cancelButton="No",
-            dismissString="No",
+
+def create_submission_context() -> SubmissionContext:
+    """Gather scene data and build a SubmissionContext.
+
+    This performs the expensive Maya queries (render layer switching,
+    camera enumeration, etc.) exactly once.
+
+    Returns:
+        SubmissionContext with all scene data populated.
+    """
+    render_layers = _set_render_layer_data()
+    current_layer_selectable_cameras = [ALL_CAMERAS] + sorted(get_renderable_camera_names())
+
+    all_layer_selectable_cameras_set: set[str] = set(render_layers[0].renderable_camera_names)
+    for layer in render_layers:
+        all_layer_selectable_cameras_set = all_layer_selectable_cameras_set.intersection(
+            layer.renderable_camera_names
         )
-        if button == "Yes":
-            maya.cmds.file(save=True)
+    all_layer_selectable_cameras = [ALL_CAMERAS] + sorted(all_layer_selectable_cameras_set)
 
-    job_bundle_path = Path(job_bundle_dir)
+    return SubmissionContext(
+        render_layers=render_layers,
+        current_layer_selectable_cameras=current_layer_selectable_cameras,
+        all_layer_selectable_cameras=all_layer_selectable_cameras,
+    )
 
-    # If we're only submitting the current layer, filter our list of layers by that
+
+@dataclass
+class PreparedRenderLayers:
+    """Result of filtering and annotating render layers for submission."""
+
+    layers: list[RenderLayerData]
+    renderers: set[str]
+
+
+def _prepare_render_layers_for_submission(
+    settings: RenderSubmitterUISettings,
+    context: SubmissionContext,
+) -> PreparedRenderLayers:
+    """Filter and annotate render layers based on settings.
+
+    This is a pure transformation — no Maya scene queries. It works on
+    deep copies of the context's render layers to avoid mutation issues
+    when the context is reused across multiple calls.
+
+    Args:
+        settings: The render submitter UI settings.
+        context: Pre-computed submission context.
+
+    Returns:
+        PreparedRenderLayers with the filtered layers and renderer set.
+    """
+    render_layers = deepcopy(context.render_layers)
+
     if settings.render_layer_selection == LayerSelection.CURRENT:
         current_render_layer_name = get_current_render_layer_name()
         submit_render_layers = [
@@ -630,23 +667,228 @@ def on_create_job_bundle_callback(
 
     renderers: set[str] = {layer_data.renderer_name for layer_data in submit_render_layers}
 
+    return PreparedRenderLayers(layers=submit_render_layers, renderers=renderers)
+
+
+def get_default_job_template() -> dict[str, Any]:
+    """Returns the default job template for Maya render submissions."""
+    with open(Path(__file__).parent / "default_maya_job_template.yaml") as fh:
+        return yaml.safe_load(fh)
+
+
+def get_job_template_for_submission(
+    settings: RenderSubmitterUISettings,
+    host_requirements: Optional[dict[str, Any]] = None,
+    *,
+    context: Optional[SubmissionContext] = None,
+) -> dict[str, Any]:
+    """Generate the job template for Maya render submissions.
+
+    Args:
+        settings: The render submitter UI settings.
+        host_requirements: Optional host requirements to inject into job steps.
+        context: Optional pre-computed submission context. If not provided,
+            one will be created (which queries the Maya scene).
+
+    Returns:
+        The job template dictionary ready for serialization.
+    """
+    if context is None:
+        context = create_submission_context()
+
+    default_job_template = get_default_job_template()
+    prepared = _prepare_render_layers_for_submission(settings, context)
+
     job_template = _get_job_template(
         default_job_template=default_job_template,
         settings=settings,
-        renderers=renderers,
-        render_layers=submit_render_layers,
-        all_layer_selectable_cameras=render_settings.all_layer_selectable_cameras,
-        current_layer_selectable_cameras=render_settings.current_layer_selectable_cameras,
-    )
-    parameter_values = _get_parameter_values(
-        settings, renderers, submit_render_layers, cast(list[dict[str, Any]], queue_parameters)
+        renderers=prepared.renderers,
+        render_layers=prepared.layers,
+        all_layer_selectable_cameras=context.all_layer_selectable_cameras,
+        current_layer_selectable_cameras=context.current_layer_selectable_cameras,
     )
 
-    # If "HostRequirements" is provided, inject it into each of the "Step"
     if host_requirements:
-        # for each step in the template, append the same host requirements.
         for step in job_template["steps"]:
             step["hostRequirements"] = host_requirements
+
+    return job_template
+
+
+def get_parameter_values_for_submission(
+    settings: RenderSubmitterUISettings,
+    queue_parameters: Optional[list[dict[str, Any]]] = None,
+    *,
+    context: Optional[SubmissionContext] = None,
+) -> list[dict[str, Any]]:
+    """Generate the parameter values for Maya render submissions.
+
+    Args:
+        settings: The render submitter UI settings.
+        queue_parameters: Optional queue parameters. When omitted, no
+            queue-specific parameters (like RezPackages or CondaPackages)
+            will be included.
+        context: Optional pre-computed submission context. If not provided,
+            one will be created (which queries the Maya scene).
+
+    Returns:
+        The parameter values list ready for serialization.
+    """
+    if context is None:
+        context = create_submission_context()
+    if queue_parameters is None:
+        queue_parameters = []
+
+    prepared = _prepare_render_layers_for_submission(settings, context)
+
+    return _get_parameter_values(settings, prepared.renderers, prepared.layers, queue_parameters)
+
+
+def get_asset_references_for_submission(
+    asset_references: AssetReferences,
+) -> dict[str, Any]:
+    """Get the asset references in dictionary form for Maya render submissions.
+
+    Args:
+        asset_references: The asset references object.
+
+    Returns:
+        The asset references dictionary ready for serialization.
+    """
+    return asset_references.to_dict()
+
+
+def get_queue_parameters(
+    farm_id_override: Optional[str] = None,
+    queue_id_override: Optional[str] = None,
+    initial_values_override: Optional[dict[str, Any]] = None,
+) -> list[dict[str, Any]]:
+    """Get queue parameters from Deadline Cloud for external API usage.
+
+    Retrieves queue parameter definitions from the Deadline Cloud API
+    and optionally applies initial values. Use this to construct
+    queue_parameters for get_parameter_values_for_submission() without
+    going through the UI.
+
+    Args:
+        farm_id_override: The farm ID. If not provided, uses the default from settings.
+        queue_id_override: The queue ID. If not provided, uses the default from settings.
+        initial_values_override: Optional dict of {parameter_name: value} to override
+            default parameter values.
+
+    Returns:
+        A list of parameter definition dicts suitable for passing to
+        get_parameter_values_for_submission().
+
+    Raises:
+        DeadlineOperationError: If farm_id or queue_id are not configured.
+    """
+    farm_id = farm_id_override if farm_id_override is not None else get_setting("defaults.farm_id")
+    queue_id = (
+        queue_id_override if queue_id_override is not None else get_setting("defaults.queue_id")
+    )
+
+    if not farm_id or not queue_id:
+        raise DeadlineOperationError(
+            "Farm ID and Queue ID must be configured. "
+            "Either provide them as arguments or configure them in Deadline Cloud settings."
+        )
+
+    queue_parameters = get_queue_parameter_definitions(farmId=farm_id, queueId=queue_id)
+
+    if initial_values_override:
+        for parameter in queue_parameters:
+            if parameter["name"] in initial_values_override:
+                parameter["value"] = initial_values_override[parameter["name"]]
+
+    return cast(list[dict[str, Any]], queue_parameters)
+
+
+def get_job_bundle_for_submission(
+    settings: RenderSubmitterUISettings,
+    queue_parameters: Optional[list[dict[str, Any]]] = None,
+    host_requirements: Optional[dict[str, Any]] = None,
+    asset_references: Optional[AssetReferences] = None,
+) -> dict[str, Any]:
+    """Generate a complete job bundle in one call.
+
+    This is the recommended entry point for external integrations.
+    It performs expensive scene queries exactly once.
+
+    Args:
+        settings: Render submitter UI settings.
+        queue_parameters: Queue parameters (use get_queue_parameters() to obtain).
+        host_requirements: Optional host requirements.
+        asset_references: Optional asset references.
+
+    Returns:
+        Dict with keys "job_template", "parameter_values", and optionally
+        "asset_references".
+    """
+    context = create_submission_context()
+
+    result: dict[str, Any] = {
+        "job_template": get_job_template_for_submission(
+            settings, host_requirements, context=context
+        ),
+        "parameter_values": get_parameter_values_for_submission(
+            settings, queue_parameters, context=context
+        ),
+    }
+
+    if asset_references is not None:
+        result["asset_references"] = get_asset_references_for_submission(asset_references)
+
+    return result
+
+
+def on_create_job_bundle_callback(
+    widget: SubmitJobToDeadlineDialog,
+    job_bundle_dir: str,
+    settings: RenderSubmitterUISettings,
+    queue_parameters: list[JobParameter],
+    asset_references: AssetReferences,
+    host_requirements: Optional[dict[str, Any]] = None,
+    purpose: JobBundlePurpose = JobBundlePurpose.SUBMISSION,
+) -> dict[str, Any]:
+    render_settings = _set_render_setting()
+
+    # Single expensive call — queries Maya scene once
+    context = create_submission_context()
+
+    # Tell the settings tab the selectable cameras
+    render_settings.current_layer_selectable_cameras = [ALL_CAMERAS] + sorted(
+        context.current_layer_selectable_cameras
+    )
+    render_settings.all_layer_selectable_cameras = [
+        ALL_CAMERAS
+    ] + context.all_layer_selectable_cameras
+
+    # if submitting, warn if the current scene has been modified
+    scene_modified = maya.cmds.file(q=True, mf=True) == 1
+    if scene_modified and purpose == JobBundlePurpose.SUBMISSION:
+        scene_name = maya.cmds.file(q=True, sn=True)
+        button = maya.cmds.confirmDialog(
+            title="Warning: Scene Changes not Saved",
+            message=(
+                "The scene has unsaved local changes that will not be included in the job submission.\n\nDo you want to save the scene to %s before submitting?"
+                % scene_name
+            ),
+            button=["Yes", "No"],
+            defaultButton="No",
+            cancelButton="No",
+            dismissString="No",
+        )
+        if button == "Yes":
+            maya.cmds.file(save=True)
+
+    job_bundle_path = Path(job_bundle_dir)
+
+    # Reuse the same context — no redundant computation
+    job_template = get_job_template_for_submission(settings, host_requirements, context=context)
+    parameter_values = get_parameter_values_for_submission(
+        settings, cast(list[dict[str, Any]], queue_parameters), context=context
+    )
 
     with open(job_bundle_path / "template.yaml", "w", encoding="utf8") as f:
         deadline_yaml_dump(job_template, f, indent=1)
