@@ -1,0 +1,43 @@
+ocio_profile_version: 2
+
+description: |
+  Minimal OCIO v2 config for the deadline-cloud-for-maya OCIO submitter
+  integration test. Defines just enough to be a valid, parseable config
+  so that Maya's colorManagementPrefs(configFilePath=...) accepts it
+  without errors. Not intended for production use.
+
+search_path: ""
+strictparsing: false
+luma: [0.2126, 0.7152, 0.0722]
+
+roles:
+  default: linear
+  reference: linear
+  scene_linear: linear
+  rendering: linear
+  color_picking: linear
+  color_timing: linear
+  compositing_log: linear
+  data: linear
+  matte_paint: linear
+  texture_paint: linear
+
+displays:
+  sRGB:
+    - !<View> {name: Raw, colorspace: linear}
+
+active_displays: [sRGB]
+active_views: [Raw]
+
+colorspaces:
+  - !<ColorSpace>
+    name: linear
+    family: scene
+    equalitygroup: ""
+    bitdepth: 32f
+    description: |
+      Scene-linear color space. The sole colorspace defined in this
+      minimal test config; all roles point at it.
+    isdata: false
+    allocation: lg2
+    allocationvars: [-15, 6]
