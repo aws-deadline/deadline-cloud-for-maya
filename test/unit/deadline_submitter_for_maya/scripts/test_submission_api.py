@@ -349,3 +349,239 @@ class TestGetQueueParameters:
             pytest.raises(DeadlineOperationError),
         ):
             get_queue_parameters()
+
+
+class TestOCIOInJobBundle:
+    """OCIO Config File coverage for the submission flow.
+
+    Regression coverage for the 0.15.13 OCIO submission failure that
+    was fixed in 0.15.14: customers without an OCIO config in their
+    Maya scene experienced "Job bundle validation failed" errors
+    because the HIDDEN PATH ``OCIOConfigFile`` parameter relied on its
+    empty-string default and that default was rejected by older
+    versions of ``openjd-model-for-python``. This was fixed by
+    upgrading the dependency in 0.15.14, but the developer test suite
+    didn't exercise the customer-default code path. These tests close
+    that gap by covering each branch of the OCIO submission code path
+    end-to-end.
+    """
+
+    @staticmethod
+    def _build_settings():
+        """Build a RenderSubmitterUISettings populated for parameter generation."""
+        from deadline.maya_submitter.data_classes import RenderSubmitterUISettings
+
+        settings = RenderSubmitterUISettings()
+        settings.name = "test_job"
+        settings.description = ""
+        settings.override_frame_range = True
+        settings.frame_list = "1"
+        settings.project_path = "/tmp/project"
+        settings.output_path = "/tmp/output"
+        return settings
+
+    @staticmethod
+    def _patch_scene(ocio_return_value):
+        """Patch the Scene module-level reference and supporting helpers used
+        by ``_get_parameter_values`` so we can drive its branching logic
+        without a live Maya scene.
+        """
+        scene_mock = Mock()
+        scene_mock.name.return_value = "/tmp/scene/test.ma"
+        scene_mock.ocio_config_file.return_value = ocio_return_value
+        scene_mock.error_on_arnold_license_fail.return_value = True
+
+        return [
+            patch("deadline.maya_submitter.maya_render_submitter.Scene", scene_mock),
+            patch(
+                "deadline.maya_submitter.maya_render_submitter.render_setup_include_all_lights",
+                return_value=True,
+            ),
+            patch(
+                "deadline.maya_submitter.maya_render_submitter.get_width",
+                return_value=1920,
+            ),
+            patch(
+                "deadline.maya_submitter.maya_render_submitter.get_height",
+                return_value=1080,
+            ),
+        ]
+
+    def test_no_ocio_omits_value_but_keeps_definition(self):
+        """Maya scene without OCIO config. The submitter MUST omit
+        ``OCIOConfigFile`` from parameter_values so the parameter falls
+        back to its empty-string default. The job template MUST still
+        declare the parameter as a HIDDEN PATH with default=''. This
+        is the customer state that triggered the 0.15.13 regression.
+        """
+        from deadline.maya_submitter.maya_render_submitter import (
+            get_job_template_for_submission,
+            get_parameter_values_for_submission,
+        )
+
+        settings = self._build_settings()
+        # Use mayaSoftware so the Arnold-specific branch is skipped.
+        context = _make_context([_make_render_layer(renderer_name="mayaSoftware", frame_range="1")])
+
+        patches = self._patch_scene(ocio_return_value=None)
+        for p in patches:
+            p.start()
+        try:
+            template = get_job_template_for_submission(settings, context=context)
+            param_values = get_parameter_values_for_submission(settings, context=context)
+        finally:
+            for p in reversed(patches):
+                p.stop()
+
+        # The OCIOConfigFile parameter definition stays in the template.
+        ocio_def = next(
+            (p for p in template["parameterDefinitions"] if p["name"] == "OCIOConfigFile"),
+            None,
+        )
+        assert ocio_def is not None, "OCIOConfigFile parameter definition is missing"
+        assert ocio_def["type"] == "PATH"
+        assert ocio_def["userInterface"]["control"] == "HIDDEN"
+        assert ocio_def["default"] == ""
+
+        # And the value is omitted (the default is what the worker will see).
+        assert not any(
+            v["name"] == "OCIOConfigFile" for v in param_values
+        ), "OCIOConfigFile must NOT be added to parameter_values when the scene has no OCIO config"
+
+    def test_ocio_present_adds_value_to_parameter_values(self):
+        """Maya scene with a custom OCIO config. The submitter MUST
+        add ``OCIOConfigFile`` to parameter_values with the path
+        returned by ``Scene.ocio_config_file()``.
+        """
+        from deadline.maya_submitter.maya_render_submitter import (
+            get_parameter_values_for_submission,
+        )
+
+        ocio_path = "/projects/show/aces_1.3/config.ocio"
+        settings = self._build_settings()
+        context = _make_context([_make_render_layer(renderer_name="mayaSoftware", frame_range="1")])
+
+        patches = self._patch_scene(ocio_return_value=ocio_path)
+        for p in patches:
+            p.start()
+        try:
+            param_values = get_parameter_values_for_submission(settings, context=context)
+        finally:
+            for p in reversed(patches):
+                p.stop()
+
+        ocio_value = next((v for v in param_values if v["name"] == "OCIOConfigFile"), None)
+        assert ocio_value is not None, "OCIOConfigFile must be added to parameter_values"
+        assert ocio_value["value"] == ocio_path
+
+    def test_hidden_path_with_empty_default_validates(self):
+        """HIDDEN PATH JobParameter handling with default=''.
+
+        This is the exact failure mode from the 0.15.13 regression — when a HIDDEN
+        PATH parameter declares ``default: ''`` and ``deadline-cloud``
+        attempts to validate the bundle, older versions raised "Job
+        bundle validation failed". This test runs the actual validation
+        code path that's used by the Submit dialog.
+        """
+        from deadline.client.job_bundle.parameters import validate_job_parameter
+
+        ocio_definition = {
+            "name": "OCIOConfigFile",
+            "type": "PATH",
+            "objectType": "FILE",
+            "dataFlow": "IN",
+            "userInterface": {"control": "HIDDEN"},
+            "description": "The OCIO configuration file path (auto-detected from scene).",
+            "default": "",
+        }
+
+        # validate_job_parameter raises ValueError/TypeError on bad definitions.
+        # Must succeed cleanly with the default empty string.
+        result = validate_job_parameter(ocio_definition, type_required=True)
+        assert result["name"] == "OCIOConfigFile"
+        assert result["default"] == ""
+
+    def test_default_template_yaml_ocio_param_validates(self):
+        """The bundled default_maya_job_template.yaml must always declare
+        an ``OCIOConfigFile`` parameter that passes deadline-cloud's
+        bundle parameter validation. This protects the contract that
+        broke in the 0.15.13 regression (HIDDEN PATH with empty default) so future
+        edits to the template can't silently regress it.
+        """
+        from pathlib import Path
+
+        import yaml
+        from deadline.client.job_bundle.parameters import validate_job_parameter
+
+        # Resolve the path to default_maya_job_template.yaml relative to
+        # this test file so it works in any checkout layout.
+        repo_root = Path(__file__).resolve().parents[4]
+        template_path = repo_root / "src/deadline/maya_submitter/default_maya_job_template.yaml"
+        assert template_path.is_file(), f"Template file not found at {template_path}"
+
+        with open(template_path, encoding="utf8") as f:
+            template = yaml.safe_load(f)
+
+        # The OCIO parameter must be declared with the exact contract the
+        # adaptor's set_ocio_config_file relies on.
+        ocio_def = next(
+            (p for p in template["parameterDefinitions"] if p["name"] == "OCIOConfigFile"),
+            None,
+        )
+        assert ocio_def is not None, "OCIOConfigFile parameter is missing from default template"
+        assert ocio_def["type"] == "PATH"
+        assert ocio_def["userInterface"]["control"] == "HIDDEN"
+        assert ocio_def["default"] == ""
+
+        # Every parameter definition (not just OCIO) must validate so the
+        # default template is always submittable as-is.
+        for param_def in template["parameterDefinitions"]:
+            validate_job_parameter(param_def, type_required=True)
+
+    def test_full_bundle_with_no_ocio_passes_parameter_validation(self):
+        """End-to-end no-OCIO regression: build the full job template
+        and parameter_values for a scene without an OCIO config (the
+        customer state that broke), then run every parameter through
+        deadline-cloud's bundle parameter validation. This is the
+        highest-fidelity reproduction of the 0.15.13 regression in unit form.
+        """
+        from deadline.client.job_bundle.parameters import (
+            validate_job_parameter,
+            validate_job_parameter_value,
+        )
+        from deadline.maya_submitter.maya_render_submitter import (
+            get_job_template_for_submission,
+            get_parameter_values_for_submission,
+        )
+
+        settings = self._build_settings()
+        context = _make_context([_make_render_layer(renderer_name="mayaSoftware", frame_range="1")])
+
+        patches = self._patch_scene(ocio_return_value=None)
+        for p in patches:
+            p.start()
+        try:
+            template = get_job_template_for_submission(settings, context=context)
+            param_values = get_parameter_values_for_submission(settings, context=context)
+        finally:
+            for p in reversed(patches):
+                p.stop()
+
+        # Validate every parameter definition — equivalent to what the
+        # Submit dialog does before sending the bundle to the service.
+        validated_defs = {
+            p["name"]: validate_job_parameter(p, type_required=True)
+            for p in template["parameterDefinitions"]
+        }
+
+        # Validate every supplied value against its definition.
+        for v in param_values:
+            if v["name"] in validated_defs:
+                validate_job_parameter_value(validated_defs[v["name"]], v["value"])
+
+        # The defining assertion: OCIOConfigFile is declared with default=''
+        # and not overridden by parameter_values. If the bundle assembled
+        # this way ever fails to validate again, this test will fail —
+        # which is precisely what was missing when 0.15.13 shipped.
+        assert validated_defs["OCIOConfigFile"]["default"] == ""
+        assert not any(v["name"] == "OCIOConfigFile" for v in param_values)
