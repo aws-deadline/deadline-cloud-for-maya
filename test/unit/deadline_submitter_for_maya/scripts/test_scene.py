@@ -145,7 +145,13 @@ class TestOcioConfigFile:
 
     @patch("deadline.maya_submitter.scene.maya.cmds")
     def test_ocio_config_file_ocio_env_fallback(self, mock_maya_cmds: Mock) -> None:
-        """Tests that OCIO env var is used when colorManagementPrefs returns bool"""
+        """Tests that OCIO env var is used when colorManagementPrefs returns bool
+
+        Backslash separators in the env var (e.g. on Windows) are
+        normalized to forward slashes so the OCIOConfigFile parameter
+        emitted into the job bundle uses the same separator convention
+        as Maya's other path queries (cmds.file, cmds.workspace).
+        """
         # GIVEN
         mock_maya_cmds.colorManagementPrefs.side_effect = [
             True,  # cmEnabled
@@ -158,7 +164,7 @@ class TestOcioConfigFile:
             result = Scene.ocio_config_file()
 
         # THEN
-        assert result == ocio_env_path
+        assert result == "Z:/OCIO/Maya2022-default/config.ocio"
 
     @patch("deadline.maya_submitter.scene.maya.cmds")
     def test_ocio_config_file_custom_config(self, mock_maya_cmds: Mock) -> None:
@@ -175,3 +181,28 @@ class TestOcioConfigFile:
 
         # THEN
         assert result == custom_path
+
+    @patch("deadline.maya_submitter.scene.maya.cmds")
+    def test_ocio_config_file_normalizes_windows_separators(self, mock_maya_cmds: Mock) -> None:
+        """Tests that backslash separators returned by Maya on Windows are
+        normalized to forward slashes.
+
+        Unlike cmds.file and cmds.workspace which always return
+        forward-slashed paths on Windows, cmds.colorManagementPrefs
+        preserves the input path verbatim. Without normalization the
+        OCIOConfigFile job bundle parameter would use a different
+        separator convention than every other path parameter, breaking
+        tests and producing an inconsistent bundle.
+        """
+        # GIVEN
+        windows_path = "C:\\Studio\\OCIO\\config.ocio"
+        mock_maya_cmds.colorManagementPrefs.side_effect = [
+            True,  # cmEnabled
+            windows_path,  # configFilePath
+        ]
+
+        # WHEN
+        result = Scene.ocio_config_file()
+
+        # THEN
+        assert result == "C:/Studio/OCIO/config.ocio"

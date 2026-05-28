@@ -212,12 +212,18 @@ class Scene:
         # Get the config file path - Maya returns bool if no path set
         config_path = maya.cmds.colorManagementPrefs(query=True, configFilePath=True)
         if isinstance(config_path, str) and "<MAYA_RESOURCES>" not in config_path:
-            return config_path
+            # Normalize separators to forward slashes for cross-platform
+            # consistency with other Maya path queries (cmds.file,
+            # cmds.workspace, etc.) which return forward slashes on
+            # Windows. colorManagementPrefs preserves the input verbatim,
+            # so on Windows this would otherwise emit backslash paths
+            # into the job bundle's OCIOConfigFile parameter.
+            return config_path.replace("\\", "/")
 
         # Fall back to the OCIO environment variable
         ocio_env = os.environ.get("OCIO", "")
         if ocio_env:
-            return ocio_env
+            return ocio_env.replace("\\", "/")
 
         return None
 
