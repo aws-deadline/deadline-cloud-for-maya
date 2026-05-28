@@ -58,6 +58,11 @@ Note: Hatch uses [environments](https://hatch.pypa.io/1.12/environment/) to isol
 for this package from your system or virtual environment Python. If your build/test run is not making sense, then
 sometimes pruning (`hatch env prune`) all of these environments for the package can fix the issue.
 
+Note: Fetch tags to ensure the correct openjd version is detected:
+```bash
+git fetch --tags
+```
+
 ### Submitter Development Workflow
 
 The submitter plug-in generates job bundles to submit to AWS Deadline Cloud. Developing a change
