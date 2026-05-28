@@ -17,6 +17,7 @@ def test_frame_override_has_text_validation():
         # methods being mocked out).
         class MockQWidget:
             setEnabled = Mock()
+            setVisible = Mock()
 
             def __init__(self, parent):
                 pass

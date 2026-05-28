@@ -676,6 +676,298 @@ def get_default_job_template() -> dict[str, Any]:
         return yaml.safe_load(fh)
 
 
+def _get_python_script_job_template(settings: RenderSubmitterUISettings) -> dict[str, Any]:
+    """Build a job template for a Python-script job.
+
+    The template has a single step (`RunPythonScript`) whose task parameter
+    space iterates over Frames. The adaptor's `daemon run` is invoked once per
+    task with run-data containing `script_file`, optional `frame`, and
+    optional `script_args`.
+
+    The user's scene file and Python script file are declared as PATH/IN
+    parameters so the Deadline Cloud job attachments system uploads them to
+    the worker and applies path mapping at runtime.
+    """
+    return {
+        "specificationVersion": "jobtemplate-2023-09",
+        "name": settings.name or "Maya Python Script Job",
+        "parameterDefinitions": [
+            {
+                "name": "MayaSceneFile",
+                "type": "PATH",
+                "objectType": "FILE",
+                "dataFlow": "IN",
+                "userInterface": {
+                    "control": "CHOOSE_INPUT_FILE",
+                    "label": "Maya Scene File",
+                    "groupLabel": "Maya Settings",
+                    "fileFilters": [
+                        {
+                            "label": "Maya Scene Files",
+                            "patterns": ["*.mb", "*.ma"],
+                        },
+                        {"label": "All Files", "patterns": ["*"]},
+                    ],
+                },
+                "description": "The Maya scene file to load before running the Python script.",
+            },
+            {
+                "name": "PythonScriptFile",
+                "type": "PATH",
+                "objectType": "FILE",
+                "dataFlow": "IN",
+                "userInterface": {
+                    "control": "CHOOSE_INPUT_FILE",
+                    "label": "Python Script",
+                    "groupLabel": "Maya Settings",
+                    "fileFilters": [
+                        {"label": "Python Scripts", "patterns": ["*.py"]},
+                        {"label": "All Files", "patterns": ["*"]},
+                    ],
+                },
+                "description": "The user-provided Python script that runs inside Maya per task.",
+            },
+            {
+                "name": "Frames",
+                "type": "STRING",
+                "userInterface": {
+                    "control": "LINE_EDIT",
+                    "label": "Frames",
+                    "groupLabel": "Maya Settings",
+                },
+                "description": (
+                    "Task range. Each task runs the Python script once with "
+                    "DEADLINE_TASK_FRAME set to the value. Use '1' for a single task."
+                ),
+                "minLength": 1,
+                "default": "1",
+            },
+            {
+                "name": "ProjectPath",
+                "type": "PATH",
+                "objectType": "DIRECTORY",
+                "dataFlow": "NONE",
+                "userInterface": {
+                    "control": "CHOOSE_DIRECTORY",
+                    "label": "Project Path",
+                    "groupLabel": "Maya Settings",
+                },
+                "description": "The Maya project path.",
+            },
+            {
+                "name": "OutputFilePath",
+                "type": "PATH",
+                "objectType": "DIRECTORY",
+                "dataFlow": "OUT",
+                "userInterface": {
+                    "control": "CHOOSE_DIRECTORY",
+                    "label": "Output File Path",
+                    "groupLabel": "Maya Settings",
+                },
+                "description": "The output path.",
+            },
+            {
+                "name": "ScriptArgs",
+                "type": "STRING",
+                "userInterface": {
+                    "control": "LINE_EDIT",
+                    "label": "Script Args",
+                    "groupLabel": "Maya Settings",
+                },
+                "description": (
+                    "Optional arguments passed to the Python script via the "
+                    "DEADLINE_SCRIPT_ARGS environment variable."
+                ),
+                "default": "",
+            },
+            {
+                "name": "StrictErrorChecking",
+                "type": "STRING",
+                "userInterface": {
+                    "control": "CHECK_BOX",
+                    "label": "Strict Error Checking",
+                    "groupLabel": "Maya Settings",
+                },
+                "description": "Fail when errors occur.",
+                "default": "false",
+                "allowedValues": ["true", "false"],
+            },
+            {
+                "name": "OCIOConfigFile",
+                "type": "PATH",
+                "objectType": "FILE",
+                "dataFlow": "IN",
+                "userInterface": {"control": "HIDDEN"},
+                "description": "The OCIO configuration file path (auto-detected from scene).",
+                "default": "",
+            },
+        ],
+        "steps": [
+            {
+                "name": "RunPythonScript",
+                "parameterSpace": {
+                    "taskParameterDefinitions": [
+                        {
+                            "name": "Frame",
+                            "type": "INT",
+                            "range": "{{Param.Frames}}",
+                        }
+                    ]
+                },
+                "stepEnvironments": [
+                    {
+                        "name": "Maya",
+                        "description": "Runs Maya in the background.",
+                        "script": {
+                            "embeddedFiles": [
+                                {
+                                    "name": "initData",
+                                    "filename": "init-data.yaml",
+                                    "type": "TEXT",
+                                    "data": (
+                                        "job_type: python_script\n"
+                                        "scene_file: '{{Param.MayaSceneFile}}'\n"
+                                        "project_path: '{{Param.ProjectPath}}'\n"
+                                        "output_file_path: '{{Param.OutputFilePath}}'\n"
+                                        "strict_error_checking: "
+                                        "{{Param.StrictErrorChecking}}\n"
+                                        "ocio_config_file: '{{Param.OCIOConfigFile}}'\n"
+                                    ),
+                                }
+                            ],
+                            "actions": {
+                                "onEnter": {
+                                    "command": "MayaAdaptor",
+                                    "args": [
+                                        "daemon",
+                                        "start",
+                                        "--path-mapping-rules",
+                                        "file://{{Session.PathMappingRulesFile}}",
+                                        "--connection-file",
+                                        "{{Session.WorkingDirectory}}/connection.json",
+                                        "--init-data",
+                                        "file://{{Env.File.initData}}",
+                                    ],
+                                    "cancelation": {"mode": "NOTIFY_THEN_TERMINATE"},
+                                    "timeout": 87000,
+                                },
+                                "onExit": {
+                                    "command": "MayaAdaptor",
+                                    "args": [
+                                        "daemon",
+                                        "stop",
+                                        "--connection-file",
+                                        "{{ Session.WorkingDirectory }}/connection.json",
+                                    ],
+                                    "cancelation": {"mode": "NOTIFY_THEN_TERMINATE"},
+                                    "timeout": 600,
+                                },
+                            },
+                        },
+                    }
+                ],
+                "script": {
+                    "embeddedFiles": [
+                        {
+                            "name": "runData",
+                            "filename": "run-data.yaml",
+                            "type": "TEXT",
+                            "data": (
+                                "frame: {{Task.Param.Frame}}\n"
+                                "script_file: '{{Param.PythonScriptFile}}'\n"
+                                "script_args: '{{Param.ScriptArgs}}'\n"
+                            ),
+                        }
+                    ],
+                    "actions": {
+                        "onRun": {
+                            "command": "MayaAdaptor",
+                            "args": [
+                                "daemon",
+                                "run",
+                                "--connection-file",
+                                "{{ Session.WorkingDirectory }}/connection.json",
+                                "--run-data",
+                                "file://{{ Task.File.runData }}",
+                            ],
+                            "cancelation": {"mode": "NOTIFY_THEN_TERMINATE"},
+                        }
+                    },
+                },
+            }
+        ],
+    }
+
+
+def _get_python_script_parameter_values(
+    settings: RenderSubmitterUISettings,
+    queue_parameters: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Build parameter_values for a Python-script job.
+
+    Mirrors the relevant subset of `_get_parameter_values` but for the
+    python-script template. Frames defaults to '1' when the user leaves
+    it blank, producing a single task.
+    """
+    parameter_values: list[dict[str, Any]] = [
+        {"name": "MayaSceneFile", "value": Scene.name()},
+        {"name": "PythonScriptFile", "value": settings.python_script_path},
+        {
+            "name": "Frames",
+            "value": (
+                settings.frame_list
+                if (settings.override_frame_range and settings.frame_list)
+                else (settings.frame_list or "1")
+            ),
+        },
+        {"name": "ProjectPath", "value": settings.project_path},
+        {"name": "OutputFilePath", "value": settings.output_path},
+        {"name": "ScriptArgs", "value": settings.script_args},
+        {"name": "StrictErrorChecking", "value": "false"},
+    ]
+
+    ocio_config = Scene.ocio_config_file()
+    if ocio_config:
+        parameter_values.append({"name": "OCIOConfigFile", "value": ocio_config})
+
+    # Validate against queue parameters as the render path does.
+    parameter_names = {p["name"] for p in parameter_values}
+    queue_parameter_names = {p["name"] for p in queue_parameters}
+    overlap = parameter_names.intersection(queue_parameter_names)
+    if overlap:
+        raise DeadlineOperationError(
+            "The following queue parameters conflict with the Maya job parameters:\n"
+            + f"{', '.join(overlap)}"
+        )
+
+    # Developer option: override adaptor wheels (same as render path)
+    if settings.include_adaptor_wheels:
+        wheels_path = str(Path(__file__).parent.parent.parent.parent / "wheels")
+        parameter_values.append({"name": "OverrideAdaptorWheels", "value": wheels_path})
+
+        for param in queue_parameters:
+            if param["name"] == "RezPackages":
+                current_value = param.get("value", param.get("default", ""))
+                param["value"] = " ".join(
+                    pkg
+                    for pkg in current_value.split()
+                    if not pkg.startswith("deadline_cloud_for_maya")
+                )
+            if param["name"] == "CondaPackages":
+                current_value = param.get("value", param.get("default", ""))
+                param["value"] = " ".join(
+                    pkg for pkg in current_value.split() if not pkg.startswith("maya-openjd")
+                )
+
+    parameter_values.extend(
+        {"name": param["name"], "value": param.get("value", param.get("default", ""))}
+        for param in queue_parameters
+        if "value" in param or "default" in param
+    )
+
+    return parameter_values
+
+
 def get_job_template_for_submission(
     settings: RenderSubmitterUISettings,
     host_requirements: Optional[dict[str, Any]] = None,
@@ -695,6 +987,15 @@ def get_job_template_for_submission(
     """
     if context is None:
         context = create_submission_context()
+
+    # Python-script job: build a different template entirely; render-layer
+    # specific logic does not apply.
+    if getattr(settings, "job_type", "render") == "python_script":
+        job_template = _get_python_script_job_template(settings)
+        if host_requirements:
+            for step in job_template["steps"]:
+                step["hostRequirements"] = host_requirements
+        return job_template
 
     default_job_template = get_default_job_template()
     prepared = _prepare_render_layers_for_submission(settings, context)
@@ -738,6 +1039,9 @@ def get_parameter_values_for_submission(
         context = create_submission_context()
     if queue_parameters is None:
         queue_parameters = []
+
+    if getattr(settings, "job_type", "render") == "python_script":
+        return _get_python_script_parameter_values(settings, queue_parameters)
 
     prepared = _prepare_render_layers_for_submission(settings, context)
 
@@ -883,6 +1187,19 @@ def on_create_job_bundle_callback(
             maya.cmds.file(save=True)
 
     job_bundle_path = Path(job_bundle_dir)
+
+    # For Python-script jobs, ensure the user-supplied script file is uploaded
+    # as a job attachment. The job template declares `PythonScriptFile` as a
+    # PATH/IN parameter so Deadline Cloud applies path mapping at runtime.
+    if getattr(settings, "job_type", "render") == "python_script":
+        script_path = (settings.python_script_path or "").strip()
+        if not script_path:
+            raise DeadlineOperationError(
+                "Python Script job type selected, but no Python script file was specified."
+            )
+        if not os.path.isfile(script_path):
+            raise DeadlineOperationError(f"Python script file does not exist: {script_path}")
+        asset_references.input_filenames.add(os.path.normpath(script_path))
 
     # Reuse the same context — no redundant computation
     job_template = get_job_template_for_submission(settings, host_requirements, context=context)

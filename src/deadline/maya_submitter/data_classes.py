@@ -45,6 +45,16 @@ class RenderSubmitterUISettings:
     current_layer_selectable_cameras: list[str] = field(default_factory=lambda: [ALL_CAMERAS])
     camera_selection: str = field(default=ALL_CAMERAS)
 
+    # Job type selection: "render" (default — standard Maya render) or
+    # "python_script" (run a user-supplied Python script inside Maya).
+    job_type: str = field(default="render", metadata={"sticky": True})
+    # Path to the user's Python script (only used when job_type == "python_script").
+    # The path is resolved on the submitter machine and uploaded as a job attachment.
+    python_script_path: str = field(default="", metadata={"sticky": True})
+    # Optional free-form argument string passed to the script via the
+    # DEADLINE_SCRIPT_ARGS environment variable.
+    script_args: str = field(default="", metadata={"sticky": True})
+
     # developer options
     include_adaptor_wheels: bool = field(default=False, metadata={"sticky": True})
 

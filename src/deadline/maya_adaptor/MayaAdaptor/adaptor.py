@@ -93,7 +93,7 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
 
     @property
     def integration_data_interface_version(self) -> SemanticVersion:
-        return SemanticVersion(major=0, minor=2)
+        return SemanticVersion(major=0, minor=3)
 
     @staticmethod
     def _get_timer(timeout: int | float) -> Callable[[], bool]:
@@ -414,7 +414,10 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
         else:
             os.environ["PYTHONPATH"] = python_path_addition
 
-        if self.init_data["renderer"] == "arnold":
+        if (
+            self.init_data.get("job_type", "render") == "render"
+            and self.init_data.get("renderer") == "arnold"
+        ):
             self._setup_arnold_pathmapping()
 
         self._maya_client = LoggingSubprocess(
@@ -430,10 +433,14 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
         _MAYA_INIT_KEYS set to be added to the action queue.
         """
 
-        # Set up the renderer
-        self._action_queue.enqueue_action(
-            Action("renderer", {"renderer": self.init_data["renderer"]})
-        )
+        job_type = self.init_data.get("job_type", "render")
+
+        # Set up the renderer (render jobs only — python-script jobs do not
+        # require a renderer to be configured up front).
+        if job_type == "render":
+            self._action_queue.enqueue_action(
+                Action("renderer", {"renderer": self.init_data["renderer"]})
+            )
 
         # Set up all pathmapping rules
         self._action_queue.enqueue_action(
@@ -457,15 +464,18 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
         for action_name in _FIRST_MAYA_ACTIONS:
             self._action_queue.enqueue_action(self._action_from_action_item(action_name))
 
-        for action_name in _MAYA_INIT_KEYS:
-            if action_name in self.init_data:
-                self._action_queue.enqueue_action(self._action_from_action_item(action_name))
+        # Render-specific init actions are skipped for python-script jobs since
+        # the user's script controls render settings (or doesn't render at all).
+        if job_type == "render":
+            for action_name in _MAYA_INIT_KEYS:
+                if action_name in self.init_data:
+                    self._action_queue.enqueue_action(self._action_from_action_item(action_name))
 
-        # RenderMan's texture manager bypasses Maya's dirmap, so we need to
-        # manually apply path mapping to RenderMan texture node attributes
-        # after the scene is loaded.
-        if self.init_data["renderer"] == "renderman" and self.path_mapping_rules:
-            self._action_queue.enqueue_action(Action("renderman_texture_pathmapping", {}))
+            # RenderMan's texture manager bypasses Maya's dirmap, so we need to
+            # manually apply path mapping to RenderMan texture node attributes
+            # after the scene is loaded.
+            if self.init_data["renderer"] == "renderman" and self.path_mapping_rules:
+                self._action_queue.enqueue_action(Action("renderman_texture_pathmapping", {}))
 
     def on_start(self) -> None:
         """
@@ -517,6 +527,10 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
         """
         This starts a render in Maya for the given frame and performs a busy wait until the render
         completes.
+
+        For Python-script jobs, this enqueues an `execute_script` action instead and waits for
+        completion using the same in-progress flag — handlers must clear `_maya_is_rendering`
+        when they finish.
         """
         if not self._maya_is_running:
             raise MayaNotRunningError("Cannot render because Maya is not running.")
@@ -526,7 +540,10 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
         validators = AdaptorDataValidators.for_adaptor(schema_dir)
         validators.run_data.validate(run_data)
         self._maya_is_rendering = True
-        self._action_queue.enqueue_action(Action("start_render", run_data))
+        if "script_file" in run_data:
+            self._action_queue.enqueue_action(Action("execute_script", run_data))
+        else:
+            self._action_queue.enqueue_action(Action("start_render", run_data))
         while self._maya_is_rendering and not self._has_exception:
             time.sleep(0.1)  # wait for the render to finish
 

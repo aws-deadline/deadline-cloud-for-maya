@@ -2,6 +2,11 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "properties": {
+        "job_type": {
+            "enum": ["render", "python_script"],
+            "default": "render",
+            "description": "The kind of job to run. 'render' (default) performs a Maya render. 'python_script' executes a user-supplied Python script inside Maya."
+        },
         "camera": { "type": "string" },
         "error_on_arnold_license_fail": { "type": "boolean" },
         "image_height": { "type": "number" },
@@ -30,8 +35,19 @@
     },
     "required": [
         "project_path",
-        "render_layer",
-        "renderer",
         "scene_file"
+    ],
+    "allOf": [
+        {
+            "if": {
+                "anyOf": [
+                    { "not": { "required": ["job_type"] } },
+                    { "properties": { "job_type": { "const": "render" } } }
+                ]
+            },
+            "then": {
+                "required": ["renderer", "render_layer"]
+            }
+        }
     ]
 }

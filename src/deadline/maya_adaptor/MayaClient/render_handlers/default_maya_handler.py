@@ -38,6 +38,7 @@ class DefaultMayaHandler:
     def __init__(self):
         self.action_dict = {
             "start_render": self.start_render,
+            "execute_script": self.execute_script,
             "camera": self.set_camera,
             "image_height": self.set_image_height,
             "image_width": self.set_image_width,
@@ -97,6 +98,85 @@ class DefaultMayaHandler:
                 )
         else:
             return None
+
+    def execute_script(self, data: dict) -> None:
+        """
+        Executes a user-supplied Python script inside the running Maya client.
+
+        The script is executed via runpy.run_path with run_name="__main__" so the
+        user can write a normal top-level Python module. maya.cmds and maya.mel
+        are available because we run inside the Maya Python interpreter with
+        maya.standalone already initialized.
+
+        The following environment variables are set for the duration of the script:
+        - DEADLINE_TASK_FRAME: the task frame number (if provided in run_data).
+        - DEADLINE_SCRIPT_ARGS: the optional argument string from the submitter.
+
+        Args:
+            data (dict): The data given from the Adaptor. Keys expected: ['script_file'].
+                Optional: ['frame', 'script_args'].
+
+        Raises:
+            FileNotFoundError: If script_file does not point to an existing file.
+            RuntimeError: If the script raises an exception.
+        """
+        import runpy
+        import traceback
+
+        script_file = data.get("script_file", "")
+        if not script_file:
+            raise RuntimeError("MayaClient: execute_script called without 'script_file'.")
+
+        # Apply path mapping in case the run-data still carries a submitter-side path.
+        if DirectoryMapping.get_activated():
+            script_file = DirectoryMapping.convert(script_file)
+
+        if not os.path.isfile(script_file):
+            raise FileNotFoundError(f"The Python script '{script_file}' does not exist")
+
+        frame = data.get("frame")
+        script_args = data.get("script_args", "") or ""
+
+        # Inject context for the user's script via env vars; restore previous values after.
+        prev_env = {
+            "DEADLINE_TASK_FRAME": os.environ.get("DEADLINE_TASK_FRAME"),
+            "DEADLINE_SCRIPT_ARGS": os.environ.get("DEADLINE_SCRIPT_ARGS"),
+        }
+        if frame is not None:
+            os.environ["DEADLINE_TASK_FRAME"] = str(frame)
+        else:
+            os.environ.pop("DEADLINE_TASK_FRAME", None)
+        os.environ["DEADLINE_SCRIPT_ARGS"] = script_args
+
+        print(
+            f"MayaClient: Executing Python script '{script_file}' "
+            f"(frame={frame}, script_args={script_args!r})",
+            flush=True,
+        )
+
+        try:
+            runpy.run_path(script_file, run_name="__main__")
+        except SystemExit as exc:
+            # Treat clean SystemExit(0) / SystemExit() as success; non-zero is a failure.
+            code = exc.code
+            if code not in (None, 0):
+                traceback.print_exc()
+                raise RuntimeError(f"Python script '{script_file}' exited with code {code}")
+        except Exception as exc:
+            traceback.print_exc()
+            raise RuntimeError(f"Python script '{script_file}' raised an exception: {exc}")
+        finally:
+            # Restore prior env vars so successive tasks see a clean slate.
+            for k, v in prev_env.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+
+        # Emit the same completion line the adaptor's regex matches so the
+        # adaptor clears _maya_is_rendering and reports 100% progress.
+        completion_frame = frame if frame is not None else 0
+        print(f"MayaClient: Finished Rendering Frame {int(completion_frame)}\n", flush=True)
 
     def start_render(self, data: dict) -> None:
         """

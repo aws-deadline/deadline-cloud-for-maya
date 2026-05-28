@@ -26,6 +26,7 @@ from deadline.maya_adaptor.MayaAdaptor.adaptor import _FIRST_MAYA_ACTIONS, MayaN
 # If the schema changes (properties added/removed/modified), this test data
 # must be updated AND the integration_data_interface_version must be bumped
 EXPECTED_INIT_DATA_PROPERTIES = {
+    "job_type": "render",
     "camera": "test_camera",
     "error_on_arnold_license_fail": True,
     "image_height": 1080,
@@ -41,8 +42,10 @@ EXPECTED_INIT_DATA_PROPERTIES = {
     "strict_error_checking": True,
 }
 
-# Required fields for init_data schema
-EXPECTED_INIT_DATA_REQUIRED = ["project_path", "render_layer", "renderer", "scene_file"]
+# Required fields for init_data schema. renderer/render_layer are conditionally
+# required when job_type == "render" (handled via the schema's allOf/if/then),
+# but they are not in the top-level "required" array.
+EXPECTED_INIT_DATA_REQUIRED = ["project_path", "scene_file"]
 
 # Test data that exercises ALL properties in run_data schema
 # If the schema changes (properties added/removed/modified), this test data
@@ -55,14 +58,18 @@ EXPECTED_RUN_DATA_PROPERTIES = {
     "region_max_y": 1080,
     "camera": "test_camera",
     "output_file_prefix": "<Scene>/<RenderLayer>",
+    "script_file": "/path/to/user_script.py",
+    "script_args": "--my-arg 42",
 }
 
-# Required fields for run_data schema
-EXPECTED_RUN_DATA_REQUIRED = ["frame"]
+# Required fields for run_data schema. The schema uses anyOf to require
+# either "frame" (render job) or "script_file" (python-script job), so the
+# top-level "required" array is empty.
+EXPECTED_RUN_DATA_REQUIRED: list[str] = []
 
 # Expected version - must be bumped when schemas change
 EXPECTED_SCHEMA_VERSION_MAJOR = 0
-EXPECTED_SCHEMA_VERSION_MINOR = 2
+EXPECTED_SCHEMA_VERSION_MINOR = 3
 
 
 @pytest.fixture()
@@ -571,7 +578,7 @@ class TestMayaAdaptor_on_start:
     def test_semantic_version(self, init_data: dict) -> None:
         """Tests that the adaptor semantic version is in the expected format"""
         adaptor = MayaAdaptor(init_data)
-        assert adaptor.integration_data_interface_version == SemanticVersion(major=0, minor=2)
+        assert adaptor.integration_data_interface_version == SemanticVersion(major=0, minor=3)
 
     def test_if_init_data_and_run_data_schema_are_changed_schema_version_is_bumped(
         self, init_data: dict
@@ -776,7 +783,10 @@ class TestMayaAdaptor_on_run:
             adaptor.on_run(run_data)
 
         # THEN
-        error_msg = " is a required property"
+        # The run_data schema now uses anyOf to require either "frame" (render
+        # job) or "script_file" (python-script job), so an empty payload fails
+        # with the anyOf validator rather than a single "required" error.
+        error_msg = "is not valid under any of the given schemas"
         assert error_msg in exc_info.value.message
 
 

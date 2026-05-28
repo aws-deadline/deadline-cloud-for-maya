@@ -8,7 +8,18 @@
         "region_min_y": { "type": "number" },
         "region_max_y": { "type": "number" },
         "camera": { "type": "string" },
-        "output_file_prefix": { "type": "string" }
+        "output_file_prefix": { "type": "string" },
+        "script_file": {
+            "type": "string",
+            "description": "Path to a user-supplied Python script to execute inside Maya. When present, the adaptor enqueues an 'execute_script' action instead of 'start_render'."
+        },
+        "script_args": {
+            "type": "string",
+            "description": "Optional argument string passed to the script via the DEADLINE_SCRIPT_ARGS environment variable."
+        }
     },
-    "required": ["frame"]
+    "anyOf": [
+        { "required": ["frame"] },
+        { "required": ["script_file"] }
+    ]
 }
