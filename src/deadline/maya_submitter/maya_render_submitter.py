@@ -48,6 +48,59 @@ import time
 
 logger = getLogger(__name__)
 
+# The "deadline-cloud" conda channel on service-managed fleets only provides
+# Maya packages built for Linux. Custom channels may add Windows packages, so we
+# only constrain the OS when "deadline-cloud" is the sole channel in use.
+DEADLINE_CLOUD_CONDA_CHANNEL = "deadline-cloud"
+
+
+def _augment_host_requirements_for_conda_channel(
+    queue_parameters: list[dict[str, Any]],
+    host_requirements: Optional[dict[str, Any]],
+) -> Optional[dict[str, Any]]:
+    """Add a Linux OS host requirement when the CondaChannels parameter is exactly
+    "deadline-cloud".
+
+    The Deadline Cloud service-managed Maya conda packages only exist for Linux. When
+    a job relies solely on the "deadline-cloud" channel, restrict it to Linux fleets so
+    it isn't scheduled onto Windows workers that can't provide the package. Customers
+    using custom channels (which may carry Windows packages) are left untouched.
+
+    Returns the (possibly newly created) host requirements dict, or the original value
+    when no change is needed.
+    """
+    conda_channels = None
+    for param in queue_parameters:
+        if param["name"] == "CondaChannels":
+            conda_channels = param.get("value", param.get("default", ""))
+            break
+
+    # Only act when "deadline-cloud" is the exact, sole channel.
+    if conda_channels is None or conda_channels.split() != [DEADLINE_CLOUD_CONDA_CHANNEL]:
+        return host_requirements
+
+    # Copy so we don't mutate a caller-owned dict (e.g. from the host requirements tab).
+    result = deepcopy(host_requirements) if host_requirements else {}
+    attributes = result.setdefault("attributes", [])
+
+    os_family = next(
+        (attr for attr in attributes if attr.get("name") == "attr.worker.os.family"), None
+    )
+    if os_family is None:
+        attributes.append({"name": "attr.worker.os.family", "anyOf": ["linux"]})
+    else:
+        # An OS constraint already exists (e.g. from the host requirements tab).
+        # Intersect it with "linux" so we never widen the user's selection.
+        any_of = os_family.get("anyOf")
+        all_of = os_family.get("allOf")
+        if any_of is not None:
+            os_family["anyOf"] = ["linux"] if "linux" in any_of else any_of
+        elif all_of is None:
+            os_family["anyOf"] = ["linux"]
+        # If allOf is set we leave it alone; the user has an explicit constraint.
+
+    return result
+
 
 def _populate_selectable_cameras(
     render_settings: "RenderSubmitterUISettings",
@@ -827,6 +880,10 @@ def get_job_bundle_for_submission(
     """
     context = create_submission_context()
 
+    host_requirements = _augment_host_requirements_for_conda_channel(
+        queue_parameters or [], host_requirements
+    )
+
     result: dict[str, Any] = {
         "job_template": get_job_template_for_submission(
             settings, host_requirements, context=context
@@ -883,6 +940,10 @@ def on_create_job_bundle_callback(
             maya.cmds.file(save=True)
 
     job_bundle_path = Path(job_bundle_dir)
+
+    host_requirements = _augment_host_requirements_for_conda_channel(
+        cast(list[dict[str, Any]], queue_parameters), host_requirements
+    )
 
     # Reuse the same context — no redundant computation
     job_template = get_job_template_for_submission(settings, host_requirements, context=context)
