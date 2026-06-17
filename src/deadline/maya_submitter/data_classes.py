@@ -6,10 +6,33 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import json
 
+from deadline.client.ui.dataclasses.timeouts import TimeoutEntry, TimeoutTableEntries
+from datetime import timedelta
 from .cameras import ALL_CAMERAS
 from .render_layers import LayerSelection  # type: ignore
 
 RENDER_SUBMITTER_SETTINGS_FILE_EXT = ".deadline_render_settings.json"
+
+
+def default_time_entries() -> TimeoutTableEntries:
+    entries = {
+        "Task Run": TimeoutEntry(
+            tooltip="Maximum duration for a task to run or for rendering a frame",
+            seconds=int(timedelta(days=2).total_seconds()),
+            is_activated=False,  # The default maya job template doesn't have timeout for task run
+        ),
+        "Maya Launch": TimeoutEntry(
+            tooltip="Maximum duration for Maya to start",
+            seconds=87000,  # comes from the default_maya_job_template
+            is_activated=True,
+        ),
+        "Maya Shutdown": TimeoutEntry(
+            tooltip="Maximum duration for Maya to shutdown",
+            seconds=600,
+            is_activated=True,  # comes from the default_maya_job_template
+        ),
+    }
+    return TimeoutTableEntries(entries=entries)
 
 
 @dataclass
@@ -36,6 +59,12 @@ class RenderSubmitterUISettings:
     project_path: str = field(default="")
     output_path: str = field(default="")
 
+    # field and property can't have the same name
+    _timeouts: TimeoutTableEntries = field(
+        default_factory=default_time_entries,
+        metadata={"sticky": True, "sticky_key": "timeouts", "sticky_save_attr": "_timeouts_sticky"},
+    )
+
     input_filenames: list[str] = field(default_factory=list, metadata={"sticky": True})
     input_directories: list[str] = field(default_factory=list, metadata={"sticky": True})
     output_directories: list[str] = field(default_factory=list, metadata={"sticky": True})
@@ -48,6 +77,23 @@ class RenderSubmitterUISettings:
     # developer options
     include_adaptor_wheels: bool = field(default=False, metadata={"sticky": True})
 
+    @property
+    def timeouts(self) -> TimeoutTableEntries:
+        return self._timeouts
+
+    @timeouts.setter
+    def timeouts(self, value: "TimeoutTableEntries | dict") -> None:
+        # A setter for timeouts. The value used to set timeouts can either be a TimeoutTableEntries or a dict
+        if isinstance(value, dict):
+            self._timeouts.update_from_sticky_settings(value)
+        else:
+            self._timeouts = value
+
+    @property
+    def _timeouts_sticky(self) -> dict:
+        # Serialized form used when writing sticky settings
+        return self._timeouts.to_sticky_settings_dict()
+
     def load_sticky_settings(self, scene_filename: str):
         sticky_settings_filename = Path(scene_filename).with_suffix(
             RENDER_SUBMITTER_SETTINGS_FILE_EXT
@@ -58,14 +104,15 @@ class RenderSubmitterUISettings:
                     sticky_settings = json.load(fh)
 
                 if isinstance(sticky_settings, dict):
-                    sticky_fields = {
-                        field.name: field
+                    sticky_keys = {
+                        # either get sticky_key for non_primitive that is supported by @property
+                        # or field.name for primitive
+                        field.metadata.get("sticky_key", field.name)
                         for field in dataclasses.fields(self)
                         if field.metadata.get("sticky")
                     }
                     for name, value in sticky_settings.items():
-                        # Only set fields that are defined in the dataclass
-                        if name in sticky_fields:
+                        if name in sticky_keys:
                             setattr(self, name, value)
             except (OSError, json.JSONDecodeError):
                 # If something bad happened to the sticky settings file,
@@ -84,7 +131,9 @@ class RenderSubmitterUISettings:
         )
         with open(sticky_settings_filename, "w", encoding="utf8") as fh:
             obj = {
-                field.name: getattr(self, field.name)
+                field.metadata.get("sticky_key", field.name): getattr(
+                    self, field.metadata.get("sticky_save_attr", field.name)
+                )
                 for field in dataclasses.fields(self)
                 if field.metadata.get("sticky")
             }

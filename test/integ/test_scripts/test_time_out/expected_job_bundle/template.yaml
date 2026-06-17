@@ -1,0 +1,38 @@
+specificationVersion: jobtemplate-2023-09
+name: test_time_out
+description: |
+  Scene-free job template used to verify that the onRun (Task Run) timeout is
+  enforced by the OpenJD session runner.
+
+  The onRun action sleeps for far longer than its 5 second timeout, so the task
+  must be canceled by the timeout and the run must fail. The task intentionally
+  produces no output. No stepEnvironments are defined because Maya does not need
+  to be launched to exercise the Task Run timeout.
+parameterDefinitions:
+- name: Frames
+  type: STRING
+  description: The frames to render.
+  default: '1'
+steps:
+- name: Render
+  parameterSpace:
+    taskParameterDefinitions:
+    - name: Frame
+      type: INT
+      range: '{{Param.Frames}}'
+  script:
+    embeddedFiles:
+    - name: runData
+      filename: run-data.yaml
+      type: TEXT
+      data: |
+        frame: {{Task.Param.Frame}}
+    actions:
+      onRun:
+        command: mayapy
+        args:
+        - -c
+        - 'import time; time.sleep(60)'
+        cancelation:
+          mode: NOTIFY_THEN_TERMINATE
+        timeout: 5

@@ -42,6 +42,7 @@ from .render_layers import (
 )
 from .cameras import get_renderable_camera_names, ALL_CAMERAS
 from ._version import version, version_tuple as adaptor_version_tuple
+from .template_timeout_patcher import add_timeouts_to_job_template
 from .ui.components.scene_settings_tab import SceneSettingsWidget
 from deadline.client.job_bundle.submission import AssetReferences
 import time
@@ -338,6 +339,8 @@ def _get_job_template(
         if "jobEnvironments" not in job_template:
             job_template["jobEnvironments"] = []
         job_template["jobEnvironments"].append(override_environment["environment"])
+
+    add_timeouts_to_job_template(job_template, settings.timeouts)
 
     return job_template
 
