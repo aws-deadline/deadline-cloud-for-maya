@@ -1,3 +1,12 @@
+## 0.15.16 (2026-06-22)
+
+### Features
+* Added timeout setting to Maya job submission, allowing you to configure a timeout for your rendering jobs. (#422)
+* Extracted submitter logic into externally callable functions with a new SubmissionContext pattern. External integrations (e.g. AYON) can now use `create_submission_context()`, `get_job_template_for_submission()`, and related public APIs to programmatically drive submission without the UI. (#405)
+
+### Bug Fixes
+* Fixed OCIO config file path separators on Windows. Previously, the OCIOConfigFile job bundle parameter could be emitted with backslashes on Windows, producing an inconsistent bundle. Paths are now normalized to forward slashes. (#413)
+* Fixed the cameras dropdown not being populated when the submitter dialog first opens. (#402)
 ## 0.15.15 (2026-05-06)
 
 ### Features
