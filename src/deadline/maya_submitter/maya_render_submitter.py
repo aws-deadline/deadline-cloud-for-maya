@@ -1035,6 +1035,7 @@ def show_maya_render_submitter(
         parent=parent,
         f=f,
         show_host_requirements_tab=True,
+        use_deadline_cloud_v2_channel=True,
     )
     submitter_dialog.show()
     return submitter_dialog
