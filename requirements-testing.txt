@@ -1,4 +1,4 @@
-coverage[toml] >= 7.10.7
+coverage[toml] >= 7.14.3
 pytest == 8.*
 pytest-cov == 7.*
 pytest-xdist == 3.*
