@@ -970,6 +970,20 @@ def setup_windows(maya_versions: Sequence[str], renderers: Sequence[str]) -> Non
         print(f"Installing submitter for Maya {version}...")
         run(["hatch", "run", "install", "--maya-version", version])
 
+        print("Cleanup stale deadline, deadline-job-attachement if any for a clean environment")
+        run(
+            [
+                str(mayapy_exe),
+                "-m",
+                "pip",
+                "uninstall",
+                "-y",
+                "deadline",
+                "deadline-job-attachments",
+            ],
+            check=False,
+        )
+
         print(f"Installing integ test dependencies for Maya {version}...")
         run(
             [
