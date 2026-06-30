@@ -64,14 +64,12 @@ class DeadlineCloudSubmitterCmd(om.MPxCommand):
                 if check_and_show_update_dialog():
                     return
 
-                # Create a new submitter dialog. If this is the first time the submitter is
-                # opened, load the sticky settings. If this is not the first time, close
-                # the existing dialog and create a new one without loading the sticky
-                # settings.
+                # Recreate the dialog so scene-derived state (cameras, layers) refreshes,
+                # and load sticky settings so user-set job parameters persist across reopens.
                 if DeadlineCloudSubmitterCmd.dialog:
                     DeadlineCloudSubmitterCmd.dialog.close()
                     DeadlineCloudSubmitterCmd.dialog = show_maya_render_submitter(
-                        parent=mainwin, f=Qt.Tool, load_sticky_setting=False
+                        parent=mainwin, f=Qt.Tool, load_sticky_setting=True
                     )
                 else:
                     DeadlineCloudSubmitterCmd.dialog = show_maya_render_submitter(
