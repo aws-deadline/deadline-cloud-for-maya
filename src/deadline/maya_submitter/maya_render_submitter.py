@@ -22,11 +22,6 @@ from deadline.client.ui.dialogs.submit_job_to_deadline_dialog import (  # pylint
     SubmitJobToDeadlineDialog,
     JobBundlePurpose,
 )
-from deadline.client.ui.pre_gui_hooks import (  # pylint: disable=import-error
-    PreGuiHookContext,
-    qt_hook_confirmation,
-    run_pre_gui_hooks,
-)
 from deadline.client.exceptions import DeadlineOperationError
 from qtpy.QtCore import Qt  # type: ignore
 
@@ -1059,6 +1054,16 @@ def show_maya_render_submitter(
     # on-disk job bundle at this point, so hooks are sourced from DEADLINE_HOOKS_DIR only
     # (bundle_dir=None), gated by settings.allow_environment_hooks. The confirmation prompt is
     # skipped when auto_accept is set; otherwise the standard dialog is shown.
+    #
+    # Imported lazily (like qtpy above) rather than at module top: this ships in deadline-cloud
+    # 0.60+, and a top-level import would break importing this module — and every unit test that
+    # collects it — against older deadline-cloud releases.
+    from deadline.client.ui.pre_gui_hooks import (  # pylint: disable=import-error
+        PreGuiHookContext,
+        qt_hook_confirmation,
+        run_pre_gui_hooks,
+    )
+
     confirm_callback = (
         None if str2bool(get_setting("settings.auto_accept")) else qt_hook_confirmation(parent)
     )
