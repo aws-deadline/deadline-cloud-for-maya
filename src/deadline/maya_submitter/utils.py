@@ -3,6 +3,7 @@
 """
 Minor utility functions
 """
+
 from __future__ import annotations
 
 import os
@@ -12,6 +13,16 @@ from functools import wraps
 from typing import Callable
 
 from maya.app.general.fileTexturePathResolver import _patternToRegex
+
+
+def strtobool(val: str) -> bool:
+    """Replaces distutils.util.strtobool, removed in Python 3.12."""
+    v = val.lower()
+    if v in ("y", "yes", "t", "true", "on", "1"):
+        return True
+    if v in ("n", "no", "f", "false", "off", "0"):
+        return False
+    raise ValueError(f"invalid truth value {val!r}")
 
 
 def join_paths(first: str, *remainder: str) -> str:

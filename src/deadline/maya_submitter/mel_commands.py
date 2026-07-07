@@ -3,6 +3,7 @@
 """
 Defines the Render submitter command which is registered in Maya.
 """
+
 import maya.api.OpenMaya as om  # pylint: disable=import-error
 import maya.cmds
 from qtpy.QtCore import Qt  # type: ignore
