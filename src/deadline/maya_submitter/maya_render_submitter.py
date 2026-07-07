@@ -15,12 +15,17 @@ from deadline.client.api import (
     get_deadline_cloud_library_telemetry_client,
     get_queue_parameter_definitions,
 )
-from deadline.client.config import get_setting
+from deadline.client.config import get_setting, str2bool
 from deadline.client.job_bundle.parameters import JobParameter
 from deadline.client.job_bundle._yaml import deadline_yaml_dump
 from deadline.client.ui.dialogs.submit_job_to_deadline_dialog import (  # pylint: disable=import-error
     SubmitJobToDeadlineDialog,
     JobBundlePurpose,
+)
+from deadline.client.ui.pre_gui_hooks import (  # pylint: disable=import-error
+    PreGuiHookContext,
+    qt_hook_confirmation,
+    run_pre_gui_hooks,
 )
 from deadline.client.exceptions import DeadlineOperationError
 from qtpy.QtCore import Qt  # type: ignore
@@ -915,6 +920,29 @@ def on_create_job_bundle_callback(
     }
 
 
+def _apply_pre_gui_output(
+    pre_gui_output: dict[str, Any],
+    render_settings: RenderSubmitterUISettings,
+    shared_parameter_values: dict[str, Any],
+) -> None:
+    """Map merged pre-GUI hook output onto Maya's settings + shared parameter values.
+
+    ``RenderSubmitterUISettings`` has no ``.parameters`` list (unlike the standalone
+    submitter's ``JobBundleSettings``), so ``name`` / ``description`` are written onto the
+    settings object and any hook ``parameters`` (queue params like ``RezPackages`` /
+    ``CondaPackages``, ``deadline:`` job properties, etc.) are merged into the shared values
+    the dialog is seeded with. This is why the DCC does its own mapping rather than calling
+    deadline-cloud's ``JobBundleSettings``-specific ``apply_pre_gui_output``.
+    """
+    if not pre_gui_output:
+        return
+    if "name" in pre_gui_output:
+        render_settings.name = pre_gui_output["name"]
+    if "description" in pre_gui_output:
+        render_settings.description = pre_gui_output["description"]
+    shared_parameter_values.update(pre_gui_output.get("parameters", {}))
+
+
 def show_maya_render_submitter(
     parent, f=Qt.WindowFlags(), load_sticky_setting: bool = False
 ) -> Optional[SubmitJobToDeadlineDialog]:
@@ -1022,13 +1050,33 @@ def show_maya_render_submitter(
     progress_dialog.close()
     print("Progress dialog closed, creating submission dialog")
 
+    shared_parameter_values = {
+        "RezPackages": rez_packages,
+        "CondaPackages": conda_packages,
+    }
+
+    # Run pre-GUI hooks so studios can pre-populate dialog fields before it opens. Maya has no
+    # on-disk job bundle at this point, so hooks are sourced from DEADLINE_HOOKS_DIR only
+    # (bundle_dir=None), gated by settings.allow_environment_hooks. The confirmation prompt is
+    # skipped when auto_accept is set; otherwise the standard dialog is shown.
+    confirm_callback = (
+        None if str2bool(get_setting("settings.auto_accept")) else qt_hook_confirmation(parent)
+    )
+    pre_gui_output = run_pre_gui_hooks(
+        PreGuiHookContext(
+            bundle_dir=None,
+            job_name=render_settings.name,
+            submitter_name="maya",
+            parameters=dict(shared_parameter_values),
+        ),
+        confirm_callback=confirm_callback,
+    )
+    _apply_pre_gui_output(pre_gui_output, render_settings, shared_parameter_values)
+
     submitter_dialog = SubmitJobToDeadlineDialog(
         job_setup_widget_type=SceneSettingsWidget,
         initial_job_settings=render_settings,
-        initial_shared_parameter_values={
-            "RezPackages": rez_packages,
-            "CondaPackages": conda_packages,
-        },
+        initial_shared_parameter_values=shared_parameter_values,
         auto_detected_attachments=auto_detected_attachments,
         attachments=attachments,
         on_create_job_bundle_callback=on_create_job_bundle_callback,

@@ -30,7 +30,9 @@ classifiers = [
 ]
 
 dependencies = [
-    "deadline >= 0.59.0,< 0.60",
+    # run_pre_gui_hooks / PreGuiHookContext are required for the pre-GUI hook integration
+    # below; they ship in deadline-cloud 0.60.x. Confirm the exact release before merging.
+    "deadline >= 0.60.0,< 0.61",
     "openjd-adaptor-runtime == 0.9.*",
 ]
 
