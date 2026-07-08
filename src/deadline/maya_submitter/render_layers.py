@@ -3,6 +3,7 @@
 """
 Functionality for interacting with Maya's Render Layers
 """
+
 from contextlib import contextmanager
 from enum import IntEnum
 from typing import List

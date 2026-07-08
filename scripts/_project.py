@@ -9,7 +9,6 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Optional
 
-
 ADAPTOR_ONLY_DEPENDENCIES = {"openjd-adaptor-runtime"}
 
 

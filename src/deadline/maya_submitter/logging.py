@@ -3,6 +3,7 @@
 """
 Functionality for creating a global logger for the maya submitter.
 """
+
 from __future__ import absolute_import, print_function
 
 import logging

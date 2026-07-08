@@ -11,6 +11,7 @@ Use --renderers to select which renderers to install (default: none).
 On Windows, installs the pywin32 support DLLs so child processes (mayapy) can
 load win32file. This mirrors the pattern used by deadline-cloud-for-3ds-max.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -27,7 +28,6 @@ from typing import Sequence, TypedDict
 
 import boto3
 from botocore.config import Config
-
 
 # ---------------------------------------------------------------------------
 # Configuration types
