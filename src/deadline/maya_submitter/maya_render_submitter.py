@@ -915,29 +915,6 @@ def on_create_job_bundle_callback(
     }
 
 
-def _apply_pre_gui_output(
-    pre_gui_output: dict[str, Any],
-    render_settings: RenderSubmitterUISettings,
-    shared_parameter_values: dict[str, Any],
-) -> None:
-    """Map merged pre-GUI hook output onto Maya's settings + shared parameter values.
-
-    ``RenderSubmitterUISettings`` has no ``.parameters`` list (unlike the standalone
-    submitter's ``JobBundleSettings``), so ``name`` / ``description`` are written onto the
-    settings object and any hook ``parameters`` (queue params like ``RezPackages`` /
-    ``CondaPackages``, ``deadline:`` job properties, etc.) are merged into the shared values
-    the dialog is seeded with. This is why the DCC does its own mapping rather than calling
-    deadline-cloud's ``JobBundleSettings``-specific ``apply_pre_gui_output``.
-    """
-    if not pre_gui_output:
-        return
-    if "name" in pre_gui_output:
-        render_settings.name = pre_gui_output["name"]
-    if "description" in pre_gui_output:
-        render_settings.description = pre_gui_output["description"]
-    shared_parameter_values.update(pre_gui_output.get("parameters", {}))
-
-
 def show_maya_render_submitter(
     parent, f=Qt.WindowFlags(), load_sticky_setting: bool = False
 ) -> Optional[SubmitJobToDeadlineDialog]:
@@ -1060,6 +1037,7 @@ def show_maya_render_submitter(
     # collects it — against older deadline-cloud releases.
     from deadline.client.ui.pre_gui_hooks import (  # pylint: disable=import-error
         PreGuiHookContext,
+        apply_pre_gui_output,
         qt_hook_confirmation,
         run_pre_gui_hooks,
     )
@@ -1076,7 +1054,9 @@ def show_maya_render_submitter(
         ),
         confirm_callback=confirm_callback,
     )
-    _apply_pre_gui_output(pre_gui_output, render_settings, shared_parameter_values)
+    # RenderSubmitterUISettings has no `.parameters` list, so apply_pre_gui_output routes
+    # name/description onto it and every hook parameter into shared_parameter_values.
+    apply_pre_gui_output(pre_gui_output, render_settings, shared_parameter_values)
 
     submitter_dialog = SubmitJobToDeadlineDialog(
         job_setup_widget_type=SceneSettingsWidget,
