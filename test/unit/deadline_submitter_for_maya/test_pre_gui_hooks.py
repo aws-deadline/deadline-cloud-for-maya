@@ -11,14 +11,14 @@ routes hook output correctly against Maya's own ``RenderSubmitterUISettings`` â€
 guards against a regression where ``RenderSubmitterUISettings`` gains a ``parameters`` attribute
 that would silently misroute hook parameters.
 
-``apply_pre_gui_output`` ships in deadline-cloud 0.61+; the module is skipped on older releases
+``apply_pre_gui_output`` ships in deadline-cloud 0.60.1+; the module is skipped on older releases
 so this file collects cleanly regardless of the installed deadline-cloud version. The maya /
 qtpy modules are stubbed by the package ``__init__`` so imports resolve.
 """
 
 import pytest
 
-# apply_pre_gui_output ships in deadline-cloud 0.61+; skip cleanly on older releases.
+# apply_pre_gui_output ships in deadline-cloud 0.60.1+; skip cleanly on older releases.
 pre_gui_hooks = pytest.importorskip("deadline.client.ui.pre_gui_hooks")
 apply_pre_gui_output = pre_gui_hooks.apply_pre_gui_output
 

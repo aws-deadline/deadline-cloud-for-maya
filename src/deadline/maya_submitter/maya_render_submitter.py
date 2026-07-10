@@ -1033,7 +1033,7 @@ def show_maya_render_submitter(
     # skipped when auto_accept is set; otherwise the standard dialog is shown.
     #
     # Imported lazily (like qtpy above) rather than at module top: this ships in deadline-cloud
-    # 0.60+, and a top-level import would break importing this module — and every unit test that
+    # 0.60.1+, and a top-level import would break importing this module — and every unit test that
     # collects it — against older deadline-cloud releases.
     from deadline.client.ui.pre_gui_hooks import (  # pylint: disable=import-error
         PreGuiHookContext,
