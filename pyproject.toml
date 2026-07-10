@@ -30,14 +30,10 @@ classifiers = [
 ]
 
 dependencies = [
-    # TODO: bump this floor to the deadline-cloud release that ships
-    # deadline.client.ui.pre_gui_hooks (run_pre_gui_hooks / PreGuiHookContext /
-    # apply_pre_gui_output) before marking this PR ready. That module was added after the
-    # 0.60.0 tag and is not published yet, so the floor is held at the latest released version
-    # (0.60.0) to keep dependency resolution working. The pre-GUI hooks import is done lazily
-    # in maya_render_submitter.show_maya_render_submitter, so this module (and the unit tests)
-    # import cleanly on 0.60.0; the hooks are only required when the submitter is launched.
-    "deadline >= 0.60.0,< 0.61",
+    # 0.60.1 is the first release to ship deadline.client.ui.pre_gui_hooks
+    # (run_pre_gui_hooks / PreGuiHookContext / apply_pre_gui_output), which the pre-GUI hook
+    # integration in maya_render_submitter.show_maya_render_submitter requires.
+    "deadline >= 0.60.1,< 0.61",
     "openjd-adaptor-runtime == 0.9.*",
 ]
 
