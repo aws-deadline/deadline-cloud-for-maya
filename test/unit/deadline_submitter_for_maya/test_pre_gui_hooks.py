@@ -16,6 +16,7 @@ integration suite; here we verify the DCC-owned pieces headless:
 The maya / qtpy modules are stubbed by the package ``__init__`` so imports resolve.
 """
 
+import sys
 from unittest.mock import patch
 
 from deadline.client.ui.pre_gui_hooks import apply_pre_gui_output
@@ -97,7 +98,13 @@ def test_confirm_callback_none_when_auto_accept_enabled(mock_get_setting):
     mock_get_setting.assert_called_once_with("settings.auto_accept")
 
 
-@patch("qtpy.QtWidgets.QMessageBox")
+# Patch ``QMessageBox`` on the exact object the import reads. ``qt_hook_confirmation`` does
+# ``from qtpy.QtWidgets import QMessageBox``, which resolves through ``sys.modules["qtpy.QtWidgets"]``
+# — the standalone mock the package ``__init__`` installs there. A string ``patch("qtpy.QtWidgets.
+# QMessageBox")`` instead resolves the dotted path through the *parent* ``qtpy`` mock's auto-created
+# ``QtWidgets`` child, which is a different object on Python 3.9/3.10, so the patch never reaches the
+# QMessageBox the code sees and ``question`` is never called.
+@patch.object(sys.modules["qtpy.QtWidgets"], "QMessageBox")
 @patch.object(maya_render_submitter, "get_setting", return_value="false")
 def test_confirmation_dialog_fires_when_auto_accept_disabled(mock_get_setting, mock_msgbox):
     """With settings.auto_accept disabled, invoking the returned callback actually shows the
