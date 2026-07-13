@@ -30,9 +30,6 @@ classifiers = [
 ]
 
 dependencies = [
-    # 0.60.1 is the first release to ship deadline.client.ui.pre_gui_hooks
-    # (run_pre_gui_hooks / PreGuiHookContext / qt_hook_confirmation / apply_pre_gui_output), which
-    # the pre-GUI hook integration in maya_render_submitter.show_maya_render_submitter requires.
     "deadline >= 0.60.1,< 0.61",
     "openjd-adaptor-runtime == 0.9.*",
 ]

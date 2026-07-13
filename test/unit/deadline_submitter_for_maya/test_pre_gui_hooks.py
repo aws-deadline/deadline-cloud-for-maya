@@ -5,26 +5,22 @@
 ``show_maya_render_submitter`` calls deadline-cloud's ``run_pre_gui_hooks`` (env-only, since
 Maya has no on-disk bundle) and then maps the merged output with deadline-cloud's generic
 ``apply_pre_gui_output``. The full submitter needs a running Maya, so it is exercised in the
-integration suite; here we verify the DCC-owned contract headless: that ``apply_pre_gui_output``
-routes hook output correctly against Maya's own ``RenderSubmitterUISettings`` — which has no
-``.parameters`` list, so every hook parameter must land in the shared parameter values. This
-guards against a regression where ``RenderSubmitterUISettings`` gains a ``parameters`` attribute
-that would silently misroute hook parameters.
+integration suite; here we verify the DCC-owned pieces headless:
 
-``apply_pre_gui_output`` ships in deadline-cloud 0.60.1+; the module is skipped on older releases
-so this file collects cleanly regardless of the installed deadline-cloud version. The maya /
-qtpy modules are stubbed by the package ``__init__`` so imports resolve.
+* ``apply_pre_gui_output`` routes hook output correctly against Maya's own
+  ``RenderSubmitterUISettings`` — which has no ``.parameters`` list, so every hook parameter must
+  land in the shared parameter values. This guards against a regression where
+  ``RenderSubmitterUISettings`` gains a ``parameters`` attribute that would misroute hook params.
+* ``_pre_gui_hook_confirm_callback`` honours the ``settings.auto_accept`` setting.
+
+The maya / qtpy modules are stubbed by the package ``__init__`` so imports resolve.
 """
 
-import pytest
+from unittest.mock import patch
 
-# apply_pre_gui_output ships in deadline-cloud 0.60.1+; skip cleanly on older releases.
-pre_gui_hooks = pytest.importorskip("deadline.client.ui.pre_gui_hooks")
-apply_pre_gui_output = pre_gui_hooks.apply_pre_gui_output
-
-from deadline.maya_submitter.data_classes import (  # noqa: E402  (after importorskip)
-    RenderSubmitterUISettings,
-)
+from deadline.client.ui.pre_gui_hooks import apply_pre_gui_output
+from deadline.maya_submitter.data_classes import RenderSubmitterUISettings
+from deadline.maya_submitter import maya_render_submitter
 
 
 def _settings() -> RenderSubmitterUISettings:
@@ -92,3 +88,23 @@ def test_partial_output_only_touches_present_keys():
     assert settings.name == "NewName"
     assert settings.description == "keep me"  # not overwritten
     assert shared == {}  # no parameters in output
+
+
+@patch.object(maya_render_submitter, "get_setting", return_value="true")
+def test_confirm_callback_none_when_auto_accept_enabled(mock_get_setting):
+    """With settings.auto_accept enabled, hooks run without a confirmation prompt."""
+    assert maya_render_submitter._pre_gui_hook_confirm_callback(parent=None) is None
+    mock_get_setting.assert_called_once_with("settings.auto_accept")
+
+
+@patch("deadline.client.ui.pre_gui_hooks.qt_hook_confirmation")
+@patch.object(maya_render_submitter, "get_setting", return_value="false")
+def test_confirm_callback_prompts_when_auto_accept_disabled(mock_get_setting, mock_qt_confirm):
+    """With settings.auto_accept disabled, the standard Qt confirmation callback is used."""
+    sentinel = object()
+    mock_qt_confirm.return_value = sentinel
+
+    result = maya_render_submitter._pre_gui_hook_confirm_callback(parent="mainwin")
+
+    assert result is sentinel
+    mock_qt_confirm.assert_called_once_with("mainwin")

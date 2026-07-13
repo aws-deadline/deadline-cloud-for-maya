@@ -915,6 +915,21 @@ def on_create_job_bundle_callback(
     }
 
 
+def _pre_gui_hook_confirm_callback(parent):
+    """Choose the confirmation callback for pre-GUI hooks based on the auto_accept setting.
+
+    Returns ``None`` (run hooks without prompting) when ``settings.auto_accept`` is enabled,
+    otherwise the standard Qt confirmation dialog from ``qt_hook_confirmation``. Kept as a small
+    helper so the auto_accept branch can be unit-tested headlessly.
+    """
+    if str2bool(get_setting("settings.auto_accept")):
+        return None
+
+    from deadline.client.ui.pre_gui_hooks import qt_hook_confirmation
+
+    return qt_hook_confirmation(parent)
+
+
 def show_maya_render_submitter(
     parent, f=Qt.WindowFlags(), load_sticky_setting: bool = False
 ) -> Optional[SubmitJobToDeadlineDialog]:
@@ -1035,16 +1050,12 @@ def show_maya_render_submitter(
     # Imported lazily (like qtpy above) rather than at module top: this ships in deadline-cloud
     # 0.60.1+, and a top-level import would break importing this module — and every unit test that
     # collects it — against older deadline-cloud releases.
-    from deadline.client.ui.pre_gui_hooks import (  # pylint: disable=import-error
+    from deadline.client.ui.pre_gui_hooks import (
         PreGuiHookContext,
         apply_pre_gui_output,
-        qt_hook_confirmation,
         run_pre_gui_hooks,
     )
 
-    confirm_callback = (
-        None if str2bool(get_setting("settings.auto_accept")) else qt_hook_confirmation(parent)
-    )
     pre_gui_output = run_pre_gui_hooks(
         PreGuiHookContext(
             bundle_dir=None,
@@ -1052,7 +1063,7 @@ def show_maya_render_submitter(
             submitter_name="maya",
             parameters=dict(shared_parameter_values),
         ),
-        confirm_callback=confirm_callback,
+        confirm_callback=_pre_gui_hook_confirm_callback(parent),
     )
     # RenderSubmitterUISettings has no `.parameters` list, so apply_pre_gui_output routes
     # name/description onto it and every hook parameter into shared_parameter_values.
