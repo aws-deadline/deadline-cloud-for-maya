@@ -22,7 +22,7 @@ from deadline.client.ui.dialogs.submit_job_to_deadline_dialog import (  # pylint
     SubmitJobToDeadlineDialog,
     JobBundlePurpose,
 )
-from deadline.client.exceptions import DeadlineOperationError
+from deadline.client.exceptions import DeadlineOperationCanceled, DeadlineOperationError
 from qtpy.QtCore import Qt  # type: ignore
 
 from . import Animation, Scene  # type: ignore
@@ -1056,18 +1056,27 @@ def show_maya_render_submitter(
         run_pre_gui_hooks,
     )
 
-    pre_gui_output = run_pre_gui_hooks(
-        PreGuiHookContext(
-            bundle_dir=None,
-            job_name=render_settings.name,
-            submitter_name="maya",
-            parameters=dict(shared_parameter_values),
-        ),
-        confirm_callback=_pre_gui_hook_confirm_callback(parent),
-    )
+    try:
+        pre_gui_output = run_pre_gui_hooks(
+            PreGuiHookContext(
+                bundle_dir=None,
+                job_name=render_settings.name,
+                submitter_name="maya",
+                parameters=dict(shared_parameter_values),
+            ),
+            confirm_callback=_pre_gui_hook_confirm_callback(parent),
+        )
+    except DeadlineOperationCanceled:
+        # The user declined the hook confirmation prompt. This is a normal cancellation, not a
+        # failure, so abort opening the submitter silently rather than letting the exception reach
+        # the caller's gui_error_handler (which would show a spurious "Error opening..." dialog).
+        # Mirrors the check_and_show_update_dialog() early-return; both callers handle None.
+        return None
     # RenderSubmitterUISettings has no `.parameters` list, so apply_pre_gui_output routes
-    # name/description onto it and every hook parameter into shared_parameter_values.
-    apply_pre_gui_output(pre_gui_output, render_settings, shared_parameter_values)
+    # name/description onto it and every hook parameter into shared_parameter_values. Guard with
+    # `or {}` defensively: run_pre_gui_hooks returns {} when no hooks run, but this keeps the call
+    # safe if a future release returns None instead.
+    apply_pre_gui_output(pre_gui_output or {}, render_settings, shared_parameter_values)
 
     submitter_dialog = SubmitJobToDeadlineDialog(
         job_setup_widget_type=SceneSettingsWidget,

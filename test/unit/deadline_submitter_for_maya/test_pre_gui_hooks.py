@@ -12,13 +12,17 @@ integration suite; here we verify the DCC-owned pieces headless:
   land in the shared parameter values. This guards against a regression where
   ``RenderSubmitterUISettings`` gains a ``parameters`` attribute that would misroute hook params.
 * ``_pre_gui_hook_confirm_callback`` honours the ``settings.auto_accept`` setting.
+* Declining the hook confirmation (``DeadlineOperationCanceled``) aborts the open silently
+  rather than surfacing a spurious error dialog.
 
 The maya / qtpy modules are stubbed by the package ``__init__`` so imports resolve.
 """
 
 import sys
-from unittest.mock import patch
+from typing import Optional
+from unittest.mock import MagicMock, patch
 
+from deadline.client.exceptions import DeadlineOperationCanceled
 from deadline.client.ui.pre_gui_hooks import apply_pre_gui_output
 from deadline.maya_submitter.data_classes import RenderSubmitterUISettings
 from deadline.maya_submitter import maya_render_submitter
@@ -91,6 +95,23 @@ def test_partial_output_only_touches_present_keys():
     assert shared == {}  # no parameters in output
 
 
+def test_falsy_output_is_a_noop():
+    """The submitter passes ``pre_gui_output or {}`` into apply_pre_gui_output, so the values
+    run_pre_gui_hooks can actually produce for the no-hooks path — ``{}`` today, or ``None`` if
+    the contract ever changed — must both be safe no-ops that leave settings/shared untouched."""
+    falsy_values: list[Optional[dict]] = [{}, None]
+    for falsy in falsy_values:
+        settings = _settings()
+        shared = {"RezPackages": "mayaIO-2024 deadline_cloud_for_maya"}
+
+        # Mirror the submitter call site: `pre_gui_output or {}`.
+        apply_pre_gui_output(falsy or {}, settings, shared)
+
+        assert settings.name == "Original"
+        assert settings.description == ""
+        assert shared == {"RezPackages": "mayaIO-2024 deadline_cloud_for_maya"}
+
+
 @patch.object(maya_render_submitter, "get_setting", return_value="true")
 def test_confirm_callback_none_when_auto_accept_enabled(mock_get_setting):
     """With settings.auto_accept enabled, hooks run without a confirmation prompt."""
@@ -127,3 +148,42 @@ def test_confirmation_dialog_fires_when_auto_accept_disabled(mock_get_setting, m
     assert mock_msgbox.question.call_args[0][0] == "mainwin"
     # "Yes" reply → proceed.
     assert result is True
+
+
+# ``run_pre_gui_hooks`` is imported lazily from ``deadline.client.ui.pre_gui_hooks`` inside
+# ``show_maya_render_submitter``, so it must be patched on that source module (not on
+# ``maya_render_submitter``). The Maya-heavy setup that runs before the hook call is mocked out so
+# the test can reach the hook call headlessly; ``time`` is mocked so the progress-dialog sleeps are
+# instant.
+@patch("deadline.maya_submitter.maya_render_submitter.time")
+@patch("deadline.client.ui.pre_gui_hooks.run_pre_gui_hooks")
+@patch.object(maya_render_submitter, "SubmitJobToDeadlineDialog")
+@patch.object(maya_render_submitter, "_pre_gui_hook_confirm_callback", return_value=None)
+@patch.object(maya_render_submitter, "get_deadline_cloud_library_telemetry_client")
+@patch.object(maya_render_submitter, "AssetIntrospector")
+@patch.object(maya_render_submitter, "_populate_selectable_cameras")
+@patch.object(maya_render_submitter, "_set_render_layer_data", return_value=[])
+@patch.object(maya_render_submitter, "_set_render_setting")
+def test_declining_hook_confirmation_aborts_without_error(
+    mock_set_render_setting,
+    mock_set_render_layer_data,
+    mock_populate_cameras,
+    mock_introspector,
+    mock_telemetry,
+    mock_confirm_cb,
+    mock_dialog,
+    mock_run_hooks,
+    mock_time,
+):
+    """Declining the hook prompt (DeadlineOperationCanceled) returns None and never builds the
+    dialog, so the outer gui_error_handler cannot surface a spurious error dialog."""
+    mock_set_render_setting.return_value = _settings()
+    mock_introspector.return_value.parse_scene_assets.return_value = []
+    # The user clicks "No" on the confirmation prompt.
+    mock_run_hooks.side_effect = DeadlineOperationCanceled("user declined")
+
+    result = maya_render_submitter.show_maya_render_submitter(parent=MagicMock())
+
+    assert result is None
+    mock_run_hooks.assert_called_once()
+    mock_dialog.assert_not_called()  # dialog must not be built on cancellation
