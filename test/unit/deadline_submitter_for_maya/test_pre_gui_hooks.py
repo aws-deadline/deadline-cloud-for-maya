@@ -97,14 +97,26 @@ def test_confirm_callback_none_when_auto_accept_enabled(mock_get_setting):
     mock_get_setting.assert_called_once_with("settings.auto_accept")
 
 
-@patch("deadline.client.ui.pre_gui_hooks.qt_hook_confirmation")
+@patch("qtpy.QtWidgets.QMessageBox")
 @patch.object(maya_render_submitter, "get_setting", return_value="false")
-def test_confirm_callback_prompts_when_auto_accept_disabled(mock_get_setting, mock_qt_confirm):
-    """With settings.auto_accept disabled, the standard Qt confirmation callback is used."""
-    sentinel = object()
-    mock_qt_confirm.return_value = sentinel
+def test_confirmation_dialog_fires_when_auto_accept_disabled(mock_get_setting, mock_msgbox):
+    """With settings.auto_accept disabled, invoking the returned callback actually shows the
+    confirmation dialog (QMessageBox.question), parented to the passed-in window.
 
-    result = maya_render_submitter._pre_gui_hook_confirm_callback(parent="mainwin")
+    This exercises the real ``qt_hook_confirmation`` callback rather than mocking it out, so it
+    verifies the prompt fires — not merely that a non-None callback was selected. ``run_pre_gui_hooks``
+    invokes ``confirm_callback(sources)`` with the hook sources; an empty list is enough to reach
+    the dialog. The user's answer is mapped from the QMessageBox reply.
+    """
+    mock_msgbox.question.return_value = mock_msgbox.Yes
 
-    assert result is sentinel
-    mock_qt_confirm.assert_called_once_with("mainwin")
+    callback = maya_render_submitter._pre_gui_hook_confirm_callback(parent="mainwin")
+    assert callback is not None
+
+    result = callback([])  # no hook sources needed to reach the dialog
+
+    assert mock_msgbox.question.call_count == 1
+    # The dialog is parented to the window passed into the submitter.
+    assert mock_msgbox.question.call_args[0][0] == "mainwin"
+    # "Yes" reply → proceed.
+    assert result is True
