@@ -48,7 +48,9 @@ def _get_prefix_attribute() -> str:
     renderer-specific node is unavailable.
     """
     renderer = maya.cmds.getAttr("defaultRenderGlobals.currentRenderer")
-    prefix_attribute = _RENDERER_PREFIX_ATTRIBUTES.get(renderer, _DEFAULT_PREFIX_ATTRIBUTE)
+    prefix_attribute = _RENDERER_PREFIX_ATTRIBUTES.get(
+        renderer, _DEFAULT_PREFIX_ATTRIBUTE
+    )
 
     # Guard against the renderer-specific node not existing (e.g. the plugin
     # isn't loaded yet). Without this, getAttr would raise during submission.
@@ -59,7 +61,7 @@ def _get_prefix_attribute() -> str:
     return prefix_attribute
 
 
-def _get_base_output_prefix() -> str:
+def _get_base_output_prefix():
     """
     Retrieves the output prefix as specified in the scene.
     """
@@ -69,7 +71,7 @@ def _get_base_output_prefix() -> str:
     return "<Scene>"
 
 
-def get_output_prefix_with_tokens() -> str:
+def get_output_prefix_with_tokens():
     """
     Retrieves the Output Prefix adding in all missing tokens
     """
