@@ -15,14 +15,14 @@ from deadline.client.api import (
     get_deadline_cloud_library_telemetry_client,
     get_queue_parameter_definitions,
 )
-from deadline.client.config import get_setting
+from deadline.client.config import get_setting, str2bool
 from deadline.client.job_bundle.parameters import JobParameter
 from deadline.client.job_bundle._yaml import deadline_yaml_dump
 from deadline.client.ui.dialogs.submit_job_to_deadline_dialog import (  # pylint: disable=import-error
     SubmitJobToDeadlineDialog,
     JobBundlePurpose,
 )
-from deadline.client.exceptions import DeadlineOperationError
+from deadline.client.exceptions import DeadlineOperationCanceled, DeadlineOperationError
 from qtpy.QtCore import Qt  # type: ignore
 
 from . import Animation, Scene  # type: ignore
@@ -915,6 +915,21 @@ def on_create_job_bundle_callback(
     }
 
 
+def _pre_gui_hook_confirm_callback(parent):
+    """Choose the confirmation callback for pre-GUI hooks based on the auto_accept setting.
+
+    Returns ``None`` (run hooks without prompting) when ``settings.auto_accept`` is enabled,
+    otherwise the standard Qt confirmation dialog from ``qt_hook_confirmation``. Kept as a small
+    helper so the auto_accept branch can be unit-tested headlessly.
+    """
+    if str2bool(get_setting("settings.auto_accept")):
+        return None
+
+    from deadline.client.ui.pre_gui_hooks import qt_hook_confirmation
+
+    return qt_hook_confirmation(parent)
+
+
 def show_maya_render_submitter(
     parent, f=Qt.WindowFlags(), load_sticky_setting: bool = False
 ) -> Optional[SubmitJobToDeadlineDialog]:
@@ -1022,13 +1037,51 @@ def show_maya_render_submitter(
     progress_dialog.close()
     print("Progress dialog closed, creating submission dialog")
 
+    shared_parameter_values = {
+        "RezPackages": rez_packages,
+        "CondaPackages": conda_packages,
+    }
+
+    # Run pre-GUI hooks so studios can pre-populate dialog fields before it opens. Maya has no
+    # on-disk job bundle at this point, so hooks are sourced from DEADLINE_HOOKS_DIR only
+    # (bundle_dir=None), gated by settings.allow_environment_hooks. The confirmation prompt is
+    # skipped when auto_accept is set; otherwise the standard dialog is shown.
+    #
+    # Imported lazily (like qtpy above) rather than at module top: this ships in deadline-cloud
+    # 0.60.1+, and a top-level import would break importing this module — and every unit test that
+    # collects it — against older deadline-cloud releases.
+    from deadline.client.ui.pre_gui_hooks import (
+        PreGuiHookContext,
+        apply_pre_gui_output,
+        run_pre_gui_hooks,
+    )
+
+    try:
+        pre_gui_output = run_pre_gui_hooks(
+            PreGuiHookContext(
+                bundle_dir=None,
+                job_name=render_settings.name,
+                submitter_name="maya",
+                parameters=dict(shared_parameter_values),
+            ),
+            confirm_callback=_pre_gui_hook_confirm_callback(parent),
+        )
+    except DeadlineOperationCanceled:
+        # The user declined the hook confirmation prompt. This is a normal cancellation, not a
+        # failure, so abort opening the submitter silently rather than letting the exception reach
+        # the caller's gui_error_handler (which would show a spurious "Error opening..." dialog).
+        # Mirrors the check_and_show_update_dialog() early-return; both callers handle None.
+        return None
+    # RenderSubmitterUISettings has no `.parameters` list, so apply_pre_gui_output routes
+    # name/description onto it and every hook parameter into shared_parameter_values. Guard with
+    # `or {}` defensively: run_pre_gui_hooks returns {} when no hooks run, but this keeps the call
+    # safe if a future release returns None instead.
+    apply_pre_gui_output(pre_gui_output or {}, render_settings, shared_parameter_values)
+
     submitter_dialog = SubmitJobToDeadlineDialog(
         job_setup_widget_type=SceneSettingsWidget,
         initial_job_settings=render_settings,
-        initial_shared_parameter_values={
-            "RezPackages": rez_packages,
-            "CondaPackages": conda_packages,
-        },
+        initial_shared_parameter_values=shared_parameter_values,
         auto_detected_attachments=auto_detected_attachments,
         attachments=attachments,
         on_create_job_bundle_callback=on_create_job_bundle_callback,

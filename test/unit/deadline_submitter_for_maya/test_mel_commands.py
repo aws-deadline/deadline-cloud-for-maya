@@ -12,7 +12,7 @@ from qtpy.QtWidgets import (  # type: ignore
 @patch("deadline.maya_submitter.mel_commands.check_and_show_update_dialog", return_value=False)
 @patch.object(QApplication, "instance")
 @patch.object(om.MGlobal, "mayaState")
-def test_deadline_cloud_submitter_cmd_sticky_setting_load_only_once(
+def test_deadline_cloud_submitter_cmd_sticky_setting_loaded_on_every_open(
     mock_maya_state: Mock,
     mock_q_app: Mock,
     mock_update_check: Mock,
@@ -36,6 +36,6 @@ def test_deadline_cloud_submitter_cmd_sticky_setting_load_only_once(
     DeadlineCloudSubmitterCmd.doIt(Mock())
 
     mock_show_maya_render_submitter.assert_called_with(
-        parent=maya_widget, f=Qt.Tool, load_sticky_setting=False
+        parent=maya_widget, f=Qt.Tool, load_sticky_setting=True
     )
     submitter_dialog.close.assert_called_once()
