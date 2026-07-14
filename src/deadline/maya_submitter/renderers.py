@@ -59,7 +59,7 @@ def _get_prefix_attribute() -> str:
     return prefix_attribute
 
 
-def _get_base_output_prefix():
+def _get_base_output_prefix() -> str:
     """
     Retrieves the output prefix as specified in the scene.
     """
@@ -69,7 +69,7 @@ def _get_base_output_prefix():
     return "<Scene>"
 
 
-def get_output_prefix_with_tokens():
+def get_output_prefix_with_tokens() -> str:
     """
     Retrieves the Output Prefix adding in all missing tokens
     """
