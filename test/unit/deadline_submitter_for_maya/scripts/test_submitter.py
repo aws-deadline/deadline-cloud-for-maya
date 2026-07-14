@@ -231,3 +231,129 @@ class TestCameraPopulation:
             "middle_cam",
             "zebra_cam",
         ]
+
+
+class TestCondaChannelHostRequirement:
+    """Tests for _augment_host_requirements_for_conda_channel.
+
+    The "deadline-cloud" conda channel only ships Linux Maya packages, so a job that
+    relies solely on it must be constrained to Linux fleets.
+    """
+
+    @pytest.fixture(autouse=True)
+    def mock_maya_modules(self):
+        """Mock Maya modules so we can import the submitter module."""
+        mocks = {
+            "maya": Mock(),
+            "maya.cmds": Mock(),
+            "maya.mel": Mock(),
+            "maya.app": Mock(),
+            "maya.app.renderSetup": Mock(),
+            "maya.app.renderSetup.model": Mock(),
+            "maya.app.renderSetup.model.renderSetupPreferences": Mock(),
+        }
+        saved = {}
+        added = []
+        for mod_name, mock_obj in mocks.items():
+            if mod_name in sys.modules:
+                saved[mod_name] = sys.modules[mod_name]
+            else:
+                added.append(mod_name)
+            sys.modules[mod_name] = mock_obj
+
+        modules_to_clear = [
+            "deadline.maya_submitter.cameras",
+            "deadline.maya_submitter.render_layers",
+            "deadline.maya_submitter.data_classes",
+            "deadline.maya_submitter.maya_render_submitter",
+        ]
+        for mod_name in modules_to_clear:
+            if mod_name in sys.modules:
+                saved[mod_name] = sys.modules.pop(mod_name)
+
+        yield
+
+        for mod_name in added:
+            sys.modules.pop(mod_name, None)
+        for mod_name, original in saved.items():
+            if original is not None:
+                sys.modules[mod_name] = original
+            else:
+                sys.modules.pop(mod_name, None)
+
+    @staticmethod
+    def _augment(queue_parameters, host_requirements=None):
+        from deadline.maya_submitter.maya_render_submitter import (
+            _augment_host_requirements_for_conda_channel,
+        )
+
+        return _augment_host_requirements_for_conda_channel(queue_parameters, host_requirements)
+
+    def test_deadline_cloud_channel_adds_linux_requirement(self):
+        """The exact 'deadline-cloud' channel adds a Linux OS host requirement."""
+        result = self._augment([{"name": "CondaChannels", "value": "deadline-cloud"}], None)
+
+        assert result == {"attributes": [{"name": "attr.worker.os.family", "anyOf": ["linux"]}]}
+
+    def test_channel_read_from_default_when_no_value(self):
+        """The channel is read from 'default' when no explicit 'value' is set."""
+        result = self._augment([{"name": "CondaChannels", "default": "deadline-cloud"}], None)
+
+        assert result == {"attributes": [{"name": "attr.worker.os.family", "anyOf": ["linux"]}]}
+
+    def test_custom_channel_left_untouched(self):
+        """A custom channel may carry Windows packages, so no OS constraint is added."""
+        result = self._augment([{"name": "CondaChannels", "value": "my-custom-channel"}], None)
+
+        assert result is None
+
+    def test_deadline_cloud_with_extra_channel_left_untouched(self):
+        """When extra channels are present we cannot assume Linux-only, so leave it alone."""
+        result = self._augment(
+            [{"name": "CondaChannels", "value": "deadline-cloud conda-forge"}], None
+        )
+
+        assert result is None
+
+    def test_no_conda_channels_parameter_left_untouched(self):
+        """Without a CondaChannels parameter, host requirements are unchanged."""
+        sentinel = {"attributes": [{"name": "attr.worker.os.family", "anyOf": ["windows"]}]}
+        result = self._augment([{"name": "RezPackages", "value": "foo"}], sentinel)
+
+        assert result is sentinel
+
+    def test_merges_into_existing_host_requirements_without_mutating(self):
+        """Existing (non-OS) host requirements are preserved and the input isn't mutated."""
+        existing = {"amounts": [{"name": "amount.worker.vcpu", "min": 4}]}
+        result = self._augment([{"name": "CondaChannels", "value": "deadline-cloud"}], existing)
+
+        assert result == {
+            "amounts": [{"name": "amount.worker.vcpu", "min": 4}],
+            "attributes": [{"name": "attr.worker.os.family", "anyOf": ["linux"]}],
+        }
+        # The caller-owned dict must not be mutated.
+        assert "attributes" not in existing
+
+    def test_intersects_existing_os_constraint_to_linux(self):
+        """An existing OS anyOf that includes linux is narrowed to linux only."""
+        existing = {
+            "attributes": [
+                {"name": "attr.worker.os.family", "anyOf": ["linux", "windows"]},
+            ]
+        }
+        result = self._augment([{"name": "CondaChannels", "value": "deadline-cloud"}], existing)
+
+        assert result == {"attributes": [{"name": "attr.worker.os.family", "anyOf": ["linux"]}]}
+
+    def test_leaves_windows_only_constraint_alone(self):
+        """If the user explicitly required windows-only (no linux), we don't widen it."""
+        existing = {
+            "attributes": [
+                {"name": "attr.worker.os.family", "anyOf": ["windows"]},
+            ]
+        }
+        result = self._augment([{"name": "CondaChannels", "value": "deadline-cloud"}], existing)
+
+        # The job will not match any fleet, but that's the user's explicit choice;
+        # we never silently widen a constraint they set.
+        assert result == {"attributes": [{"name": "attr.worker.os.family", "anyOf": ["windows"]}]}
