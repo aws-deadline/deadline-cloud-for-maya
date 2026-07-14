@@ -8,6 +8,20 @@
  "max_worker_count": -1,
  "override_frame_range": true,
  "frame_list": "1-2",
+ "timeouts": {
+  "Task Run": {
+   "is_activated": false,
+   "seconds": 172800
+  },
+  "Maya Launch": {
+   "is_activated": true,
+   "seconds": 87000
+  },
+  "Maya Shutdown": {
+   "is_activated": true,
+   "seconds": 600
+  }
+ },
  "input_filenames": [],
  "input_directories": [],
  "output_directories": [],

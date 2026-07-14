@@ -3,6 +3,7 @@
 """
 Defines the Render submitter command which is registered in Maya.
 """
+
 from contextlib import contextmanager
 import os
 import tempfile
@@ -27,7 +28,6 @@ from deadline.client.ui import gui_error_handler
 from deadline.client.ui.dialogs import submit_job_to_deadline_dialog
 from deadline.client.exceptions import DeadlineOperationError
 from .maya_render_submitter import show_maya_render_submitter
-
 
 # The following functions expose a DCC interface to the job bundle output test logic.
 

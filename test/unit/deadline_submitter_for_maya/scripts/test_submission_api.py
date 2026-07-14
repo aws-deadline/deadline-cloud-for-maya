@@ -135,6 +135,71 @@ class TestGetJobTemplateForSubmission:
 
         assert result["steps"][0]["hostRequirements"] == host_requirements
 
+    def test_timeout_injected_into_steps(self):
+        """Activated timeout entries write their seconds to the matching action of every step."""
+        from deadline.maya_submitter.data_classes import RenderSubmitterUISettings
+        from deadline.maya_submitter.maya_render_submitter import (
+            get_job_template_for_submission,
+        )
+
+        settings = RenderSubmitterUISettings()
+        settings.name = "test_job"
+        settings.description = ""
+        settings.override_frame_range = False
+
+        # Modify the default timeouts with non-default, distinct values so the
+        # assertions cannot accidentally pass against the default seconds.
+        settings.timeouts.entries["Task Run"].is_activated = True
+        settings.timeouts.entries["Task Run"].seconds = 111
+        settings.timeouts.entries["Maya Launch"].is_activated = True
+        settings.timeouts.entries["Maya Launch"].seconds = 222
+        settings.timeouts.entries["Maya Shutdown"].is_activated = True
+        settings.timeouts.entries["Maya Shutdown"].seconds = 333
+
+        context = _make_context()
+
+        result = get_job_template_for_submission(settings, context=context)
+
+        assert result["steps"]
+        for step in result["steps"]:
+            env_actions = step["stepEnvironments"][0]["script"]["actions"]
+            # Task Run -> step script onRun
+            assert step["script"]["actions"]["onRun"]["timeout"] == 111
+            # Maya Launch / Shutdown -> step environment onEnter / onExit
+            assert env_actions["onEnter"]["timeout"] == 222
+            assert env_actions["onExit"]["timeout"] == 333
+
+    def test_deactivated_timeout_not_written_to_step(self):
+        """An entry with is_activated=False must not add a timeout to its action."""
+        from deadline.maya_submitter.data_classes import RenderSubmitterUISettings
+        from deadline.maya_submitter.maya_render_submitter import (
+            get_job_template_for_submission,
+        )
+
+        settings = RenderSubmitterUISettings()
+        settings.name = "test_job"
+        settings.description = ""
+        settings.override_frame_range = False
+
+        # Deactivate Task Run and Maya Shutdown; keep Maya Launch activated.
+        settings.timeouts.entries["Task Run"].is_activated = False
+        settings.timeouts.entries["Maya Launch"].is_activated = True
+        settings.timeouts.entries["Maya Launch"].seconds = 222
+        settings.timeouts.entries["Maya Shutdown"].is_activated = False
+
+        context = _make_context()
+
+        result = get_job_template_for_submission(settings, context=context)
+
+        assert result["steps"]
+        for step in result["steps"]:
+            env_actions = step["stepEnvironments"][0]["script"]["actions"]
+            # Deactivated entries -> no timeout key on the action at all.
+            assert "timeout" not in step["script"]["actions"]["onRun"]
+            assert "timeout" not in env_actions["onExit"]
+            # The one activated entry is still applied.
+            assert env_actions["onEnter"]["timeout"] == 222
+
     def test_creates_context_if_not_provided(self):
         from deadline.maya_submitter.data_classes import RenderSubmitterUISettings
         from deadline.maya_submitter.maya_render_submitter import (

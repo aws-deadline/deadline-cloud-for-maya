@@ -4,6 +4,7 @@
 Sets Maya's bin on PATH and renderer environment variables so the adaptor's
 subprocess can find mayapy and renderer plugins.
 """
+
 import os
 import platform
 import subprocess

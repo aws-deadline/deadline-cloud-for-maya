@@ -11,6 +11,7 @@ Use --renderers to select which renderers to install (default: none).
 On Windows, installs the pywin32 support DLLs so child processes (mayapy) can
 load win32file. This mirrors the pattern used by deadline-cloud-for-3ds-max.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -27,7 +28,6 @@ from typing import Sequence, TypedDict
 
 import boto3
 from botocore.config import Config
-
 
 # ---------------------------------------------------------------------------
 # Configuration types
@@ -969,6 +969,20 @@ def setup_windows(maya_versions: Sequence[str], renderers: Sequence[str]) -> Non
 
         print(f"Installing submitter for Maya {version}...")
         run(["hatch", "run", "install", "--maya-version", version])
+
+        print("Cleanup stale deadline, deadline-job-attachement if any for a clean environment")
+        run(
+            [
+                str(mayapy_exe),
+                "-m",
+                "pip",
+                "uninstall",
+                "-y",
+                "deadline",
+                "deadline-job-attachments",
+            ],
+            check=False,
+        )
 
         print(f"Installing integ test dependencies for Maya {version}...")
         run(

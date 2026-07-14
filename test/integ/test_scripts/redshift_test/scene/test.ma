@@ -530,7 +530,7 @@ select -ne :defaultLightSet;
 	setAttr -s 2 ".dsm";
 select -ne :defaultColorMgtGlobals;
 	setAttr ".cfe" yes;
-	setAttr ".cfp" -type "string" "/Applications/Autodesk/maya2025/Maya.app/Contents/Resources/OCIO-configs/Maya2022-default/config.ocio";
+	setAttr ".cfp" -type "string" "<MAYA_RESOURCES>/OCIO-configs/Maya2022-default/config.ocio";
 	setAttr ".vtn" -type "string" "Un-tone-mapped (sRGB)";
 	setAttr ".vn" -type "string" "Un-tone-mapped";
 	setAttr ".dn" -type "string" "sRGB";
