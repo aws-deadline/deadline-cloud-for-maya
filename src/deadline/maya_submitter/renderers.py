@@ -87,5 +87,4 @@ def get_output_prefix_with_tokens():
         token in prefix for token in _LAYER_TOKENS
     ):
         sections.appendleft("<Layer>")
-
     return "/".join(sections)
