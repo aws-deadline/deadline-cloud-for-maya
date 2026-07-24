@@ -9,7 +9,7 @@ mypy == 1.*; python_version < "3.10"
 mypy == 2.*; python_version >= "3.10"
 black == 25.*; python_version < "3.10"
 black == 26.*; python_version >= "3.10"
-ruff == 0.15.*
+ruff == 0.16.*
 moto[s3,sts] == 5.*
 pipgrip == 0.13.*
 types-pyyaml == 6.*
