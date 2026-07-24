@@ -162,11 +162,11 @@ def test_confirmation_dialog_fires_when_auto_accept_disabled(mock_get_setting, m
 @patch.object(maya_render_submitter, "get_deadline_cloud_library_telemetry_client")
 @patch.object(maya_render_submitter, "AssetIntrospector")
 @patch.object(maya_render_submitter, "_populate_selectable_cameras")
-@patch.object(maya_render_submitter, "_set_render_layer_data", return_value=[])
+@patch.object(maya_render_submitter, "_get_render_layer_data", return_value=[])
 @patch.object(maya_render_submitter, "_set_render_setting")
 def test_declining_hook_confirmation_aborts_without_error(
     mock_set_render_setting,
-    mock_set_render_layer_data,
+    mock_get_render_layer_data,
     mock_populate_cameras,
     mock_introspector,
     mock_telemetry,
