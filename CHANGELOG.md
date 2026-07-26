@@ -1,3 +1,10 @@
+## 0.15.17 (2026-07-21)
+
+### Features
+* The Maya render submitter now runs pre-GUI hooks before opening the submit dialog, allowing studios to pre-populate dialog fields via hooks defined in DEADLINE_HOOKS_DIR. (#437)
+
+### Bug Fixes
+* Sticky settings are now properly reloaded each time the submit dialog is reopened, ensuring user-set job parameters are restored while scene-derived fields remain up to date. (#434)
 ## 0.15.16 (2026-06-25)
 
 ### Features

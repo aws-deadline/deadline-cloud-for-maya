@@ -1,5 +1,13 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
+"""Tests for the Maya submission engine (deadline.maya_submitter.submitter).
+
+Drives the stateful ``MayaSubmitter`` and the module-level builders directly.
+The previous ``get_*_for_submission`` free-function wrappers were removed when
+the engine moved to ``submitter.py``; these tests inject a pre-built
+``MayaSceneContext`` so no live Maya scene is needed.
+"""
+
 import sys
 from unittest.mock import Mock, patch
 
@@ -31,10 +39,14 @@ def mock_maya_modules():
             added.append(mod_name)
         sys.modules[mod_name] = mock_obj
 
+    # Only clear the Qt-dependent UI modules so they re-import under the mocks
+    # above. Do NOT clear the engine modules (submitter, cameras, render_layers,
+    # data_classes): sibling test modules import those at module top, and
+    # popping+re-importing them here creates a second module object. Under
+    # pytest-xdist that leaves the sibling's top-level `MayaSubmitter` bound to
+    # the old object while `patch(...)` targets the new one, so the patches miss
+    # and the real Maya-querying code runs (flaky, worker-order dependent).
     modules_to_clear = [
-        "deadline.maya_submitter.cameras",
-        "deadline.maya_submitter.render_layers",
-        "deadline.maya_submitter.data_classes",
         "deadline.maya_submitter.maya_render_submitter",
         "deadline.maya_submitter.ui",
         "deadline.maya_submitter.ui.components",
@@ -64,7 +76,7 @@ def _make_render_layer(
     output_file_prefix="<Scene>",
     image_resolution=(1920, 1080),
 ):
-    from deadline.maya_submitter.maya_render_submitter import RenderLayerData
+    from deadline.maya_submitter.submitter import RenderLayerData
 
     return RenderLayerData(
         name=name,
@@ -84,68 +96,154 @@ def _make_render_layer(
 
 
 def _make_context(render_layers=None):
-    from deadline.maya_submitter.maya_render_submitter import SubmissionContext
+    from deadline.maya_submitter.submitter import MayaSceneContext
     from deadline.maya_submitter.cameras import ALL_CAMERAS
 
     if render_layers is None:
         render_layers = [_make_render_layer()]
 
-    return SubmissionContext(
+    return MayaSceneContext(
         render_layers=render_layers,
         current_layer_selectable_cameras=[ALL_CAMERAS, "persp"],
         all_layer_selectable_cameras=[ALL_CAMERAS, "persp"],
     )
 
 
-class TestGetJobTemplateForSubmission:
-    def test_returns_job_template_dict(self):
-        from deadline.maya_submitter.data_classes import RenderSubmitterUISettings
-        from deadline.maya_submitter.maya_render_submitter import (
-            get_job_template_for_submission,
+def _make_settings(**overrides):
+    """Build a MayaSubmitterSettings for engine tests.
+
+    Defaults mirror the old RenderSubmitterUISettings-based fixtures: a named
+    job with the frame-range override on so single-value assertions are stable.
+    """
+    from deadline.maya_submitter.submitter import MayaSubmitterSettings
+
+    settings = MayaSubmitterSettings()
+    settings.job_name = overrides.pop("job_name", "test_job")
+    settings.description = overrides.pop("description", "")
+    settings.override_frame_range = overrides.pop("override_frame_range", False)
+    for key, value in overrides.items():
+        setattr(settings, key, value)
+    return settings
+
+
+class TestGetSettings:
+    """Coverage for get_settings(), the default source of `settings` inside the
+    inherited get_submission_context() and thus the linchpin of the headless /
+    AYON submission path.
+    """
+
+    @staticmethod
+    def _patch_scene(scene_name="/proj/shot/scene.ma", project="/proj", output="/proj/images"):
+        scene_mock = Mock()
+        scene_mock.name.return_value = scene_name
+        scene_mock.project_path.return_value = project
+        scene_mock.output_path.return_value = output
+        anim_mock = Mock()
+        anim_mock.frame_list.return_value = "1-10"
+        return (
+            patch("deadline.maya_submitter.submitter.Scene", scene_mock),
+            patch("deadline.maya_submitter.submitter.Animation", anim_mock),
         )
 
-        settings = RenderSubmitterUISettings()
-        settings.name = "test_job"
-        settings.description = "A test job"
-        settings.override_frame_range = False
+    def test_get_settings_reads_scene(self):
+        from deadline.maya_submitter.submitter import MayaSubmitter, MayaSubmitterSettings
 
-        context = _make_context()
+        patches = self._patch_scene()
+        for p in patches:
+            p.start()
+        try:
+            settings = MayaSubmitter().get_settings()
+        finally:
+            for p in reversed(patches):
+                p.stop()
 
-        result = get_job_template_for_submission(settings, context=context)
+        assert isinstance(settings, MayaSubmitterSettings)
+        # job_name is the scene file's basename; scene-derived paths/frames flow through.
+        assert settings.job_name == "scene.ma"
+        assert settings.project_path == "/proj"
+        assert settings.output_path == "/proj/images"
+        assert settings.frame_list == "1-10"
+        # Attachment defaults derive from the scene.
+        assert settings.input_filenames == ["/proj/shot/scene.ma"]
+        assert settings.input_directories == ["/proj"]
+        assert settings.output_directories == ["/proj/images"]
+
+    def test_get_settings_unsaved_scene_defaults_job_name(self):
+        from deadline.maya_submitter.submitter import MayaSubmitter
+
+        # Unsaved scene → empty name/paths → job_name falls back to "Untitled"
+        # and the empty collections stay empty (no [""] entries).
+        patches = self._patch_scene(scene_name="", project="", output="")
+        for p in patches:
+            p.start()
+        try:
+            settings = MayaSubmitter().get_settings()
+        finally:
+            for p in reversed(patches):
+                p.stop()
+
+        assert settings.job_name == "Untitled"
+        assert settings.input_filenames == []
+        assert settings.input_directories == []
+        assert settings.output_directories == []
+
+    def test_headless_round_trip(self):
+        """get_settings() -> get_job_template() -> get_parameter_values() locks
+        down the headless contract end-to-end (a fresh submitter, scene context
+        injected so no live scan is needed).
+        """
+        from deadline.maya_submitter.submitter import MayaSubmitter
+
+        patches = self._patch_scene()
+        for p in patches:
+            p.start()
+        try:
+            submitter = MayaSubmitter(scene_context=_make_context())
+            settings = submitter.get_settings()
+            job_template = submitter.get_job_template(settings)
+            parameter_values = submitter.get_parameter_values(settings, [])
+        finally:
+            for p in reversed(patches):
+                p.stop()
+
+        assert job_template["name"] == "scene.ma"
+        assert isinstance(job_template.get("steps"), list) and job_template["steps"]
+        assert isinstance(parameter_values, list) and parameter_values
+        # ProjectPath/OutputFilePath parameter values reflect the scene-derived settings.
+        pv = {p["name"]: p["value"] for p in parameter_values if "name" in p and "value" in p}
+        assert pv.get("ProjectPath") == "/proj"
+        assert pv.get("OutputFilePath") == "/proj/images"
+
+
+class TestGetJobTemplate:
+    def test_returns_job_template_dict(self):
+        from deadline.maya_submitter.submitter import MayaSubmitter
+
+        settings = _make_settings(job_name="test_job", description="A test job")
+        submitter = MayaSubmitter(scene_context=_make_context())
+
+        result = submitter.get_job_template(settings)
 
         assert isinstance(result, dict)
         assert result["name"] == "test_job"
         assert result["description"] == "A test job"
 
     def test_host_requirements_injected_into_steps(self):
-        from deadline.maya_submitter.data_classes import RenderSubmitterUISettings
-        from deadline.maya_submitter.maya_render_submitter import (
-            get_job_template_for_submission,
-        )
+        from deadline.maya_submitter.submitter import MayaSubmitter
 
-        settings = RenderSubmitterUISettings()
-        settings.name = "test_job"
-        settings.description = ""
-        settings.override_frame_range = False
-
-        context = _make_context()
+        settings = _make_settings(job_name="test_job")
+        submitter = MayaSubmitter(scene_context=_make_context())
         host_requirements = {"amounts": [{"name": "amount.worker.vcpu", "min": 4}]}
 
-        result = get_job_template_for_submission(settings, host_requirements, context=context)
+        result = submitter.get_job_template(settings, host_requirements)
 
         assert result["steps"][0]["hostRequirements"] == host_requirements
 
     def test_timeout_injected_into_steps(self):
         """Activated timeout entries write their seconds to the matching action of every step."""
-        from deadline.maya_submitter.data_classes import RenderSubmitterUISettings
-        from deadline.maya_submitter.maya_render_submitter import (
-            get_job_template_for_submission,
-        )
+        from deadline.maya_submitter.submitter import MayaSubmitter
 
-        settings = RenderSubmitterUISettings()
-        settings.name = "test_job"
-        settings.description = ""
-        settings.override_frame_range = False
+        settings = _make_settings(job_name="test_job")
 
         # Modify the default timeouts with non-default, distinct values so the
         # assertions cannot accidentally pass against the default seconds.
@@ -156,9 +254,9 @@ class TestGetJobTemplateForSubmission:
         settings.timeouts.entries["Maya Shutdown"].is_activated = True
         settings.timeouts.entries["Maya Shutdown"].seconds = 333
 
-        context = _make_context()
+        submitter = MayaSubmitter(scene_context=_make_context())
 
-        result = get_job_template_for_submission(settings, context=context)
+        result = submitter.get_job_template(settings)
 
         assert result["steps"]
         for step in result["steps"]:
@@ -171,15 +269,9 @@ class TestGetJobTemplateForSubmission:
 
     def test_deactivated_timeout_not_written_to_step(self):
         """An entry with is_activated=False must not add a timeout to its action."""
-        from deadline.maya_submitter.data_classes import RenderSubmitterUISettings
-        from deadline.maya_submitter.maya_render_submitter import (
-            get_job_template_for_submission,
-        )
+        from deadline.maya_submitter.submitter import MayaSubmitter
 
-        settings = RenderSubmitterUISettings()
-        settings.name = "test_job"
-        settings.description = ""
-        settings.override_frame_range = False
+        settings = _make_settings(job_name="test_job")
 
         # Deactivate Task Run and Maya Shutdown; keep Maya Launch activated.
         settings.timeouts.entries["Task Run"].is_activated = False
@@ -187,9 +279,9 @@ class TestGetJobTemplateForSubmission:
         settings.timeouts.entries["Maya Launch"].seconds = 222
         settings.timeouts.entries["Maya Shutdown"].is_activated = False
 
-        context = _make_context()
+        submitter = MayaSubmitter(scene_context=_make_context())
 
-        result = get_job_template_for_submission(settings, context=context)
+        result = submitter.get_job_template(settings)
 
         assert result["steps"]
         for step in result["steps"]:
@@ -200,220 +292,211 @@ class TestGetJobTemplateForSubmission:
             # The one activated entry is still applied.
             assert env_actions["onEnter"]["timeout"] == 222
 
-    def test_creates_context_if_not_provided(self):
-        from deadline.maya_submitter.data_classes import RenderSubmitterUISettings
-        from deadline.maya_submitter.maya_render_submitter import (
-            get_job_template_for_submission,
-        )
+    def test_scans_scene_if_no_context_injected(self):
+        from deadline.maya_submitter.submitter import MayaSubmitter
 
-        settings = RenderSubmitterUISettings()
-        settings.name = "test_job"
-        settings.description = ""
-        settings.override_frame_range = False
-
+        settings = _make_settings(job_name="test_job")
         context = _make_context()
 
         with patch(
-            "deadline.maya_submitter.maya_render_submitter.create_submission_context",
+            "deadline.maya_submitter.submitter.create_scene_context",
             return_value=context,
         ) as mock_create:
-            get_job_template_for_submission(settings)
+            MayaSubmitter().get_job_template(settings)
 
         mock_create.assert_called_once()
 
+    def test_missing_wheels_dir_raises_runtimeerror(self):
+        """With include_adaptor_wheels on but no wheels dir, the guard must raise a
+        user-facing RuntimeError — not fall through to a bare FileNotFoundError from
+        os.listdir. Regression test for the previously-inverted guard
+        (`not exists and is_dir`, which was always False).
 
-class TestGetParameterValuesForSubmission:
-    def test_returns_parameter_values_list(self):
-        from deadline.maya_submitter.data_classes import RenderSubmitterUISettings
-        from deadline.maya_submitter.maya_render_submitter import (
-            get_parameter_values_for_submission,
+        Exercises the builder directly (single render layer) so the real default
+        template loads; only the wheels-dir existence check is stubbed absent.
+        """
+        from pathlib import Path
+
+        from deadline.maya_submitter.submitter import (
+            MayaSubmitter,
+            get_default_job_template,
         )
 
-        settings = RenderSubmitterUISettings()
-        settings.name = "test_job"
-        settings.override_frame_range = False
-        settings.frame_list = "1-10"
-        settings.project_path = "/tmp/project"
-        settings.output_path = "/tmp/output"
+        settings = _make_settings(job_name="test_job")
+        settings.include_adaptor_wheels = True
+        layer = _make_render_layer(renderer_name="mayaSoftware", frame_range="1")
 
-        context = _make_context()
+        # Make only the wheels directory look absent (the guard calls .exists() on
+        # the wheels Path). Other Path.exists() calls are unaffected.
+        real_exists = Path.exists
+
+        def fake_exists(self):
+            if self.name == "wheels":
+                return False
+            return real_exists(self)
+
+        with patch("deadline.maya_submitter.submitter.Path.exists", new=fake_exists):
+            with pytest.raises(RuntimeError, match="wheels directory does not exist"):
+                MayaSubmitter._get_job_template(
+                    default_job_template=get_default_job_template(),
+                    settings=settings,
+                    renderers={"mayaSoftware"},
+                    render_layers=[layer],
+                    all_layer_selectable_cameras=[],
+                    current_layer_selectable_cameras=[],
+                )
+
+
+class TestGetParameterValues:
+    def test_returns_parameter_values_list(self):
+        from deadline.maya_submitter.submitter import MayaSubmitter
+
+        settings = _make_settings(
+            job_name="test_job",
+            frame_list="1-10",
+            project_path="/tmp/project",
+            output_path="/tmp/output",
+        )
+        submitter = MayaSubmitter(scene_context=_make_context())
 
         with patch(
-            "deadline.maya_submitter.maya_render_submitter._get_parameter_values",
+            "deadline.maya_submitter.submitter.MayaSubmitter._get_parameter_values",
             return_value=[{"name": "Frames", "value": "1-10"}],
         ):
-            result = get_parameter_values_for_submission(settings, context=context)
+            result = submitter.get_parameter_values(settings, [])
 
         assert isinstance(result, list)
         assert result[0]["name"] == "Frames"
 
-    def test_queue_parameters_included(self):
-        from deadline.maya_submitter.data_classes import RenderSubmitterUISettings
-        from deadline.maya_submitter.maya_render_submitter import (
-            get_parameter_values_for_submission,
+    def test_queue_parameters_passed_through(self):
+        from deadline.maya_submitter.submitter import MayaSubmitter
+
+        settings = _make_settings(
+            job_name="test_job",
+            frame_list="1-10",
+            project_path="/tmp/project",
+            output_path="/tmp/output",
         )
-
-        settings = RenderSubmitterUISettings()
-        settings.name = "test_job"
-        settings.override_frame_range = False
-        settings.frame_list = "1-10"
-        settings.project_path = "/tmp/project"
-        settings.output_path = "/tmp/output"
-
-        context = _make_context()
+        submitter = MayaSubmitter(scene_context=_make_context())
         queue_params = [{"name": "CondaPackages", "value": "maya=2026.*"}]
 
         with patch(
-            "deadline.maya_submitter.maya_render_submitter._get_parameter_values",
+            "deadline.maya_submitter.submitter.MayaSubmitter._get_parameter_values",
         ) as mock_get_params:
             mock_get_params.return_value = [
                 {"name": "Frames", "value": "1-10"},
                 {"name": "CondaPackages", "value": "maya=2026.*"},
             ]
-            get_parameter_values_for_submission(settings, queue_params, context=context)
+            submitter.get_parameter_values(settings, queue_params)
 
-        # Verify queue_parameters were passed through
+        # Verify queue_parameters were passed through as the 4th positional arg.
         call_args = mock_get_params.call_args
         assert call_args[0][3] == queue_params
 
-    def test_creates_context_if_not_provided(self):
-        from deadline.maya_submitter.data_classes import RenderSubmitterUISettings
-        from deadline.maya_submitter.maya_render_submitter import (
-            get_parameter_values_for_submission,
+    def test_scans_scene_if_no_context_injected(self):
+        from deadline.maya_submitter.submitter import MayaSubmitter
+
+        settings = _make_settings(
+            job_name="test_job",
+            frame_list="1-10",
+            project_path="/tmp/project",
+            output_path="/tmp/output",
         )
-
-        settings = RenderSubmitterUISettings()
-        settings.name = "test_job"
-        settings.override_frame_range = False
-        settings.frame_list = "1-10"
-        settings.project_path = "/tmp/project"
-        settings.output_path = "/tmp/output"
-
         context = _make_context()
 
         with (
             patch(
-                "deadline.maya_submitter.maya_render_submitter.create_submission_context",
+                "deadline.maya_submitter.submitter.create_scene_context",
                 return_value=context,
             ) as mock_create,
             patch(
-                "deadline.maya_submitter.maya_render_submitter._get_parameter_values",
+                "deadline.maya_submitter.submitter.MayaSubmitter._get_parameter_values",
                 return_value=[],
             ),
         ):
-            get_parameter_values_for_submission(settings)
+            MayaSubmitter().get_parameter_values(settings, [])
 
         mock_create.assert_called_once()
 
 
-class TestGetAssetReferencesForSubmission:
-    def test_returns_dict(self):
+class TestGetAssetReferences:
+    def test_returns_asset_references(self):
+        """get_asset_references introspects the scene and classifies auto-detected
+        paths into input files vs directories (existing paths only), plus the scene
+        file itself. Returns the typed AssetReferences, not a dict.
+        """
         from deadline.client.job_bundle.submission import AssetReferences
-        from deadline.maya_submitter.maya_render_submitter import (
-            get_asset_references_for_submission,
-        )
+        from deadline.maya_submitter.submitter import MayaSubmitter
 
-        asset_refs = AssetReferences(
-            input_filenames={"scene.ma", "texture.png"},
-            input_directories={"/textures"},
-            output_directories={"/renders"},
-        )
+        settings = _make_settings(output_directories=["/renders"])
+        # Injected context → no real scene scan for the output-dir collection.
+        submitter = MayaSubmitter(scene_context=_make_context())
 
-        result = get_asset_references_for_submission(asset_refs)
+        with (
+            patch("deadline.maya_submitter.submitter.Scene") as scene_mock,
+            patch("deadline.maya_submitter.submitter.AssetIntrospector") as introspector,
+            patch("deadline.maya_submitter.submitter.os.path.exists", return_value=True),
+            patch(
+                "deadline.maya_submitter.submitter.os.path.isdir",
+                side_effect=lambda p: p == "/textures",
+            ),
+        ):
+            scene_mock.name.return_value = "scene.ma"
+            introspector.return_value.parse_scene_assets.return_value = [
+                "/textures",  # a directory
+                "/assets/wood.png",  # a file
+            ]
+            result = submitter.get_asset_references(settings)
 
-        assert isinstance(result, dict)
-        assert "inputFilenames" in result or "assetReferences" in result or len(result) > 0
+        assert isinstance(result, AssetReferences)
+        # scene file + introspected file are inputs; the directory is an input dir.
+        assert "scene.ma" in result.input_filenames
+        assert "/assets/wood.png" in result.input_filenames
+        assert "/textures" in result.input_directories
 
-    def test_preserves_asset_data(self):
+    def test_drops_nonexistent_introspected_paths(self):
+        """Auto-detected paths that don't exist on disk cannot be uploaded and are dropped."""
         from deadline.client.job_bundle.submission import AssetReferences
-        from deadline.maya_submitter.maya_render_submitter import (
-            get_asset_references_for_submission,
-        )
+        from deadline.maya_submitter.submitter import MayaSubmitter
 
-        asset_refs = AssetReferences(
-            input_filenames={"scene.ma"},
-            input_directories=set(),
-            output_directories={"/renders"},
-        )
-
-        result = get_asset_references_for_submission(asset_refs)
-
-        assert isinstance(result, dict)
-
-
-class TestGetQueueParameters:
-    def test_uses_default_settings_when_no_overrides(self):
-        from deadline.maya_submitter.maya_render_submitter import get_queue_parameters
+        settings = _make_settings(output_directories=["/renders"])
+        submitter = MayaSubmitter(scene_context=_make_context())
 
         with (
-            patch(
-                "deadline.maya_submitter.maya_render_submitter.get_setting",
-                side_effect=lambda key: "farm-123" if "farm" in key else "queue-456",
-            ),
-            patch(
-                "deadline.maya_submitter.maya_render_submitter.get_queue_parameter_definitions",
-                return_value=[{"name": "CondaPackages", "value": "maya=2026.*"}],
-            ) as mock_get_params,
+            patch("deadline.maya_submitter.submitter.Scene") as scene_mock,
+            patch("deadline.maya_submitter.submitter.AssetIntrospector") as introspector,
+            patch("deadline.maya_submitter.submitter.os.path.exists", return_value=False),
         ):
-            result = get_queue_parameters()
+            scene_mock.name.return_value = "scene.ma"
+            introspector.return_value.parse_scene_assets.return_value = ["/missing/tex.png"]
+            result = submitter.get_asset_references(settings)
 
-        mock_get_params.assert_called_once_with(farmId="farm-123", queueId="queue-456")
-        assert result == [{"name": "CondaPackages", "value": "maya=2026.*"}]
+        assert isinstance(result, AssetReferences)
+        assert "/missing/tex.png" not in result.input_filenames
+        assert "/missing/tex.png" not in result.input_directories
 
-    def test_uses_override_ids(self):
-        from deadline.maya_submitter.maya_render_submitter import get_queue_parameters
+    def test_output_directories_combine_settings_and_layers(self):
+        """Output dirs = settings.output_directories ∪ each render layer's output_directories."""
+        from deadline.client.job_bundle.submission import AssetReferences
+        from deadline.maya_submitter.submitter import MayaSubmitter
+
+        settings = _make_settings(output_directories=["/renders"])
+        # Layer carries its own scene-derived output dir (see _make_render_layer).
+        context = _make_context([_make_render_layer()])
+        submitter = MayaSubmitter(scene_context=context)
 
         with (
-            patch(
-                "deadline.maya_submitter.maya_render_submitter.get_setting",
-            ) as mock_setting,
-            patch(
-                "deadline.maya_submitter.maya_render_submitter.get_queue_parameter_definitions",
-                return_value=[{"name": "CondaPackages", "value": ""}],
-            ) as mock_get_params,
+            patch("deadline.maya_submitter.submitter.Scene") as scene_mock,
+            patch("deadline.maya_submitter.submitter.AssetIntrospector") as introspector,
         ):
-            get_queue_parameters(
-                farm_id_override="farm-override", queue_id_override="queue-override"
-            )
+            scene_mock.name.return_value = "scene.ma"
+            introspector.return_value.parse_scene_assets.return_value = []
+            result = submitter.get_asset_references(settings)
 
-        mock_setting.assert_not_called()
-        mock_get_params.assert_called_once_with(farmId="farm-override", queueId="queue-override")
-
-    def test_applies_initial_values_override(self):
-        from deadline.maya_submitter.maya_render_submitter import get_queue_parameters
-
-        with (
-            patch(
-                "deadline.maya_submitter.maya_render_submitter.get_setting",
-                side_effect=lambda key: "farm-123" if "farm" in key else "queue-456",
-            ),
-            patch(
-                "deadline.maya_submitter.maya_render_submitter.get_queue_parameter_definitions",
-                return_value=[
-                    {"name": "CondaPackages", "value": ""},
-                    {"name": "OtherParam", "value": "default"},
-                ],
-            ),
-        ):
-            result = get_queue_parameters(
-                initial_values_override={"CondaPackages": "maya=2026.* maya-mtoa"}
-            )
-
-        assert result[0]["value"] == "maya=2026.* maya-mtoa"
-        assert result[1]["value"] == "default"
-
-    def test_raises_error_when_ids_not_configured(self):
-        from deadline.client.exceptions import DeadlineOperationError
-        from deadline.maya_submitter.maya_render_submitter import get_queue_parameters
-
-        with (
-            patch(
-                "deadline.maya_submitter.maya_render_submitter.get_setting",
-                return_value="",
-            ),
-            pytest.raises(DeadlineOperationError),
-        ):
-            get_queue_parameters()
+        assert isinstance(result, AssetReferences)
+        # settings default + the layer's /tmp/renders (from _make_render_layer).
+        assert "/renders" in result.output_directories
+        assert "/tmp/renders" in result.output_directories
 
 
 class TestOCIOInJobBundle:
@@ -433,17 +516,14 @@ class TestOCIOInJobBundle:
 
     @staticmethod
     def _build_settings():
-        """Build a RenderSubmitterUISettings populated for parameter generation."""
-        from deadline.maya_submitter.data_classes import RenderSubmitterUISettings
-
-        settings = RenderSubmitterUISettings()
-        settings.name = "test_job"
-        settings.description = ""
-        settings.override_frame_range = True
-        settings.frame_list = "1"
-        settings.project_path = "/tmp/project"
-        settings.output_path = "/tmp/output"
-        return settings
+        """Build a MayaSubmitterSettings populated for parameter generation."""
+        return _make_settings(
+            job_name="test_job",
+            override_frame_range=True,
+            frame_list="1",
+            project_path="/tmp/project",
+            output_path="/tmp/output",
+        )
 
     @staticmethod
     def _patch_scene(ocio_return_value):
@@ -457,17 +537,17 @@ class TestOCIOInJobBundle:
         scene_mock.error_on_arnold_license_fail.return_value = True
 
         return [
-            patch("deadline.maya_submitter.maya_render_submitter.Scene", scene_mock),
+            patch("deadline.maya_submitter.submitter.Scene", scene_mock),
             patch(
-                "deadline.maya_submitter.maya_render_submitter.render_setup_include_all_lights",
+                "deadline.maya_submitter.submitter.render_setup_include_all_lights",
                 return_value=True,
             ),
             patch(
-                "deadline.maya_submitter.maya_render_submitter.get_width",
+                "deadline.maya_submitter.submitter.get_width",
                 return_value=1920,
             ),
             patch(
-                "deadline.maya_submitter.maya_render_submitter.get_height",
+                "deadline.maya_submitter.submitter.get_height",
                 return_value=1080,
             ),
         ]
@@ -479,21 +559,19 @@ class TestOCIOInJobBundle:
         declare the parameter as a HIDDEN PATH with default=''. This
         is the customer state that triggered the 0.15.13 regression.
         """
-        from deadline.maya_submitter.maya_render_submitter import (
-            get_job_template_for_submission,
-            get_parameter_values_for_submission,
-        )
+        from deadline.maya_submitter.submitter import MayaSubmitter
 
         settings = self._build_settings()
         # Use mayaSoftware so the Arnold-specific branch is skipped.
         context = _make_context([_make_render_layer(renderer_name="mayaSoftware", frame_range="1")])
+        submitter = MayaSubmitter(scene_context=context)
 
         patches = self._patch_scene(ocio_return_value=None)
         for p in patches:
             p.start()
         try:
-            template = get_job_template_for_submission(settings, context=context)
-            param_values = get_parameter_values_for_submission(settings, context=context)
+            template = submitter.get_job_template(settings)
+            param_values = submitter.get_parameter_values(settings, [])
         finally:
             for p in reversed(patches):
                 p.stop()
@@ -518,19 +596,18 @@ class TestOCIOInJobBundle:
         add ``OCIOConfigFile`` to parameter_values with the path
         returned by ``Scene.ocio_config_file()``.
         """
-        from deadline.maya_submitter.maya_render_submitter import (
-            get_parameter_values_for_submission,
-        )
+        from deadline.maya_submitter.submitter import MayaSubmitter
 
         ocio_path = "/projects/show/aces_1.3/config.ocio"
         settings = self._build_settings()
         context = _make_context([_make_render_layer(renderer_name="mayaSoftware", frame_range="1")])
+        submitter = MayaSubmitter(scene_context=context)
 
         patches = self._patch_scene(ocio_return_value=ocio_path)
         for p in patches:
             p.start()
         try:
-            param_values = get_parameter_values_for_submission(settings, context=context)
+            param_values = submitter.get_parameter_values(settings, [])
         finally:
             for p in reversed(patches):
                 p.stop()
@@ -614,20 +691,18 @@ class TestOCIOInJobBundle:
             validate_job_parameter,
             validate_job_parameter_value,
         )
-        from deadline.maya_submitter.maya_render_submitter import (
-            get_job_template_for_submission,
-            get_parameter_values_for_submission,
-        )
+        from deadline.maya_submitter.submitter import MayaSubmitter
 
         settings = self._build_settings()
         context = _make_context([_make_render_layer(renderer_name="mayaSoftware", frame_range="1")])
+        submitter = MayaSubmitter(scene_context=context)
 
         patches = self._patch_scene(ocio_return_value=None)
         for p in patches:
             p.start()
         try:
-            template = get_job_template_for_submission(settings, context=context)
-            param_values = get_parameter_values_for_submission(settings, context=context)
+            template = submitter.get_job_template(settings)
+            param_values = submitter.get_parameter_values(settings, [])
         finally:
             for p in reversed(patches):
                 p.stop()
