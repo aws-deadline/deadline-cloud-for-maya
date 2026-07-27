@@ -18,7 +18,7 @@ import maya.cmds
 # Tells maya which version of their api to use.
 maya_useNewAPI = True
 VENDOR = "AWS"
-VERSION = "0.15.17"
+VERSION = "0.15.18"
 
 __log__ = logging.getLogger("Deadline")
 _registered_mel_commands: List[str] = []
