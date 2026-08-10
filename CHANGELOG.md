@@ -1,3 +1,7 @@
+## 0.15.18 (2026-07-27)
+
+### Features
+* Added a headless `MayaSubmitter` implementation based on the unified `BaseSubmitter`, allowing Maya to be driven through the shared submission contract alongside the existing native GUI submitter. (#435)
 ## 0.15.17 (2026-07-21)
 
 ### Features
