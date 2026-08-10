@@ -48,9 +48,7 @@ def _get_prefix_attribute() -> str:
     renderer-specific node is unavailable.
     """
     renderer = maya.cmds.getAttr("defaultRenderGlobals.currentRenderer")
-    prefix_attribute = _RENDERER_PREFIX_ATTRIBUTES.get(
-        renderer, _DEFAULT_PREFIX_ATTRIBUTE
-    )
+    prefix_attribute = _RENDERER_PREFIX_ATTRIBUTES.get(renderer, _DEFAULT_PREFIX_ATTRIBUTE)
 
     # Guard against the renderer-specific node not existing (e.g. the plugin
     # isn't loaded yet). Without this, getAttr would raise during submission.
