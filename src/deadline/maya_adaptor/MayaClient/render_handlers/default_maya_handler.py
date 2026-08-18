@@ -240,6 +240,23 @@ class DefaultMayaHandler:
             maya.cmds.workspace(path, openWorkspace=True)
             maya.cmds.workspace(directory=path)
 
+    def restrict_batch_render_to_layer(self, render_layer_name: str) -> None:
+        """
+        Restricts the next batch/sequence render command to a single render layer.
+
+        Switching the "current" render layer (editRenderLayerGlobals) only makes that
+        layer's Render Setup overrides active. It does not stop renderer-native batch
+        commands (arnoldRender/rsRender/vrend, or render(batch=True)) from walking every
+        renderable layer in the scene in one call. Maya's own setMayaSoftwareLayers proc
+        is what actually confines a render to one layer, and Deadline 10's MayaBatch
+        plugin called it for every renderer for this exact reason.
+
+        Args:
+            render_layer_name (str): The internal (non-display) name of the render layer
+                to restrict rendering to.
+        """
+        maya.mel.eval(f'setMayaSoftwareLayers("{render_layer_name}", "")')
+
     def set_render_layer(self, data: dict) -> None:
         """
         Sets the render layer.
@@ -253,6 +270,7 @@ class DefaultMayaHandler:
         render_layer_name = self.get_render_layer_to_render(data)
         if render_layer_name:
             self.render_kwargs["layer"] = render_layer_name
+            self.restrict_batch_render_to_layer(render_layer_name)
 
     def set_render_setup_include_lights(self, data: dict) -> None:
         """

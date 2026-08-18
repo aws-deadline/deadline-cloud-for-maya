@@ -1,6 +1,7 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
 import maya.cmds
+import maya.mel
 
 from .default_maya_handler import DefaultMayaHandler
 
@@ -73,3 +74,4 @@ class RedshiftHandler(DefaultMayaHandler):
         render_layer_name = self.get_render_layer_to_render(data)
         if render_layer_name:
             maya.cmds.editRenderLayerGlobals(currentRenderLayer=render_layer_name)
+            self.restrict_batch_render_to_layer(render_layer_name)

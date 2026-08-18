@@ -42,6 +42,29 @@ class TestDefaultMayaHandler:
         )
     ]
 
+    @patch(
+        "deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.mel.eval"
+    )
+    def test_set_render_layer_restricts_batch_render_to_the_layer(
+        self, mock_mel_eval: Mock, mayahandlerbase: DefaultMayaHandler
+    ):
+        """
+        Tests that setting the render layer sets the 'layer' render kwarg AND calls Maya's
+        native setMayaSoftwareLayers proc to restrict the upcoming batch render to that one
+        layer. Without this, render(batch=True)-style calls can still process every
+        renderable layer in the scene, not just the requested one.
+        """
+        # GIVEN
+        with patch.object(
+            mayahandlerbase, "get_render_layer_to_render", return_value="layer1"
+        ):
+            # WHEN
+            mayahandlerbase.set_render_layer({"render_layer": "layer1"})
+
+        # THEN
+        assert mayahandlerbase.render_kwargs["layer"] == "layer1"
+        mock_mel_eval.assert_called_once_with('setMayaSoftwareLayers("layer1", "")')
+
     @pytest.mark.parametrize("args", [{"path_mapping_rules": {}}])
     @patch.object(DirectoryMapping.mappings, "__setitem__")
     @patch.object(DirectoryMapping, "set_activated")

@@ -47,6 +47,26 @@ class TestVrayHandler:
         # THEN
         assert handler.image_width == args["image_width"]
 
+    @patch("deadline.maya_adaptor.MayaClient.render_handlers.vray_handler.maya.cmds")
+    def test_set_render_layer_restricts_batch_render_to_the_layer(self, mock_cmds) -> None:
+        """
+        Tests that setting the render layer both switches the current render layer AND
+        restricts the upcoming vrend batch call to that single layer. vrend does not take
+        a 'layer' kwarg, so without the setMayaSoftwareLayers call V-Ray can render every
+        renderable layer in the scene regardless of which one is "current".
+        """
+        # GIVEN
+        handler = VRayHandler()
+        with patch.object(
+            handler, "get_render_layer_to_render", return_value="layer1"
+        ), patch.object(handler, "restrict_batch_render_to_layer") as mock_restrict:
+            # WHEN
+            handler.set_render_layer({"render_layer": "layer1"})
+
+            # THEN
+            mock_cmds.editRenderLayerGlobals.assert_called_once_with(currentRenderLayer="layer1")
+            mock_restrict.assert_called_once_with("layer1")
+
     @patch.object(maya.cmds, "pluginInfo")
     def test_no_vray(self, plguinInfo) -> None:
         """Tests that setting the image width sets the right render kwarg"""

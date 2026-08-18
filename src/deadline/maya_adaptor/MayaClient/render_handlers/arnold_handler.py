@@ -3,6 +3,7 @@
 from .default_maya_handler import DefaultMayaHandler
 
 import maya.cmds
+import maya.mel
 
 
 class ArnoldHandler(DefaultMayaHandler):
@@ -105,3 +106,4 @@ class ArnoldHandler(DefaultMayaHandler):
         render_layer_name = self.get_render_layer_to_render(data)
         if render_layer_name:
             maya.cmds.editRenderLayerGlobals(currentRenderLayer=render_layer_name)
+            self.restrict_batch_render_to_layer(render_layer_name)
