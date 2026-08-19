@@ -2,7 +2,13 @@
 #!/usr/bin/env python3
 """Setup runner for Maya integration tests in CodeBuild.
 
-Supports Linux and Windows with Maya 2025 and 2026.
+Supports Linux and Windows for the Maya versions in MAYA_YEAR_TO_CONFIG below.
+
+A Maya version only needs an installer for the platforms it is available on. A
+configured version with no installer for the current platform is skipped with a
+warning instead of failing the run, so a Maya version can be added to the test
+matrix as soon as one platform's installer is available. Requesting a version
+that is not in MAYA_YEAR_TO_CONFIG at all is still an error.
 
 Installs the Arnold (MtoA), V-Ray, and Redshift renderers into each Maya
 version so the renderer-specific integ tests can run.
@@ -34,19 +40,17 @@ from botocore.config import Config
 # ---------------------------------------------------------------------------
 
 
-class InstallerPaths(TypedDict):
-    linux: str
-    windows: str
+# Maya installer filenames and SHA256 checksums, keyed by platform ("linux" or
+# "windows"). A platform key may be omitted when there is no installer for that
+# platform yet; the Maya version is then skipped on that platform instead of
+# failing the whole setup run.
+InstallerPaths = dict[str, str]
+MayaChecksums = dict[str, str]
 
 
 class MayaVersionConfig(TypedDict):
     python: str
     installer: InstallerPaths
-
-
-class MayaChecksums(TypedDict):
-    linux: str
-    windows: str
 
 
 class RendererVersionConfig(TypedDict):
@@ -238,14 +242,67 @@ PLATFORM_TO_KEY: dict[str, str] = {
 }
 
 
+def maya_installer_name(version: str, plat_key: str) -> str | None:
+    """Return the Maya installer filename for a platform, or None if not configured."""
+    config = MAYA_YEAR_TO_CONFIG.get(version)
+    if config is None:
+        return None
+    return config["installer"].get(plat_key)
+
+
+def maya_checksum(version: str, plat_key: str) -> str:
+    """Return the expected Maya installer checksum, or "" when none is configured.
+
+    verify_checksum() warns and continues when given an empty checksum.
+    """
+    return MAYA_YEAR_TO_CHECKSUMS.get(version, {}).get(plat_key, "")
+
+
+def validate_versions(maya_versions: Sequence[str]) -> None:
+    """Fail fast on requested Maya versions that cannot be installed on any platform.
+
+    An unknown version means the caller and MAYA_YEAR_TO_CONFIG have drifted
+    apart (the hatch integ-ci matrix supplies --versions), and a version with an
+    empty installer map is an incomplete config entry. Neither can be satisfied
+    on any platform, so both are errors rather than skips.
+    """
+    for version in maya_versions:
+        config = MAYA_YEAR_TO_CONFIG.get(version)
+        if config is None:
+            print(f"ERROR: Unsupported Maya version: {version}")
+            print(f"Supported versions: {list(MAYA_YEAR_TO_CONFIG)}")
+            sys.exit(1)
+        if not config["installer"]:
+            print(f"ERROR: Maya {version} has no installer configured for any platform")
+            sys.exit(1)
+
+
+def select_installable_versions(
+    maya_versions: Sequence[str], plat_key: str, system: str
+) -> list[str]:
+    """Filter requested Maya versions down to those installable on this platform.
+
+    A configured version with no installer for this platform is skipped with a
+    warning rather than failing the run, so a Maya version can be added to the
+    test matrix before installers exist for every platform. Callers are expected
+    to have already rejected versions missing from MAYA_YEAR_TO_CONFIG.
+    """
+    installable: list[str] = []
+    for version in maya_versions:
+        if maya_installer_name(version, plat_key):
+            installable.append(version)
+        else:
+            print(f"SKIP: No {system} installer configured for Maya {version}")
+    return installable
+
+
 # ---------------------------------------------------------------------------
 # Linux
 # ---------------------------------------------------------------------------
 
 
 def _install_maya_linux(version: str) -> Path:
-    config = MAYA_YEAR_TO_CONFIG[version]
-    installer_name = config["installer"]["linux"]
+    installer_name = MAYA_YEAR_TO_CONFIG[version]["installer"]["linux"]
     maya_dir = Path(f"/opt/Autodesk/mayaio/{version}")
 
     # Check if Maya is already installed by looking for the real binary
@@ -280,7 +337,7 @@ def _install_maya_linux(version: str) -> Path:
         installer_path = Path(f"/tmp/{installer_name}")
 
         download_from_s3(f"maya/{version}/{installer_name}", installer_path)
-        verify_checksum(installer_path, MAYA_YEAR_TO_CHECKSUMS[version]["linux"])
+        verify_checksum(installer_path, maya_checksum(version, "linux"))
 
         run(["chmod", "+x", str(installer_path)])
         # Extract to /opt (not /tmp) and clean any stale dir from prior runs
@@ -713,8 +770,7 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
 
 
 def _install_maya_windows(version: str) -> Path:
-    config = MAYA_YEAR_TO_CONFIG[version]
-    installer_name = config["installer"]["windows"]
+    installer_name = MAYA_YEAR_TO_CONFIG[version]["installer"]["windows"]
     maya_dir = Path(f"C:/Program Files/Autodesk/Maya{version}")
     maya_marker = maya_dir / ".installed"
 
@@ -728,7 +784,7 @@ def _install_maya_windows(version: str) -> Path:
     installer_zip = setup_dir / installer_name
 
     download_from_s3(f"maya/{version}/{installer_name}", installer_zip)
-    verify_checksum(installer_zip, MAYA_YEAR_TO_CHECKSUMS[version]["windows"])
+    verify_checksum(installer_zip, maya_checksum(version, "windows"))
 
     print("Extracting Maya installer...")
     run(
@@ -1046,20 +1102,17 @@ if __name__ == "__main__":
         sys.exit(1)
     plat_key = PLATFORM_TO_KEY[system]
 
+    validate_versions(maya_versions)
+
+    maya_versions = select_installable_versions(maya_versions, plat_key, system)
+    if not maya_versions:
+        print(f"Nothing to set up: no requested Maya version has a {system} installer.")
+        sys.exit(0)
+
     print(
         f"Setting up {system} with Maya {', '.join(maya_versions)}"
         + (f" and renderers {', '.join(renderers)}" if renderers else "")
     )
-
-    # Validate versions
-    for v in maya_versions:
-        if v not in MAYA_YEAR_TO_CONFIG:
-            print(f"ERROR: Unsupported Maya version: {v}")
-            print(f"Supported versions: {list(MAYA_YEAR_TO_CONFIG.keys())}")
-            sys.exit(1)
-        if plat_key not in MAYA_YEAR_TO_CONFIG[v]["installer"]:
-            print(f"ERROR: No {system} installer configured for Maya {v}")
-            sys.exit(1)
 
     if system == "Linux":
         setup_linux(maya_versions, renderers)
