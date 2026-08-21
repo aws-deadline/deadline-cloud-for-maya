@@ -302,8 +302,7 @@ def _install_maya_linux(version: str) -> Path:
         extract_dir = Path(f"/opt/maya-{version}-extract")
         if extract_dir.exists():
             run(["rm", "-rf", str(extract_dir)], check=False)
-        # --noexec: don't run post-extract scripts (they do rm -rf /tmp/*)
-        # --phase2: skip EULA prompt
+        # --noexec: don't run the embedded setup.sh (it prompts for the EULA)
         print("Extracting installer (this may take a moment)...")
         result = subprocess.run(
             [
@@ -313,7 +312,6 @@ def _install_maya_linux(version: str) -> Path:
                 "--nox11",
                 "--target",
                 str(extract_dir),
-                "--phase2",
             ],
             check=False,
         )
