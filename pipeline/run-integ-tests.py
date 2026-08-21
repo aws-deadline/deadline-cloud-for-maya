@@ -44,20 +44,19 @@ def main():
 
     # Linux uses wrapper script at /usr/local/bin/mayapy that handles all env setup
 
-    sys.exit(
-        subprocess.run(
-            [
-                "mayapy",
-                "-m",
-                "pytest",
-                "--no-cov",
-                "test/integ",
-                "-vvv",
-                "--numprocesses=1",
-                *sys.argv[1:],
-            ]
-        ).returncode
-    )
+    cmd = [
+        "mayapy",
+        "-m",
+        "pytest",
+        "--no-cov",
+        "test/integ",
+        "-vvv",
+        "--numprocesses=1",
+        *sys.argv[1:],
+    ]
+    print(f"Running: {' '.join(cmd)}", flush=True)
+
+    sys.exit(subprocess.run(cmd).returncode)
 
 
 if __name__ == "__main__":

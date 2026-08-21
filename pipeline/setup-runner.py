@@ -605,6 +605,8 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
             "libglvnd-egl",
             "alsa-lib",
             "nss",
+            "openjpeg2",
+            "libatomic",
         ]
     )
 
