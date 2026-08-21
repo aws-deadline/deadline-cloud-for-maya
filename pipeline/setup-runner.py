@@ -396,19 +396,33 @@ def _install_mtoa_linux(version: str) -> None:
 
         run(["chmod", "+x", str(installer_path)])
         mtoa_install_dir.mkdir(parents=True, exist_ok=True)
-        # MtoA is a Makeself archive. Extract then unzip the package.
+        # MtoA is a Makeself archive. Extract it, then unpack the payload.
         extract_tmp = Path(f"/tmp/mtoa-{version}-extract")
         if extract_tmp.exists():
             run(["rm", "-rf", str(extract_tmp)], check=False)
         run([str(installer_path), "--noexec", "--target", str(extract_tmp)])
-        # Unzip the package into the install dir
-        pkg_zip = next(extract_tmp.glob("*.zip"), None)
-        if pkg_zip:
-            run(["unzip", "-qo", str(pkg_zip), "-d", str(mtoa_install_dir)])
-        else:
-            print(f"ERROR: No .zip found in {extract_tmp}")
+        # MtoA 5.5.x shipped the payload as a .zip; 5.6.x ships package.tgz.
+        pkg = next(extract_tmp.glob("*.zip"), None) or next(extract_tmp.glob("*.tgz"), None)
+        if pkg is None:
+            print(f"ERROR: No .zip or .tgz payload found in {extract_tmp}")
             run(["ls", "-la", str(extract_tmp)], check=False)
             sys.exit(1)
+        if pkg.suffix == ".zip":
+            run(["unzip", "-qo", str(pkg), "-d", str(mtoa_install_dir)])
+        else:
+            # Strip a single top-level directory if the tarball has one, so that
+            # plug-ins/ lands directly in mtoa_install_dir for either layout.
+            listing = subprocess.run(
+                ["tar", "-tzf", str(pkg)], capture_output=True, text=True, check=False
+            )
+            if listing.returncode != 0:
+                print(f"ERROR: Could not list {pkg}")
+                print(listing.stderr)
+                sys.exit(1)
+            roots = {line.split("/")[0] for line in listing.stdout.splitlines() if line.strip()}
+            strip = ["--strip-components=1"] if len(roots) == 1 else []
+            print(f"Unpacking {pkg.name} (top-level entries: {sorted(roots)[:5]})")
+            run(["tar", "-xzf", str(pkg), "-C", str(mtoa_install_dir), *strip])
         run(["rm", "-rf", str(extract_tmp)], check=False)
 
         # Verify — installer lays down plugins under $prefix/plug-ins.
