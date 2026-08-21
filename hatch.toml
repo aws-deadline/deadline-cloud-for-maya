@@ -23,7 +23,7 @@ lint = [
 install = "python {root}/scripts/install_dev_submitter.py {args:}"
 
 [[envs.all.matrix]]
-python = ["3.9", "3.10", "3.11", "3.12"]
+python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
 
 [envs.default.env-vars]
 MAYA_ENV_DIR="{root}/plugin_env"
@@ -56,7 +56,16 @@ dependencies = [
 # Matrix across Maya versions. All renderers (mtoa, vray, redshift) are
 # installed by default on Linux and Windows.
 [[envs.integ-ci.matrix]]
-maya = ["2025", "2026"]
+maya = ["2025", "2026", "2027"]
+
+# Maya 2027: V-Ray and Redshift are not supported yet, so install MtoA only and
+# deselect the two renderer tests that cannot pass without their plugins.
+# Remove this override once V-Ray and Redshift support Maya 2027.
+[envs.integ-ci.overrides]
+matrix.maya.scripts = [
+  { key = "setup", value = "python ./pipeline/setup-runner.py --versions 2027 --renderers mtoa {args}", if = ["2027"] },
+  { key = "test", value = 'python ./pipeline/run-integ-tests.py -m "not (vray_renderer or redshift_renderer)"', if = ["2027"] },
+]
 
 [envs.integ-ci.env-vars]
 MAYA_VERSION = "{matrix:maya}"

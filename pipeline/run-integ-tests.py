@@ -46,7 +46,16 @@ def main():
 
     sys.exit(
         subprocess.run(
-            ["mayapy", "-m", "pytest", "--no-cov", "test/integ", "-vvv", "--numprocesses=1"]
+            [
+                "mayapy",
+                "-m",
+                "pytest",
+                "--no-cov",
+                "test/integ",
+                "-vvv",
+                "--numprocesses=1",
+                *sys.argv[1:],
+            ]
         ).returncode
     )
 

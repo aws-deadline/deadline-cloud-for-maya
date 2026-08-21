@@ -78,6 +78,13 @@ MAYA_YEAR_TO_CONFIG: dict[str, MayaVersionConfig] = {
             "windows": "Maya2026_Windows.zip",
         },
     },
+    "2027": {
+        "python": "3.13",
+        "installer": {
+            "linux": "Autodesk_MayaIO_2027_2_Update_Linux.run",
+            "windows": "Maya2027_Windows.zip",
+        },
+    },
 }
 
 MAYA_YEAR_TO_CHECKSUMS: dict[str, MayaChecksums] = {
@@ -88,6 +95,10 @@ MAYA_YEAR_TO_CHECKSUMS: dict[str, MayaChecksums] = {
     "2026": {
         "linux": "b17b0700933e8e4329939da38cc52c93ed483a93b02e9fa78031fddae763c8e8",
         "windows": "9c9612f6e4d3f1f6de897a21fde6f9930e2e40bb6ddc3ca9647e2668cdba935c",
+    },
+    "2027": {
+        "linux": "eac310135486b2a33e64223721dc451ffca294444880e3a94a96bcc48a4efe9e",
+        "windows": "5380c20e1ab2321776c000e245819b36f33697918ee2cc344efb3ac22e1ead62",
     },
 }
 
@@ -104,6 +115,10 @@ MTOA_YEAR_TO_CONFIG: dict[str, RendererVersionConfig] = {
     "2026": {
         "s3_key": "mtoa/5.5/MtoA-5.5.6.1-linux-2026.run",
         "checksum": "d8881e1cece725178d90aaa6d44507ea017ec64d7d23c76b129b9e349d1c9cc6",
+    },
+    "2027": {
+        "s3_key": "mtoa/5.6.3/MtoA-5.6.3-linux-2027.run",
+        "checksum": "a745b3ef022a1fe41f1d1b90597af6df92deaf2dc49f63593705a96a0f3e6ed1",
     },
 }
 
@@ -834,6 +849,7 @@ def _install_mtoa_windows(version: str) -> None:
     mtoa_win_config = {
         "2025": "mtoa/5.5/MtoA-5.5.4.2-windows-2025.msi",
         "2026": "mtoa/5.5/MtoA-5.5.4.2-windows-2026.msi",
+        "2027": "mtoa/5.6.3/MtoA-5.6.3-windows-2027.msi",
     }
     if version not in mtoa_win_config:
         print(f"WARNING: No Windows MtoA config for Maya {version}, skipping")

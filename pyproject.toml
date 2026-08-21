@@ -21,6 +21,7 @@ classifiers = [
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Operating System :: POSIX :: Linux",
   "Operating System :: Microsoft :: Windows",
   "Operating System :: MacOS",
@@ -141,6 +142,10 @@ pythonpath = [
 markers = [
     "submitter: mark test as test for the submitter",
     "adaptor: mark test as test for the adaptor",
+    "maya_renderer: mark test as using Maya's built-in renderer",
+    "mtoa_renderer: mark test as using the Arnold (MtoA) renderer",
+    "vray_renderer: mark test as using the V-Ray renderer",
+    "redshift_renderer: mark test as using the Redshift renderer",
 ]
 
 [tool.coverage.run]
