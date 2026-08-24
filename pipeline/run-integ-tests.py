@@ -13,6 +13,8 @@ import sys
 
 def main():
     maya_version = os.environ.get("MAYA_VERSION", "2025")
+    # Linux's mayapy dispatcher reads this, so export the resolved value.
+    os.environ["MAYA_VERSION"] = maya_version
     system = platform.system()
 
     if system == "Windows":
@@ -42,7 +44,7 @@ def main():
             os.environ.setdefault("redshift_LICENSE", f"7054@{license_dns}")
             os.environ.setdefault("ADSKFLEX_LICENSE_FILE", f"2702@{license_dns};2701@{license_dns}")
 
-    # Linux uses wrapper script at /usr/local/bin/mayapy that handles all env setup
+    # Linux resolves mayapy through the MAYA_VERSION dispatcher written by setup-runner.py
 
     cmd = [
         "mayapy",

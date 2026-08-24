@@ -567,6 +567,32 @@ def _clean_stale_locks(maya_versions: Sequence[str]) -> None:
             lock_file.unlink()
 
 
+def _write_mayapy_dispatcher() -> None:
+    """Write /usr/local/bin/mayapy, dispatching to the MAYA_VERSION wrapper.
+
+    Every integ-ci matrix cell exports MAYA_VERSION, so routing through this keeps
+    pytest, the adaptor, and its children on the version that cell is testing.
+    Fails loudly rather than guessing, since silently using the wrong Maya makes
+    tests pass or fail for the wrong reasons.
+    """
+    dispatcher = Path("/usr/local/bin/mayapy")
+    dispatcher.write_text("""#!/bin/sh
+if [ -z "${MAYA_VERSION:-}" ]; then
+    echo "mayapy: MAYA_VERSION is not set, cannot select a Maya version." >&2
+    echo "mayapy: installed: $(ls /usr/local/bin/mayapy-* 2>/dev/null | sed 's|.*/mayapy-||' | tr '\\n' ' ')" >&2
+    exit 1
+fi
+target="/usr/local/bin/mayapy-${MAYA_VERSION}"
+if [ ! -x "$target" ]; then
+    echo "mayapy: no wrapper for Maya ${MAYA_VERSION} at ${target}." >&2
+    exit 1
+fi
+exec "$target" "$@"
+""")
+    run(["chmod", "+x", str(dispatcher)])
+    print(f"Wrote mayapy dispatcher at {dispatcher}")
+
+
 def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
     pkg_mgr = (
         "dnf"
@@ -691,8 +717,8 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
             label=f"pip install project (Maya {version})",
         )
 
-        # Symlink mayapy to PATH so hatch integ-ci:test can find it.
-        # Create a wrapper that sets MAYA_LOCATION and renderer plugin paths.
+        # Per-version wrapper setting MAYA_LOCATION and renderer plugin paths. The
+        # `mayapy` dispatcher written after this loop picks one via MAYA_VERSION.
         mayapy_dir = mayapy_exe.parent.parent  # e.g. /opt/.../usr/autodesk/mayaIO2025
 
         # Renderer paths
@@ -710,7 +736,7 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
         script_paths = f"{redshift_dir}/redshift4maya/common/scripts"
         render_desc_paths = f"{redshift_dir}/redshift4maya/common/rendererDesc"
 
-        wrapper = Path("/usr/local/bin/mayapy")
+        wrapper = Path(f"/usr/local/bin/mayapy-{version}")
         wrapper.write_text(
             f"#!/bin/sh\n"
             f'export MAYA_LOCATION="{mayapy_dir}"\n'
@@ -723,6 +749,8 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
             f'exec "{mayapy_exe}" "$@"\n'
         )
         run(["chmod", "+x", str(wrapper)])
+
+    _write_mayapy_dispatcher()
 
     # Install requested renderers (always per-Maya-version, except Redshift which
     # is shared across versions).
