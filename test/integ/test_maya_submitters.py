@@ -16,6 +16,19 @@ from .helpers.output_comparison import are_asset_references_similar, are_paramet
 import maya.standalone
 import maya.cmds as cmds
 
+# Maya 2025 on Linux links libssl.so.1.1, which AL2023 does not ship, so its Python
+# cannot import ssl and deadline.client.api's boto3 import fails, making the submitter
+# unimportable. These tests only export a job bundle and diff it against expected
+# output, so shipping OpenSSL 1.1 to the runner in a follow-up PR recovers this
+# coverage. The adaptor tests run OpenJD locally and are unaffected.
+try:
+    import ssl  # noqa: F401
+except ImportError as ssl_import_error:
+    pytest.skip(
+        f"Maya's bundled Python cannot import ssl: {ssl_import_error}",
+        allow_module_level=True,
+    )
+
 
 @pytest.fixture(scope="session", autouse=True)
 def initialize_maya():

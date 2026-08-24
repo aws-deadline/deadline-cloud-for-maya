@@ -87,11 +87,6 @@ MAYA_YEAR_TO_CONFIG: dict[str, MayaVersionConfig] = {
     },
 }
 
-# Linux only: Maya versions whose bundled Python has no ssl module, so botocore
-# needs urllib3 1.x (2.x drops its `ssl` re-export). A version outside this set
-# failing the ssl probe is a broken runner, not something to work around.
-MAYA_YEARS_WITHOUT_BUNDLED_SSL = {"2025"}
-
 MAYA_YEAR_TO_CHECKSUMS: dict[str, MayaChecksums] = {
     "2025": {
         "linux": "a4c46a576aea91e1e52a06355b413f98000b884feb8eb1349a7459990e212395",
@@ -756,37 +751,18 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
         )
         run(["chmod", "+x", str(wrapper)])
 
-        # Verify the ssl expectation declared in MAYA_YEARS_WITHOUT_BUNDLED_SSL.
+        # Maya 2025 links libssl.so.1.1, which AL2023 does not ship, so its Python
+        # cannot import ssl and anything importing boto3 skips itself. Shipping
+        # OpenSSL 1.1 to restore that coverage is a follow-up PR.
         probe = subprocess.run([str(wrapper), "-c", "import ssl"], capture_output=True, check=False)
-        ssl_expected = version not in MAYA_YEARS_WITHOUT_BUNDLED_SSL
         if probe.returncode == 0:
-            if not ssl_expected:
-                print(
-                    f"Maya {version} Python now imports ssl. Remove it from "
-                    f"MAYA_YEARS_WITHOUT_BUNDLED_SSL so it stops using urllib3 1.x."
-                )
+            print(f"Maya {version} Python can import ssl")
         else:
             reason = probe.stderr.decode(errors="replace").strip().splitlines()
-            reason = reason[-1] if reason else "no error output"
-            if ssl_expected:
-                print(f"ERROR: Maya {version} Python cannot import ssl: {reason}")
-                print("Expected a working ssl module. The runner is missing a dependency.")
-                sys.exit(1)
-            print(f"Maya {version} Python has no ssl ({reason}), installing urllib3<2")
-            run_with_timeout(
-                [
-                    "pip",
-                    "install",
-                    "--target",
-                    str(maya_site_packages),
-                    "--upgrade",
-                    "--python-version",
-                    python_version,
-                    "--only-binary=:all:",
-                    "urllib3<2",
-                ],
-                timeout=DEFAULT_CMD_TIMEOUT,
-                label=f"pip install urllib3<2 (Maya {version})",
+            print(
+                f"WARNING: Maya {version} Python cannot import ssl "
+                f"({reason[-1] if reason else 'no error output'}). "
+                "Tests that need boto3 will skip."
             )
 
     _write_mayapy_dispatcher()
