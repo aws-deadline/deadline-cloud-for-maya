@@ -87,6 +87,10 @@ MAYA_YEAR_TO_CONFIG: dict[str, MayaVersionConfig] = {
     },
 }
 
+# Adaptor dispatchers live here so run-integ-tests.py can put them ahead of the
+# hatch env's console scripts on PATH.
+ADAPTOR_DISPATCH_DIR = Path("/usr/local/maya-adaptor-bin")
+
 MAYA_YEAR_TO_CHECKSUMS: dict[str, MayaChecksums] = {
     "2025": {
         "linux": "a4c46a576aea91e1e52a06355b413f98000b884feb8eb1349a7459990e212395",
@@ -594,6 +598,26 @@ exec "$target" "$@"
     print(f"Wrote mayapy dispatcher at {dispatcher}")
 
 
+def _write_adaptor_dispatchers() -> None:
+    """Run the adaptor under mayapy rather than the hatch env's host Python.
+
+    The wrapper puts Maya's lib dir on LD_LIBRARY_PATH, which the linker searches
+    before the host interpreter's RPATH. Maya 2027 ships libpython3.13.so under the
+    same soname as the host's, so the host Python loads Maya's copy and then
+    segfaults on its own stdlib extensions. run-integ-tests.py prepends this
+    directory to PATH so these win over the hatch env's console scripts.
+    """
+    ADAPTOR_DISPATCH_DIR.mkdir(parents=True, exist_ok=True)
+    script = """#!/bin/sh
+exec /usr/local/bin/mayapy -m deadline.maya_adaptor.MayaAdaptor "$@"
+"""
+    for name in ("MayaAdaptor", "maya-openjd"):
+        path = ADAPTOR_DISPATCH_DIR / name
+        path.write_text(script)
+        run(["chmod", "+x", str(path)])
+    print(f"Wrote adaptor dispatchers in {ADAPTOR_DISPATCH_DIR}")
+
+
 def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
     pkg_mgr = (
         "dnf"
@@ -766,6 +790,7 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
             )
 
     _write_mayapy_dispatcher()
+    _write_adaptor_dispatchers()
 
     # Install requested renderers (always per-Maya-version, except Redshift which
     # is shared across versions).
