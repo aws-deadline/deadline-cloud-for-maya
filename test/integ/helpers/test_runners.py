@@ -8,8 +8,18 @@ from pathlib import Path
 from typing import Any
 
 
-def run_command(args: list[str]) -> subprocess.CompletedProcess[bytes]:
-    output = subprocess.run(args, capture_output=True)
+def run_command(args: list[str], timeout: int = 180) -> subprocess.CompletedProcess[bytes]:
+    try:
+        output = subprocess.run(args, capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired as e:
+        # Without this a hung adaptor prints nothing until the build itself times out,
+        # since pytest only shows captured output once the test finishes.
+        print(f"Timed out after {timeout}s: {' '.join(args)}")
+        print(f"\nstdout:\n\n{(e.stdout or b'').decode('utf-8', errors='replace')}")
+        print(f"\nstderr:\n\n{(e.stderr or b'').decode('utf-8', errors='replace')}")
+        return subprocess.CompletedProcess(
+            args, returncode=124, stdout=e.stdout or b"", stderr=e.stderr or b""
+        )
 
     print(f"Ran the following: {' '.join(output.args)}")
     print(f"\nstdout:\n\n{output.stdout.decode('utf-8', errors='replace')}")
