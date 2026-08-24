@@ -58,6 +58,9 @@ def main():
     if system != "Windows":
         os.environ["PATH"] = "/usr/local/maya-adaptor-bin:" + os.environ.get("PATH", "")
 
+    # TEMPORARY, revert before merge: xdist relays worker output and only prints it once
+    # a test finishes, so a test that never finishes prints nothing. Run in-process with
+    # capture disabled to stream the Maya 2027 adaptor hang as it happens.
     cmd = [
         "mayapy",
         "-m",
@@ -65,7 +68,8 @@ def main():
         "--no-cov",
         "test/integ",
         "-vvv",
-        "--numprocesses=1",
+        "--numprocesses=0",
+        "-s",
         *sys.argv[1:],
     ]
     print(f"Running: {' '.join(cmd)}", flush=True)

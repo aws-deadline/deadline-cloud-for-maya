@@ -56,7 +56,9 @@ dependencies = [
 # Matrix across Maya versions. All renderers (mtoa, vray, redshift) are
 # installed by default on Linux and Windows.
 [[envs.integ-ci.matrix]]
-maya = ["2025", "2026", "2027"]
+# TEMPORARY, revert to ["2025", "2026", "2027"] before merge: 2027 only, to cut the
+# integ cycle while debugging the Linux 2027 adaptor hang.
+maya = ["2027"]
 
 # Maya 2027: V-Ray and Redshift are not supported yet, so install MtoA only and
 # deselect the two renderer tests that cannot pass without their plugins.
