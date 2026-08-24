@@ -663,6 +663,8 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
             "nss",
             "openjpeg2",
             "libatomic",
+            # Maya 2027 aborts writing PNG output without an explicit libpng
+            "libpng",
         ]
     )
 
@@ -779,6 +781,20 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
             f'exec "{mayapy_exe}" "$@"\n'
         )
         run(["chmod", "+x", str(wrapper)])
+
+        # TEMPORARY, revert before merge: Maya 2027 aborts in libpng writing PNG output.
+        # Report which copies exist and what Maya's image plugins resolve to.
+        run(["sh", "-c", f"ls -la {mayapy_dir}/lib/libpng* 2>&1 | head"], check=False)
+        run(["sh", "-c", "ls -la /lib64/libpng* 2>&1 | head"], check=False)
+        run(
+            [
+                "sh",
+                "-c",
+                f"for f in {mayapy_dir}/lib/libOpenMaya*.so {mayapy_dir}/bin/plug-ins/*.so; do "
+                f'ldd "$f" 2>/dev/null | grep -i png && echo "  ^ $f"; done | head -20',
+            ],
+            check=False,
+        )
 
         # Maya 2025 links libssl.so.1.1, which AL2023 does not ship, so its Python
         # cannot import ssl and anything importing boto3 skips itself. Shipping
