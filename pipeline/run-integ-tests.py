@@ -15,6 +15,11 @@ def main():
     maya_version = os.environ.get("MAYA_VERSION", "2025")
     # Linux's mayapy dispatcher reads this, so export the resolved value.
     os.environ["MAYA_VERSION"] = maya_version
+    # The adaptor daemon runs as a subprocess, so it inherits these rather than
+    # pytest's own faulthandler. Without them a SIGSEGV discards the unflushed
+    # stdout buffer and we get a bare exit -11 with no traceback.
+    os.environ["PYTHONUNBUFFERED"] = "1"
+    os.environ["PYTHONFAULTHANDLER"] = "1"
     system = platform.system()
 
     if system == "Windows":
