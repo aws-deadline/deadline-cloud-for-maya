@@ -87,6 +87,11 @@ MAYA_YEAR_TO_CONFIG: dict[str, MayaVersionConfig] = {
     },
 }
 
+# Linux only: Maya versions whose bundled Python has no ssl module, so botocore
+# needs urllib3 1.x (2.x drops its `ssl` re-export). A version outside this set
+# failing the ssl probe is a broken runner, not something to work around.
+MAYA_YEARS_WITHOUT_BUNDLED_SSL = {"2025"}
+
 MAYA_YEAR_TO_CHECKSUMS: dict[str, MayaChecksums] = {
     "2025": {
         "linux": "a4c46a576aea91e1e52a06355b413f98000b884feb8eb1349a7459990e212395",
@@ -576,7 +581,7 @@ def _write_mayapy_dispatcher() -> None:
     tests pass or fail for the wrong reasons.
     """
     dispatcher = Path("/usr/local/bin/mayapy")
-    dispatcher.write_text("""#!/bin/sh
+    script = """#!/bin/sh
 if [ -z "${MAYA_VERSION:-}" ]; then
     echo "mayapy: MAYA_VERSION is not set, cannot select a Maya version." >&2
     echo "mayapy: installed: $(ls /usr/local/bin/mayapy-* 2>/dev/null | sed 's|.*/mayapy-||' | tr '\\n' ' ')" >&2
@@ -588,7 +593,8 @@ if [ ! -x "$target" ]; then
     exit 1
 fi
 exec "$target" "$@"
-""")
+"""
+    dispatcher.write_text(script)
     run(["chmod", "+x", str(dispatcher)])
     print(f"Wrote mayapy dispatcher at {dispatcher}")
 
@@ -749,6 +755,39 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
             f'exec "{mayapy_exe}" "$@"\n'
         )
         run(["chmod", "+x", str(wrapper)])
+
+        # Verify the ssl expectation declared in MAYA_YEARS_WITHOUT_BUNDLED_SSL.
+        probe = subprocess.run([str(wrapper), "-c", "import ssl"], capture_output=True, check=False)
+        ssl_expected = version not in MAYA_YEARS_WITHOUT_BUNDLED_SSL
+        if probe.returncode == 0:
+            if not ssl_expected:
+                print(
+                    f"Maya {version} Python now imports ssl. Remove it from "
+                    f"MAYA_YEARS_WITHOUT_BUNDLED_SSL so it stops using urllib3 1.x."
+                )
+        else:
+            reason = probe.stderr.decode(errors="replace").strip().splitlines()
+            reason = reason[-1] if reason else "no error output"
+            if ssl_expected:
+                print(f"ERROR: Maya {version} Python cannot import ssl: {reason}")
+                print("Expected a working ssl module. The runner is missing a dependency.")
+                sys.exit(1)
+            print(f"Maya {version} Python has no ssl ({reason}), installing urllib3<2")
+            run_with_timeout(
+                [
+                    "pip",
+                    "install",
+                    "--target",
+                    str(maya_site_packages),
+                    "--upgrade",
+                    "--python-version",
+                    python_version,
+                    "--only-binary=:all:",
+                    "urllib3<2",
+                ],
+                timeout=DEFAULT_CMD_TIMEOUT,
+                label=f"pip install urllib3<2 (Maya {version})",
+            )
 
     _write_mayapy_dispatcher()
 
