@@ -599,17 +599,18 @@ exec "$target" "$@"
 
 
 def _write_adaptor_dispatchers() -> None:
-    """Run the adaptor under mayapy rather than the hatch env's host Python.
+    """Run the adaptor on the host Python with Maya's lib dir removed.
 
-    The wrapper puts Maya's lib dir on LD_LIBRARY_PATH, which the linker searches
-    before the host interpreter's RPATH. Maya 2027 ships libpython3.13.so under the
-    same soname as the host's, so the host Python loads Maya's copy and then
-    segfaults on its own stdlib extensions. run-integ-tests.py prepends this
-    directory to PATH so these win over the hatch env's console scripts.
+    The adaptor imports boto3, which needs ssl, ruling out Maya 2025's Python. But
+    Maya 2027 ships libpython3.13.so under the same soname as the host's, and the
+    wrapper puts Maya's lib dir on LD_LIBRARY_PATH, so the host Python loaded Maya's
+    copy and segfaulted. The adaptor needs none of Maya's libraries and launches the
+    Maya client via mayapy, whose wrapper sets the variable again.
+    run-integ-tests.py prepends this directory to PATH to win over the hatch env.
     """
     ADAPTOR_DISPATCH_DIR.mkdir(parents=True, exist_ok=True)
     script = """#!/bin/sh
-exec /usr/local/bin/mayapy -m deadline.maya_adaptor.MayaAdaptor "$@"
+exec env -u LD_LIBRARY_PATH python -m deadline.maya_adaptor.MayaAdaptor "$@"
 """
     for name in ("MayaAdaptor", "maya-openjd"):
         path = ADAPTOR_DISPATCH_DIR / name
