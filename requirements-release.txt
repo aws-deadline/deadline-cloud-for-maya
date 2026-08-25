@@ -1,1 +1,7 @@
 python-semantic-release == 9.12.*
+# GitPython removed Actor.name_email_regex after 3.1.57. python-semantic-release
+# 9.12 still uses it, so an unpinned GitPython fails the Release: Bump workflow
+# with "type object 'Actor' has no attribute 'name_email_regex'".
+# Remove this pin when moving to python-semantic-release 10.6.*, as
+# deadline-cloud and deadline-cloud-for-nuke already have.
+GitPython == 3.1.57
