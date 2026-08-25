@@ -20,6 +20,7 @@ class MayaVersion:
         "2024": "3.10",
         "2025": "3.11",
         "2026": "3.11",
+        "2027": "3.13",
     }
 
     def __init__(self, arg_version: Optional[str]):
