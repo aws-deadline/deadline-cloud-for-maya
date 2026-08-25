@@ -1,3 +1,7 @@
+## 0.15.19 (2026-08-25)
+
+### Features
+* Added support for Maya 2027. The submitter and adaptor now officially support Maya 2027 (which bundles Python 3.13). (#465)
 ## 0.15.18 (2026-07-27)
 
 ### Features
