@@ -31,6 +31,9 @@ This library requires:
 
 Plugin support: Arnold for Maya 2024-2027; VRay and Redshift for Maya 2025-2026.
 
+Maya 2027 requires the `deadline-cloud-v2` conda channel, which the submitter uses by
+default; the `deadline-cloud` channel does not support Maya 2027.
+
 ## Versioning
 
 This package's version follows [Semantic Versioning 2.0](https://semver.org/), but is still considered to be in its
