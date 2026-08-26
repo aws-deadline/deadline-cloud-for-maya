@@ -4,7 +4,8 @@ pytest == 8.*; python_version < "3.10"
 pytest == 9.*; python_version >= "3.10"
 pytest-cov == 7.*
 pytest-xdist == 3.*
-twine == 7.*
+twine == 6.*; python_version < "3.10"
+twine == 7.*; python_version >= "3.10"
 mypy == 1.*; python_version < "3.10"
 mypy == 2.*; python_version >= "3.10"
 black == 25.*; python_version < "3.10"
