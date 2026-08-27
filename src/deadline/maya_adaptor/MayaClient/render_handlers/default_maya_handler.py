@@ -240,6 +240,27 @@ class DefaultMayaHandler:
             maya.cmds.workspace(path, openWorkspace=True)
             maya.cmds.workspace(directory=path)
 
+    def isolate_render_layer(self, render_layer_name: str) -> None:
+        """
+        Makes render_layer_name the only renderable layer in the scene.
+
+        rsRender takes no layer argument: it renders every layer whose 'renderable'
+        attribute is on, and editRenderLayerGlobals does not scope it. Redshift is the
+        only handler that needs this. Arnold and V-Ray were measured rendering only
+        their assigned layer, and maya.cmds.render()'s 'layer' flag already scopes
+        DefaultMayaHandler.
+
+        No restore needed: the layer is fixed per adaptor session and the scene is
+        never saved.
+        """
+        for layer in maya.cmds.ls(type="renderLayer"):
+            should_be_renderable = layer == render_layer_name
+            attribute = f"{layer}.renderable"
+            if maya.cmds.getAttr(attribute) == should_be_renderable:
+                continue
+            maya.cmds.setAttr(attribute, should_be_renderable)
+            print(f"MayaClient: Set '{attribute}' to {should_be_renderable}", flush=True)
+
     def set_render_layer(self, data: dict) -> None:
         """
         Sets the render layer.

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from typing import Any
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -68,3 +69,23 @@ class TestRedshiftHandler:
         # THEN
         with pytest.raises(RuntimeError):
             handler.start_render(start_render_data)
+
+    @patch("deadline.maya_adaptor.MayaClient.render_handlers.redshift_handler.maya.cmds")
+    def test_set_render_layer_isolates_the_layer(self, mock_cmds: Mock) -> None:
+        """
+        Tests that setting the render layer both switches the current render layer and
+        isolates it. rsRender takes no layer argument, so the current render layer alone
+        does not stop it rendering every renderable layer in the scene.
+        """
+        # GIVEN
+        handler = RedshiftHandler()
+        with (
+            patch.object(handler, "get_render_layer_to_render", return_value="rs_beauty"),
+            patch.object(handler, "isolate_render_layer") as mock_isolate,
+        ):
+            # WHEN
+            handler.set_render_layer({"render_layer": "beauty"})
+
+        # THEN
+        mock_cmds.editRenderLayerGlobals.assert_called_once_with(currentRenderLayer="rs_beauty")
+        mock_isolate.assert_called_once_with("rs_beauty")

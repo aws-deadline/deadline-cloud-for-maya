@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from io import StringIO
 import os
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 import pytest
 
@@ -41,6 +41,66 @@ class TestDefaultMayaHandler:
             ["layer1", "layer2", "layer3"],
         )
     ]
+
+    @patch("deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds")
+    def test_isolate_render_layer(self, mock_cmds: Mock, mayahandlerbase: DefaultMayaHandler):
+        """
+        Tests that only the assigned layer is left renderable. The renderer-native batch
+        commands render every layer whose 'renderable' attribute is on, so any other layer
+        left on is one this task renders without having been assigned it.
+        """
+        # GIVEN
+        mock_cmds.ls.return_value = ["defaultRenderLayer", "rs_beauty", "rs_shadow"]
+        mock_cmds.getAttr.return_value = True
+
+        # WHEN
+        mayahandlerbase.isolate_render_layer("rs_beauty")
+
+        # THEN
+        # rs_beauty is already renderable, so it is left alone.
+        assert mock_cmds.setAttr.call_args_list == [
+            call("defaultRenderLayer.renderable", False),
+            call("rs_shadow.renderable", False),
+        ]
+
+    @patch("deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds")
+    def test_isolate_render_layer_enables_the_assigned_layer(
+        self, mock_cmds: Mock, mayahandlerbase: DefaultMayaHandler
+    ):
+        """
+        Tests that an assigned layer whose 'renderable' attribute is off gets switched on.
+        Otherwise a step for that layer renders the other layers instead of erroring.
+        """
+        # GIVEN
+        mock_cmds.ls.return_value = ["rs_beauty", "rs_shadow"]
+        mock_cmds.getAttr.side_effect = lambda attribute: attribute == "rs_shadow.renderable"
+
+        # WHEN
+        mayahandlerbase.isolate_render_layer("rs_beauty")
+
+        # THEN
+        assert mock_cmds.setAttr.call_args_list == [
+            call("rs_beauty.renderable", True),
+            call("rs_shadow.renderable", False),
+        ]
+
+    def test_set_render_layer_does_not_isolate(self, mayahandlerbase: DefaultMayaHandler):
+        """
+        Tests that the default handler does not touch the renderable attributes.
+        maya.cmds.render()'s 'layer' flag renders only that layer regardless of them, so
+        isolating here would be redundant risk.
+        """
+        # GIVEN
+        with (
+            patch.object(mayahandlerbase, "get_render_layer_to_render", return_value="rs_beauty"),
+            patch.object(mayahandlerbase, "isolate_render_layer") as mock_isolate,
+        ):
+            # WHEN
+            mayahandlerbase.set_render_layer({"render_layer": "beauty"})
+
+        # THEN
+        assert mayahandlerbase.render_kwargs["layer"] == "rs_beauty"
+        mock_isolate.assert_not_called()
 
     @pytest.mark.parametrize("args", [{"path_mapping_rules": {}}])
     @patch.object(DirectoryMapping.mappings, "__setitem__")
