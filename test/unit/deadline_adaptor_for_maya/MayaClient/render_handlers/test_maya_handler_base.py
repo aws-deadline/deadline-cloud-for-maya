@@ -84,6 +84,53 @@ class TestDefaultMayaHandler:
             call("rs_shadow.renderable", False),
         ]
 
+    @patch("deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds")
+    def test_isolate_render_layer_tolerates_a_failed_disable(
+        self, mock_cmds: Mock, mayahandlerbase: DefaultMayaHandler
+    ):
+        """
+        Tests that a layer which cannot be disabled does not fail the task. A locked or
+        connected 'renderable' attribute raises, and failing init over a layer this step
+        was not assigned is worse than rendering it, which is the pre-fix behaviour.
+        """
+        # GIVEN
+        mock_cmds.ls.return_value = ["rs_beauty", "rs_shadow", "rs_utility"]
+        mock_cmds.getAttr.return_value = True
+
+        def fail_for_shadow(attribute, value):
+            if attribute == "rs_shadow.renderable":
+                raise RuntimeError("locked or connected and cannot be modified")
+
+        mock_cmds.setAttr.side_effect = fail_for_shadow
+
+        # WHEN
+        mayahandlerbase.isolate_render_layer("rs_beauty")
+
+        # THEN
+        # rs_utility is still attempted, so the failure did not abandon the remaining layers.
+        assert mock_cmds.setAttr.call_args_list == [
+            call("rs_shadow.renderable", False),
+            call("rs_utility.renderable", False),
+        ]
+
+    @patch("deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds")
+    def test_isolate_render_layer_raises_when_the_assigned_layer_cannot_be_enabled(
+        self, mock_cmds: Mock, mayahandlerbase: DefaultMayaHandler
+    ):
+        """
+        Tests that failing to enable the assigned layer fails the task. The step cannot
+        deliver the layer it was assigned, so rendering nothing or another layer silently
+        is worse than erroring.
+        """
+        # GIVEN
+        mock_cmds.ls.return_value = ["rs_beauty", "rs_shadow"]
+        mock_cmds.getAttr.return_value = False
+        mock_cmds.setAttr.side_effect = RuntimeError("locked or connected and cannot be modified")
+
+        # WHEN / THEN
+        with pytest.raises(RuntimeError, match="could not be made renderable"):
+            mayahandlerbase.isolate_render_layer("rs_beauty")
+
     def test_set_render_layer_does_not_isolate(self, mayahandlerbase: DefaultMayaHandler):
         """
         Tests that the default handler does not touch the renderable attributes.

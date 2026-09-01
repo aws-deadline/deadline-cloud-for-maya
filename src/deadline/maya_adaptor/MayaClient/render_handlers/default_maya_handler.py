@@ -250,15 +250,35 @@ class DefaultMayaHandler:
         their assigned layer, and maya.cmds.render()'s 'layer' flag already scopes
         DefaultMayaHandler.
 
-        No restore needed: the layer is fixed per adaptor session and the scene is
-        never saved.
+        No need to restore original state: the assigned layer is set on session
+        initialization, meaning it's fixed for the entire session and each frame
+        rendered within the session uses the same isolation. On session end, no need
+        to revert since the changes are only held in-memory and are not saved to file.
         """
         for layer in maya.cmds.ls(type="renderLayer"):
-            should_be_renderable = layer == render_layer_name
-            attribute = f"{layer}.renderable"
+            should_be_renderable: bool = layer == render_layer_name
+            attribute: str = f"{layer}.renderable"
+
             if maya.cmds.getAttr(attribute) == should_be_renderable:
                 continue
-            maya.cmds.setAttr(attribute, should_be_renderable)
+
+            try:
+                maya.cmds.setAttr(attribute, should_be_renderable)
+            except RuntimeError as exception:
+                if should_be_renderable:
+                    raise RuntimeError(
+                        f"The assigned render layer, '{render_layer_name}', could not be "
+                        f"made renderable: {exception}"
+                    )
+                # Deliberately not the word 'Warning': strict_error_checking fails the
+                # task on it, which is what this branch exists to avoid.
+                print(
+                    f"MayaClient: Could not disable '{attribute}'; it is locked or "
+                    "connected and may render alongside the assigned layer.",
+                    flush=True,
+                )
+                continue
+
             print(f"MayaClient: Set '{attribute}' to {should_be_renderable}", flush=True)
 
     def set_render_layer(self, data: dict) -> None:
