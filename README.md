@@ -19,6 +19,7 @@ ability to run Maya efficiently on your render farm.
 [openjd-adaptor-runtime-lifecycle]: https://github.com/OpenJobDescription/openjd-adaptor-runtime-for-python/blob/release/README.md#adaptor-lifecycle
 [service-managed-fleets]: https://docs.aws.amazon.com/deadline-cloud/latest/userguide/smf-manage.html
 [default-queue-environment]: https://docs.aws.amazon.com/deadline-cloud/latest/userguide/create-queue-environment.html#conda-queue-environment
+[submission-hooks]: https://github.com/aws-deadline/deadline-cloud/blob/mainline/docs/submission-hooks.md
 
 ## Compatibility
 
@@ -135,6 +136,26 @@ hosts do not have any rendering applications pre-installed. The standard way of 
 You can find a list of the versions of Maya that are available by default
 [in the user guide](https://docs.aws.amazon.com/deadline-cloud/latest/userguide/create-queue-environment.html#conda-queue-environment)
 if you are using the default Conda queue environment in your setup.
+
+## Submission Hooks
+
+This submitter supports AWS Deadline Cloud **submission hooks** — `preGUI`, `preSubmission`, and
+`postSubmission` scripts that let studios pre-populate the submitter dialog and run custom logic at
+submit time. Hooks are sourced from the directory named by the `DEADLINE_HOOKS_DIR` environment
+variable; enable them (off by default) with:
+
+```
+deadline config set settings.allow_environment_hooks true
+```
+
+This runs scripts from `DEADLINE_HOOKS_DIR` — an ordinary environment variable — on the workstation,
+so only enable it where that variable and the directory's contents are administratively controlled
+(e.g. read-only storage set by a launcher), not a user-writable path.
+
+Open the submitter from Maya's `AWSDeadline` shelf (the "Submit a render to Deadline Cloud" button)
+once the `DeadlineCloudForMaya` plug-in is enabled. See [Submission Hooks][submission-hooks] in the AWS
+Deadline Cloud client documentation for the `hooks.yaml` format, the hook input/output contract,
+supported fields, the confirmation prompt, and failure behavior.
 
 ## Viewing the Job Bundle that will be submitted
 
