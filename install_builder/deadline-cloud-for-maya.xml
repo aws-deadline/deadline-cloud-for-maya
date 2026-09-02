@@ -61,7 +61,7 @@
 		<stringParameter name="deadline_cloud_for_maya_summary" ask="0" cliOptionShow="0">
 			<value>Deadline Cloud for Maya 2024 - 2027
 - Compatible with Maya 2024 - 2027.
-- Plugin support: Arnold for Maya 2024-2027; VRay and Redshift for Maya 2025-2026.
+- Plugin support: Arnold for Maya 2024-2027; VRay and Redshift for Maya 2025-2027.
 - Install the integrated Maya submitter files to the installation directory.
 - Register the plug-in with Maya by creating or updating the MAYA_MODULE_PATH environment variable.</value>
 		</stringParameter>

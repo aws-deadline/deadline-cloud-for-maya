@@ -29,11 +29,14 @@ This library requires:
 1. Python 3.9 or higher; and
 1. Linux, Windows, or a macOS operating system.
 
-Plugin support: Arnold for Maya 2024-2027; VRay and Redshift for Maya 2025-2026.
+Plugin support: Arnold for Maya 2024-2027; VRay and Redshift for Maya 2025-2027.
 
 Maya 2027 requires the `deadline-cloud-v2` conda channel; the `deadline-cloud` channel does
 not support Maya 2027. The submitter plug-in uses it when submitting directly, but exported
 job bundles carry no channel, so point the queue environment at it instead.
+
+Redshift's Maya 2027 support ships inside its 2026 version line, so use the `maya-redshift`
+2026 conda package with Maya 2027; there is no 2027 package.
 
 ## Versioning
 
