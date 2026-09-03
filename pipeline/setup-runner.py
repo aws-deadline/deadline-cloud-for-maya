@@ -2,7 +2,7 @@
 #!/usr/bin/env python3
 """Setup runner for Maya integration tests in CodeBuild.
 
-Supports Linux and Windows with Maya 2025 and 2026.
+Supports Linux and Windows with Maya 2025, 2026 and 2027.
 
 Installs the Arnold (MtoA), V-Ray, and Redshift renderers into each Maya
 version so the renderer-specific integ tests can run.
@@ -78,6 +78,13 @@ MAYA_YEAR_TO_CONFIG: dict[str, MayaVersionConfig] = {
             "windows": "Maya2026_Windows.zip",
         },
     },
+    "2027": {
+        "python": "3.13",
+        "installer": {
+            "linux": "Autodesk_MayaIO_2027_2_Update_Linux.run",
+            "windows": "Maya2027_Windows.zip",
+        },
+    },
 }
 
 MAYA_YEAR_TO_CHECKSUMS: dict[str, MayaChecksums] = {
@@ -88,6 +95,10 @@ MAYA_YEAR_TO_CHECKSUMS: dict[str, MayaChecksums] = {
     "2026": {
         "linux": "b17b0700933e8e4329939da38cc52c93ed483a93b02e9fa78031fddae763c8e8",
         "windows": "9c9612f6e4d3f1f6de897a21fde6f9930e2e40bb6ddc3ca9647e2668cdba935c",
+    },
+    "2027": {
+        "linux": "eac310135486b2a33e64223721dc451ffca294444880e3a94a96bcc48a4efe9e",
+        "windows": "5380c20e1ab2321776c000e245819b36f33697918ee2cc344efb3ac22e1ead62",
     },
 }
 
@@ -105,6 +116,10 @@ MTOA_YEAR_TO_CONFIG: dict[str, RendererVersionConfig] = {
         "s3_key": "mtoa/5.5/MtoA-5.5.6.1-linux-2026.run",
         "checksum": "d8881e1cece725178d90aaa6d44507ea017ec64d7d23c76b129b9e349d1c9cc6",
     },
+    "2027": {
+        "s3_key": "mtoa/5.6/MtoA-5.6.3-linux-2027.run",
+        "checksum": "a745b3ef022a1fe41f1d1b90597af6df92deaf2dc49f63593705a96a0f3e6ed1",
+    },
 }
 
 # V-Ray for Maya — Chaos RHEL8 self-extracting installer per Maya version.
@@ -117,13 +132,17 @@ VRAY_YEAR_TO_CONFIG: dict[str, RendererVersionConfig] = {
         "s3_key": "maya-vray/72002/vray_adv_72002_maya2026_dr2_rhel8",
         "checksum": "a6e1e65202f6c9b3d4e12e7eb423a780a34dfeac3540658b16f4e20f8009fca6",
     },
+    "2027": {
+        "s3_key": "maya-vray/74004/vray_74004_maya2027_dr2_rhel8",
+        "checksum": "67dab04ce9f71a23d0fcbfd76bdd096b7fc90863c47e86eae7824a4464dff2cf",
+    },
 }
 
-# Redshift — single installer supports both Maya 2025 and 2026.
+# Redshift — single installer supports Maya 2025, 2026 and 2027.
 REDSHIFT_PLATFORM_CONFIG: dict[str, RedshiftPlatformConfig] = {
     "linux": {
-        "s3_key": "redshift/2026/redshift_2026.3.1_2336394021_linux_x64.run",
-        "checksum": "a95e48d2f4dd68e923c7f40693823d206d11acb51e145038d5625b748294777c",
+        "s3_key": "redshift/2026/redshift_2026.8.1_2741261432_linux_x64.run",
+        "checksum": "d653b210ebd7e51e1ceac8795f385fa0204cc8fde38496a7c92b02c97d384e1f",
     },
 }
 
@@ -383,17 +402,21 @@ def _install_mtoa_linux(version: str) -> None:
 
         run(["chmod", "+x", str(installer_path)])
         mtoa_install_dir.mkdir(parents=True, exist_ok=True)
-        # MtoA is a Makeself archive. Extract then unzip the package.
+        # MtoA is a Makeself archive. Extract then unpack the inner payload.
         extract_tmp = Path(f"/tmp/mtoa-{version}-extract")
         if extract_tmp.exists():
             run(["rm", "-rf", str(extract_tmp)], check=False)
         run([str(installer_path), "--noexec", "--target", str(extract_tmp)])
-        # Unzip the package into the install dir
+        # MtoA 5.5.x (Maya 2025/2026) ships package.zip; MtoA 5.6.x (Maya 2027)
+        # switched to package.tgz.
         pkg_zip = next(extract_tmp.glob("*.zip"), None)
+        pkg_tar = next(extract_tmp.glob("*.tgz"), None) or next(extract_tmp.glob("*.tar.gz"), None)
         if pkg_zip:
             run(["unzip", "-qo", str(pkg_zip), "-d", str(mtoa_install_dir)])
+        elif pkg_tar:
+            run(["tar", "xzf", str(pkg_tar), "-C", str(mtoa_install_dir)])
         else:
-            print(f"ERROR: No .zip found in {extract_tmp}")
+            print(f"ERROR: No .zip or .tgz payload found in {extract_tmp}")
             run(["ls", "-la", str(extract_tmp)], check=False)
             sys.exit(1)
         run(["rm", "-rf", str(extract_tmp)], check=False)
@@ -578,6 +601,8 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
             "libglvnd-egl",
             "alsa-lib",
             "nss",
+            "openjpeg2",
+            "libatomic",
         ]
     )
 
@@ -803,6 +828,7 @@ def _install_vray_windows(version: str) -> None:
     vray_win_config = {
         "2025": "maya-vray/70002/vray_adv_70002_maya2025_x64.exe",
         "2026": "maya-vray/71002/vray_adv_71002_maya2026_x64.exe",
+        "2027": "maya-vray/74004/vray_74004_maya2027_dr2_x64.exe",
     }
     if version not in vray_win_config:
         print(f"WARNING: No Windows V-Ray config for Maya {version}, skipping")
@@ -834,6 +860,7 @@ def _install_mtoa_windows(version: str) -> None:
     mtoa_win_config = {
         "2025": "mtoa/5.5/MtoA-5.5.4.2-windows-2025.msi",
         "2026": "mtoa/5.5/MtoA-5.5.4.2-windows-2026.msi",
+        "2027": "mtoa/5.6/MtoA-5.6.3-windows-2027.msi",
     }
     if version not in mtoa_win_config:
         print(f"WARNING: No Windows MtoA config for Maya {version}, skipping")
@@ -864,7 +891,7 @@ def _install_redshift_windows() -> None:
     if plugin_check.exists():
         print("Redshift already installed")
         return
-    s3_key = "redshift/2026/redshift_2026.6.0_2497872080_win_x64.exe"
+    s3_key = "redshift/2026/redshift_2026.8.1_2741261432_win_x64.exe"
     installer_path = Path("C:/temp/redshift_install.exe")
     installer_path.parent.mkdir(parents=True, exist_ok=True)
     print("Installing Redshift...")
@@ -874,13 +901,13 @@ def _install_redshift_windows() -> None:
         [
             "powershell",
             "-Command",
-            f'Start-Process "{installer_path}" -ArgumentList "--mode","unattended","--enable-components","MayaGroup,PluginMaya2025,PluginMaya2026" -Wait -NoNewWindow',
+            f'Start-Process "{installer_path}" -ArgumentList "--mode","unattended","--enable-components","MayaGroup,PluginMaya2025,PluginMaya2026,PluginMaya2027" -Wait -NoNewWindow',
         ]
     )
     installer_path.unlink(missing_ok=True)
 
     # Register Redshift with each Maya version
-    for ver in ["2025", "2026"]:
+    for ver in ["2025", "2026", "2027"]:
         maya_env_dir = Path(f"C:/Users/Default/Documents/maya/{ver}")
         maya_env_dir.mkdir(parents=True, exist_ok=True)
         maya_env_file = maya_env_dir / "Maya.env"
