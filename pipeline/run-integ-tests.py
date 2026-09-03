@@ -66,8 +66,10 @@ def main():
     # 2027 acquires its offscreen VP2 GL device. Pin the device via Autodesk's
     # documented MAYA_VP2_DEVICE_OVERRIDE to test that theory.
     # Linux values: VirtualDeviceGLCore (core profile) or VirtualDeviceGL (legacy).
+    # VirtualDeviceGLCore failed identically to the default (same libpng abort), so
+    # try the legacy device next.
     if system == "Linux" and maya_version == "2027":
-        os.environ.setdefault("MAYA_VP2_DEVICE_OVERRIDE", "VirtualDeviceGLCore")
+        os.environ.setdefault("MAYA_VP2_DEVICE_OVERRIDE", "VirtualDeviceGL")
         print(
             f"MAYA_VP2_DEVICE_OVERRIDE={os.environ['MAYA_VP2_DEVICE_OVERRIDE']} (2027 VP2 experiment)",
             flush=True,
