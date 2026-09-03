@@ -25,7 +25,7 @@ import struct
 import sys
 import traceback
 
-MODES = [("single-process", 1), ("default-multiprocess", 0)]
+MODES = [("colormanagement-OFF", False), ("colormanagement-ON", True)]
 
 
 def log(msg):
@@ -64,10 +64,14 @@ def main():
     cmds.setAttr("defaultRenderGlobals.startFrame", 1)
     cmds.setAttr("defaultRenderGlobals.endFrame", 1)
 
-    for label, ncpu in MODES:
-        cmds.setAttr("defaultRenderGlobals.numCpusToUse", ncpu)
+    log(f"scene cfp: {cmds.colorManagementPrefs(query=True, configFilePath=True)}")
+    log(f"cm enabled initially: {cmds.colorManagementPrefs(query=True, cmEnabled=True)}")
+    cmds.setAttr("defaultRenderGlobals.numCpusToUse", 1)
+
+    for label, cm_on in MODES:
+        cmds.colorManagementPrefs(edit=True, cmEnabled=cm_on)
         cmds.setAttr("defaultRenderGlobals.imageFilePrefix", f"swdiag_{label}", type="string")
-        log(f"--- cmds.render, numCpusToUse={ncpu} ({label}) ---")
+        log(f"--- cmds.render, cmEnabled={cm_on} ({label}) ---")
         try:
             result = cmds.render("sideCam1", x=960, y=540)
             log(f"render returned: {result}")
