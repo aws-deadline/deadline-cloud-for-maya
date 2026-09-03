@@ -522,13 +522,22 @@ def _install_vray_linux(version: str) -> None:
         lock_file.unlink(missing_ok=True)
 
 
-def _install_redshift_linux() -> None:
+def _install_redshift_linux(maya_versions: Sequence[str]) -> None:
     """Install Redshift once; it plugs into every Maya version at runtime."""
     redshift_root = Path("/usr/redshift")
     marker = redshift_root / ".installed"
-    if marker.exists():
+    # One Redshift install serves every Maya version, but only the versions its
+    # payload happens to ship. Require a plugin directory for each requested version
+    # rather than trusting the marker: on reserved capacity an older Redshift stays
+    # installed and its marker would otherwise skip the upgrade, leaving
+    # redshift4maya/<new version> absent and the plugin unloadable.
+    missing = [v for v in maya_versions if not (redshift_root / "redshift4maya" / v).is_dir()]
+    if marker.exists() and not missing:
         print("Redshift already installed")
         return
+    if marker.exists():
+        print(f"Redshift installed but missing plugins for {', '.join(missing)}; reinstalling")
+        marker.unlink(missing_ok=True)
 
     lock_file = Path("/tmp/redshift.lock")
     if lock_file.exists():
@@ -566,13 +575,22 @@ def _install_redshift_linux() -> None:
             sys.exit(1)
         run(["rm", "-rf", str(extract_tmp)], check=False)
 
-        # Verify — redshiftCmdLine lands in $prefix/bin.
+        # Verify — redshiftCmdLine lands in $prefix/bin, and each requested Maya
+        # version needs its own redshift4maya/<version> plugin directory, which is
+        # what the mayapy wrapper puts on MAYA_PLUG_IN_PATH.
         redshift_cmd = redshift_root / "bin" / "redshiftCmdLine"
-        if redshift_cmd.exists():
+        still_missing = [
+            v for v in maya_versions if not (redshift_root / "redshift4maya" / v).is_dir()
+        ]
+        if redshift_cmd.exists() and not still_missing:
             print(f"SUCCESS: redshiftCmdLine found at {redshift_cmd}")
         else:
-            print(f"WARNING: redshiftCmdLine not found at {redshift_cmd}, dumping install tree:")
-            run(["find", str(redshift_root), "-maxdepth", "3"], check=False)
+            print("ERROR: Redshift install incomplete:")
+            print(f"  redshiftCmdLine {redshift_cmd} exists={redshift_cmd.exists()}")
+            if still_missing:
+                print(f"  no redshift4maya plugin for: {', '.join(still_missing)}")
+            run(["find", str(redshift_root / "redshift4maya"), "-maxdepth", "1"], check=False)
+            sys.exit(1)
         marker.touch()
 
         installer_path.unlink(missing_ok=True)
@@ -840,7 +858,7 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
         for version in maya_versions:
             _install_vray_linux(version)
     if "redshift" in renderers:
-        _install_redshift_linux()
+        _install_redshift_linux(maya_versions)
 
 
 # ---------------------------------------------------------------------------
