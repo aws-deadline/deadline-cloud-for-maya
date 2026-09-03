@@ -9,6 +9,37 @@ import os
 import platform
 import subprocess
 import sys
+import tempfile
+
+
+def install_adaptor_shims() -> str:
+    """Route the adaptor entry points through mayapy and return the shim directory.
+
+    The job templates enter their Maya environment with ``command: MayaAdaptor``,
+    which openjd resolves from PATH. That finds the hatch environment's console
+    script, whose interpreter is a different build of Python 3.13 than the one
+    Maya 2027 bundles (3.13.15 vs Autodesk's 3.13.9-dirty). Autodesk's mayapy
+    exports Maya's lib directories on LD_LIBRARY_PATH and every child inherits
+    them, so that foreign interpreter loads Maya's libpython3.13.so.1.0 and
+    segfaults on its first native import -- yaml and pydantic_core both die,
+    which kills the adaptor before it logs anything.
+
+    Maya 2025 and 2026 bundle Python 3.11, so there is no matching soname and no
+    collision; this only affects 2027.
+
+    Running the adaptor under mayapy removes the mismatch: the adaptor and the
+    Maya client it spawns then share one interpreter and one libpython. This
+    matches how the adaptor runs on a farm, where the maya-openjd Conda package
+    installs into Maya's own prefix.
+    """
+    shim_dir = os.path.join(tempfile.gettempdir(), "maya-adaptor-shims")
+    os.makedirs(shim_dir, exist_ok=True)
+    for name in ("MayaAdaptor", "maya-openjd"):
+        shim = os.path.join(shim_dir, name)
+        with open(shim, "w") as handle:
+            handle.write('#!/bin/sh\nexec mayapy -m deadline.maya_adaptor.MayaAdaptor "$@"\n')
+        os.chmod(shim, 0o755)
+    return shim_dir
 
 
 def main():
@@ -43,6 +74,10 @@ def main():
             os.environ.setdefault("ADSKFLEX_LICENSE_FILE", f"2702@{license_dns};2701@{license_dns}")
 
     # Linux uses wrapper script at /usr/local/bin/mayapy that handles all env setup
+    if system == "Linux":
+        shim_dir = install_adaptor_shims()
+        os.environ["PATH"] = shim_dir + os.pathsep + os.environ.get("PATH", "")
+        print(f"Adaptor shims installed at {shim_dir} and prepended to PATH", flush=True)
 
     # TEMPORARY: run the libpython collision diagnostic under mayapy so it sees
     # the same environment the adaptor subprocess does. Remove with the
