@@ -1,35 +1,35 @@
-"""TEMPORARY diagnostic for the Maya 2027 VP2/libpng SIGABRT. Runs under mayapy.
+"""TEMPORARY diagnostic for the Maya 2027 render SIGABRT. Runs under mayapy.
 
-Renders the minimal_test scene with mayaHardware2 (ogsRender) directly -- no
-adaptor, no openjd -- once per image format, and inspects what lands on disk.
+Round 1 (ogsRender per format) passed completely on the fleet: VP2, the GL
+stack and libpng all work in-process. The scene pins mayaHardware2 (short
+attr ".ren"), so the renderer was correct all along; the discriminator is
+that the failing cmds.render() runs print the batch loop's
+"Rendering using N render processes." (rUnixMPRenderNumProcs) -- Maya's Unix
+multi-process fork mode -- which in-process ogsRender, macOS, and no passing
+2027 run ever entered.
 
-Order matters: IFF (Maya native, no libpng) then TIFF, then PNG last, because
-the PNG write is expected to abort the interpreter. Whatever prints before the
-abort is the evidence:
+Hypothesis: forked render children in 2027 inherit an unusable GL state (fork
+plus a live GL context is undefined), return garbage, and the parent's
+composite hands libpng garbage dimensions. 2025/2026 survive the same loop,
+so 2027 plausibly moved its GL init ahead of the fork.
 
-- IFF valid + PNG absent/garbage-header -> framebuffer readback is fine and
-  only the libpng encode path is broken (a newer libpng staged into Maya's lib
-  becomes a credible fix).
-- IFF also missing/garbage -> the VP2 offscreen readback itself is broken and
-  no libpng change can help.
+Test: cmds.render() -- the adaptor's exact call -- single-process first
+(defaultRenderGlobals.numCpusToUse=1), then the default last, since it is
+expected to abort the interpreter.
 
-Delete this file and pipeline/run-vp2-diag.py when the investigation ends.
+Delete this file and its hook in run-integ-tests.py when the investigation ends.
 """
 
-import glob
 import os
 import struct
 import sys
 import traceback
 
-OUT_DIR = "/tmp/vp2diag"
-
-# defaultRenderGlobals.imageFormat codes
-FORMATS = [("iff", 7), ("tif", 3), ("png", 32)]
+MODES = [("single-process", 1), ("default-multiprocess", 0)]
 
 
 def log(msg):
-    print(f"[vp2diag] {msg}", flush=True)
+    print(f"[swdiag] {msg}", flush=True)
 
 
 def describe_file(path):
@@ -43,64 +43,34 @@ def describe_file(path):
     return detail
 
 
-def inspect_outputs(tag):
-    files = sorted(glob.glob(os.path.join(OUT_DIR, "**", "*.*"), recursive=True))
-    log(f"{tag}: {len(files)} file(s) in {OUT_DIR}")
-    for path in files:
-        try:
-            log(f"  {describe_file(path)}")
-        except OSError as exc:
-            log(f"  {path}: unreadable: {exc}")
-    # PIL parse is the strongest validity check and mirrors the test's comparison.
-    try:
-        import PIL.Image
-
-        for path in files:
-            try:
-                with PIL.Image.open(path) as img:
-                    log(f"  PIL: {os.path.basename(path)} -> {img.format} {img.size}")
-            except Exception as exc:
-                log(f"  PIL: {os.path.basename(path)} -> UNREADABLE: {exc}")
-    except ImportError:
-        log("  (PIL unavailable; header inspection only)")
-
-
 def main():
-    os.makedirs(OUT_DIR, exist_ok=True)
-    for stale in glob.glob(os.path.join(OUT_DIR, "**", "*.*"), recursive=True):
-        os.unlink(stale)
-
     import maya.standalone
 
     maya.standalone.initialize()
     import maya.cmds as cmds
 
     log(f"Maya {cmds.about(version=True)}  cut {cmds.about(cutIdentifier=True)}")
-    log(f"MAYA_VP2_DEVICE_OVERRIDE={os.environ.get('MAYA_VP2_DEVICE_OVERRIDE')}")
 
     scene = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         "test/integ/test_scripts/minimal_test/scene/test.ma",
     )
     cmds.file(scene, open=True, force=True)
-    log(f"opened {scene}")
+    log(f"current renderer: {cmds.getAttr('defaultRenderGlobals.currentRenderer')}")
 
-    # What VP2 reports about its device, if queryable in standalone.
-    try:
-        log(f"ogs device: {cmds.ogs(deviceInformation=True)}")
-    except Exception as exc:
-        log(f"ogs deviceInformation unavailable: {exc}")
+    cmds.setAttr("defaultResolution.width", 960)
+    cmds.setAttr("defaultResolution.height", 540)
+    cmds.setAttr("defaultRenderGlobals.imageFormat", 32)  # PNG, as the test uses
+    cmds.setAttr("defaultRenderGlobals.startFrame", 1)
+    cmds.setAttr("defaultRenderGlobals.endFrame", 1)
 
-    for name, code in FORMATS:
-        prefix = os.path.join(OUT_DIR, f"diag_{name}")
-        cmds.setAttr("defaultRenderGlobals.imageFormat", code)
-        cmds.setAttr("defaultRenderGlobals.imageFilePrefix", prefix, type="string")
-        log(f"--- ogsRender to {name} (format code {code}) ---")
+    for label, ncpu in MODES:
+        cmds.setAttr("defaultRenderGlobals.numCpusToUse", ncpu)
+        cmds.setAttr("defaultRenderGlobals.imageFilePrefix", f"swdiag_{label}", type="string")
+        log(f"--- cmds.render, numCpusToUse={ncpu} ({label}) ---")
         try:
-            result = cmds.ogsRender(camera="sideCam1", width=960, height=540)
-            log(f"ogsRender returned: {result}")
-            # Maya resolves the prefix against the project images rule, so trust
-            # the returned path rather than OUT_DIR.
+            result = cmds.render("sideCam1", x=960, y=540)
+            log(f"render returned: {result}")
             if result and os.path.isfile(str(result)):
                 log(f"  {describe_file(str(result))}")
                 try:
@@ -113,7 +83,7 @@ def main():
             else:
                 log(f"  returned path missing on disk: {result!r}")
         except Exception:
-            log(f"ogsRender raised:\n{traceback.format_exc()}")
+            log(f"render raised:\n{traceback.format_exc()}")
 
     log("diagnostic completed without aborting")
     maya.standalone.uninitialize()
