@@ -56,9 +56,11 @@ dependencies = [
 # Matrix across Maya versions. All renderers (mtoa, vray, redshift) are
 # installed by default on Linux and Windows.
 [[envs.integ-ci.matrix]]
-# TEMPORARY, revert to ["2025", "2026", "2027"] before merge: 2027 only, to cut the
-# integ cycle while debugging the Linux 2027 adaptor hang.
-maya = ["2027"]
+# TEMPORARY, revert to ["2025", "2026", "2027"] before merge: 2025 and 2026 only, to
+# regression-check the changes this branch makes to every version (per-version mayapy
+# dispatcher, adaptor dispatchers, Redshift 2026.8.1, V-Ray invocation, --phase2
+# removal). 2027's state is already known: everything passes except minimal_test.
+maya = ["2025", "2026"]
 
 [envs.integ-ci.env-vars]
 MAYA_VERSION = "{matrix:maya}"
@@ -69,11 +71,7 @@ setup-mtoa = "python ./pipeline/setup-runner.py --versions {matrix:maya} --rende
 setup-vray = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers vray {args}"
 setup-redshift = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers redshift {args}"
 setup-all-renderers = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers mtoa vray redshift {args}"
-# TEMPORARY, revert to "python ./pipeline/run-integ-tests.py" before merge: Arnold and
-# V-Ray already pass on 2027. Redshift failed only because a stale install without a
-# redshift4maya/2027 plugin was cached on the fleet; run it alone to confirm the
-# reinstall picks up 2026.8.1.
-test = 'python ./pipeline/run-integ-tests.py -m "adaptor and redshift_renderer"'
+test = "python ./pipeline/run-integ-tests.py"
 test-submitters = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "not adaptor"'
 test-mtoa = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "adaptor and mtoa_renderer"'
 test-vray = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "adaptor and vray_renderer"'
