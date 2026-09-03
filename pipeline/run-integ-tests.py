@@ -78,6 +78,15 @@ def main():
     # TEMPORARY, revert before merge: xdist relays worker output and only prints it once
     # a test finishes, so a test that never finishes prints nothing. Run in-process with
     # capture disabled to stream the Maya 2027 adaptor hang as it happens.
+    # TEMPORARY: render the minimal scene directly per image format to locate the
+    # 2027 VP2/libpng abort. Runs before pytest; its own crash must not stop the run.
+    if system == "Linux" and maya_version == "2027":
+        diag = os.path.join(os.path.dirname(os.path.abspath(__file__)), "diagnose_vp2.py")
+        if os.path.isfile(diag):
+            print("=== vp2 artifact diagnostic ===", flush=True)
+            subprocess.run(["mayapy", diag], check=False)
+            print("=== end vp2 diagnostic ===", flush=True)
+
     cmd = [
         "mayapy",
         "-m",
