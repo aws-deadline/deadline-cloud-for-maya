@@ -69,11 +69,11 @@ setup-mtoa = "python ./pipeline/setup-runner.py --versions {matrix:maya} --rende
 setup-vray = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers vray {args}"
 setup-redshift = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers redshift {args}"
 setup-all-renderers = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers mtoa vray redshift {args}"
-# TEMPORARY, revert to "python ./pipeline/run-integ-tests.py" before merge: Arnold
-# already passed on 2027, proving the libpng SIGABRT is confined to mayaHardware2's
-# VP2 framebuffer readback rather than libpng itself. Run Redshift and V-Ray, which
-# write output through their own writers, to establish whether VP2 is the only gap.
-test = 'python ./pipeline/run-integ-tests.py -m "adaptor and (redshift_renderer or vray_renderer)"'
+# TEMPORARY, revert to "python ./pipeline/run-integ-tests.py" before merge: Arnold and
+# V-Ray already pass on 2027. Redshift failed only because a stale install without a
+# redshift4maya/2027 plugin was cached on the fleet; run it alone to confirm the
+# reinstall picks up 2026.8.1.
+test = 'python ./pipeline/run-integ-tests.py -m "adaptor and redshift_renderer"'
 test-submitters = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "not adaptor"'
 test-mtoa = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "adaptor and mtoa_renderer"'
 test-vray = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "adaptor and vray_renderer"'
