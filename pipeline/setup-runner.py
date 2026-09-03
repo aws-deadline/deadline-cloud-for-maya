@@ -456,16 +456,19 @@ def _install_vray_linux(version: str) -> None:
         sys.exit(1)
 
     vray_install_dir = Path(f"/usr/ChaosGroup/V-Ray/Maya{version}-x64")
-    vray_bin = vray_install_dir / "vray" / "bin" / "vray"
+    # Verify the plugin Maya actually loads, not the renderer binary: V-Ray 7.40.04
+    # dropped vray/bin/vray, and this is the path every MayaVray Conda recipe
+    # patchelfs, so it holds across versions.
+    vray_plugin = vray_install_dir / "maya_vray" / "plug-ins" / "vrayformaya.so"
     marker = vray_install_dir / ".installed"
-    # Require the binary as well as the marker: an earlier revision wrote the marker
+    # Require the plugin as well as the marker: an earlier revision wrote the marker
     # even when the install produced nothing, and on reserved capacity that stale
     # marker would skip the reinstall forever.
-    if marker.exists() and vray_bin.exists():
+    if marker.exists() and vray_plugin.exists():
         print(f"V-Ray for Maya {version} already installed")
         return
     if marker.exists():
-        print(f"Stale V-Ray marker at {marker} with no binary; reinstalling")
+        print(f"Stale V-Ray marker at {marker} with no plugin; reinstalling")
         marker.unlink(missing_ok=True)
 
     lock_file = Path(f"/tmp/vray-{version}.lock")
@@ -500,12 +503,17 @@ def _install_vray_linux(version: str) -> None:
             cwd=vray_install_dir,
         )
 
-        # Verify — vray binary lands under $prefix/vray/bin.
-        if vray_bin.exists():
-            print(f"SUCCESS: vray binary found at {vray_bin}")
+        # Verify — the Maya plugin and its module file are what Maya needs to load
+        # V-Ray. The wrapper puts maya_root/modules on MAYA_MODULE_PATH, and the
+        # shipped .module's relative "../../maya_vray" resolves correctly here.
+        vray_module = vray_install_dir / "maya_root" / "modules" / "VRayForMaya.module"
+        if vray_plugin.exists() and vray_module.exists():
+            print(f"SUCCESS: vrayformaya.so found at {vray_plugin}")
         else:
-            print(f"ERROR: vray binary not found at {vray_bin}, dumping install tree:")
-            run(["find", str(vray_install_dir), "-maxdepth", "3"], check=False)
+            print(f"ERROR: V-Ray install incomplete for Maya {version}:")
+            print(f"  plugin {vray_plugin} exists={vray_plugin.exists()}")
+            print(f"  module {vray_module} exists={vray_module.exists()}")
+            run(["find", str(vray_install_dir), "-maxdepth", "2"], check=False)
             sys.exit(1)
         marker.touch()
 
