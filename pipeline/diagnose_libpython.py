@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
 """TEMPORARY diagnostic for the Maya 2027 adaptor SIGSEGV.
 
-Run under mayapy so it inherits exactly the environment the adaptor subprocess
-gets (notably LD_LIBRARY_PATH, which the /usr/local/bin/mayapy wrapper sets).
+Round 1 established that the host interpreter (Python 3.13.15) links Maya
+2027's bundled libpython3.13.so.1.0 (Autodesk build 3.13.9-dirty) because
+Autodesk's own mayapy script puts Maya's lib directories on LD_LIBRARY_PATH,
+and every child inherits it. A bare print() survives that; `MayaAdaptor
+--help` segfaults, so the fault needs a native import to trigger.
 
-Hypothesis: Maya 2027 bundles Python 3.13 and the build host's Python is also
-3.13, so they share the libpython3.13.so.1.0 soname. The wrapper puts Maya's
-lib directory first on LD_LIBRARY_PATH, every child inherits it, and the host
-interpreter that runs the MayaAdaptor console script loads Maya's libpython
-instead of its own and crashes before producing any output.
+This round answers two questions:
+  A. Which import kills the host interpreter under the inherited environment?
+  B. Which candidate fix works --
+       B1. scrub Maya's lib entries from LD_LIBRARY_PATH, or
+       B2. run the adaptor under mayapy instead of the host interpreter.
 
 Delete this file and its call in run-integ-tests.py once resolved.
 """
 
-import glob
 import os
-import platform
 import shutil
 import subprocess
 import sys
@@ -25,76 +26,78 @@ def show(label: str, value: object) -> None:
     print(f"[diag] {label}: {value}", flush=True)
 
 
+def run(argv: list[str], env: dict | None = None) -> subprocess.CompletedProcess:
+    return subprocess.run(argv, capture_output=True, text=True, check=False, env=env)
+
+
+def describe(label: str, result: subprocess.CompletedProcess) -> None:
+    detail = (result.stderr or result.stdout).strip().splitlines()
+    tail = detail[-1][:200] if detail else ""
+    suffix = f"  ({tail})" if tail else ""
+    show(label, f"rc={result.returncode}{suffix}")
+
+
+def scrubbed_env(maya_location: str) -> dict:
+    """Inherited environment with Maya's lib directories removed from the loader path."""
+    entries = os.environ.get("LD_LIBRARY_PATH", "").split(os.pathsep)
+    kept = [
+        e for e in entries if e and "mayaIO" not in e and maya_location not in os.path.realpath(e)
+    ]
+    env = dict(os.environ)
+    if kept:
+        env["LD_LIBRARY_PATH"] = os.pathsep.join(kept)
+    else:
+        env.pop("LD_LIBRARY_PATH", None)
+    return env
+
+
 def main() -> None:
-    show("sys.executable", sys.executable)
-    show("sys.version", sys.version.replace("\n", " "))
-    show("platform", platform.system())
-    show("MAYA_LOCATION", os.environ.get("MAYA_LOCATION"))
-    show("LD_LIBRARY_PATH", os.environ.get("LD_LIBRARY_PATH"))
-
     maya_location = os.environ.get("MAYA_LOCATION", "")
-    if maya_location:
-        libs = sorted(glob.glob(os.path.join(maya_location, "lib", "libpython*")))
-        show("maya bundled libpython", libs or "none found")
-
-    for name in ("MayaAdaptor", "maya-openjd", "mayapy", "python", "python3"):
-        show(f"which {name}", shutil.which(name))
-
-    adaptor = shutil.which("MayaAdaptor")
-    if adaptor:
-        try:
-            with open(adaptor, "rb") as handle:
-                show("MayaAdaptor shebang", handle.readline().decode("utf-8", "replace").strip())
-        except OSError as exc:
-            show("MayaAdaptor shebang", f"unreadable: {exc}")
-
     host = shutil.which("python") or shutil.which("python3")
-    if not host:
-        show("VERDICT", "no host python on PATH; cannot test the collision")
-        return
+    adaptor = shutil.which("MayaAdaptor")
+    show("host python", host)
+    show("MayaAdaptor", adaptor)
+    show("mayapy (this process)", sys.executable)
 
-    real_host = os.path.realpath(host)
-    show("host python realpath", real_host)
+    # --- A. Find the import that faults, under the inherited environment. ---
+    if host:
+        for module in (
+            "encodings",  # trivial, pure python
+            "yaml",
+            "pydantic_core",
+            "openjd.adaptor_runtime",
+            "deadline.maya_adaptor",
+        ):
+            describe(
+                f"A: host python -c 'import {module}'",
+                run([host, "-c", f"import {module}; print('ok')"]),
+            )
 
-    if platform.system() == "Linux":
-        result = subprocess.run(["ldd", real_host], capture_output=True, text=True, check=False)
-        matches = [line.strip() for line in result.stdout.splitlines() if "libpython" in line]
-        show("host python ldd libpython", matches or "no libpython entries")
+    # --- B1. Does scrubbing Maya's lib from LD_LIBRARY_PATH fix the adaptor? ---
+    if adaptor and maya_location:
+        env = scrubbed_env(maya_location)
+        show("B1: scrubbed LD_LIBRARY_PATH", env.get("LD_LIBRARY_PATH", "(unset)"))
+        describe("B1: MayaAdaptor --help (scrubbed)", run([adaptor, "--help"], env=env))
+        if host:
+            describe(
+                "B1: host python -c 'import deadline.maya_adaptor' (scrubbed)",
+                run([host, "-c", "import deadline.maya_adaptor; print('ok')"], env=env),
+            )
 
-    probe = [host, "-c", "print('host interpreter started ok')"]
+    # --- B2. Does running the adaptor under mayapy work? ---
+    mayapy = shutil.which("mayapy") or sys.executable
+    describe(
+        "B2: mayapy -m deadline.maya_adaptor.MayaAdaptor --help",
+        run([mayapy, "-m", "deadline.maya_adaptor.MayaAdaptor", "--help"]),
+    )
+    describe(
+        "B2: mayapy -c 'import deadline.maya_adaptor'",
+        run([mayapy, "-c", "import deadline.maya_adaptor; print('ok')"]),
+    )
 
-    # 1. Inherited environment. Expect returncode -11 if the hypothesis holds.
-    inherited = subprocess.run(probe, capture_output=True, text=True, check=False)
-    show("host python returncode (inherited env)", inherited.returncode)
-    show("host python stdout", inherited.stdout.strip())
-    show("host python stderr", inherited.stderr.strip()[:400])
-
-    # 2. Same probe with Maya's lib directory removed from LD_LIBRARY_PATH.
-    #    If this succeeds where the above crashed, the fix is confirmed too.
-    ld_path = os.environ.get("LD_LIBRARY_PATH", "")
-    if ld_path and maya_location:
-        cleaned = os.pathsep.join(
-            entry
-            for entry in ld_path.split(os.pathsep)
-            if entry and not entry.startswith(maya_location)
-        )
-        env = dict(os.environ, LD_LIBRARY_PATH=cleaned)
-        without_maya = subprocess.run(probe, capture_output=True, text=True, check=False, env=env)
-        show("LD_LIBRARY_PATH without maya", cleaned or "(empty)")
-        show("host python returncode (maya lib removed)", without_maya.returncode)
-
-        if inherited.returncode != 0 and without_maya.returncode == 0:
-            show("VERDICT", "CONFIRMED: Maya lib on LD_LIBRARY_PATH crashes the host interpreter")
-        elif inherited.returncode == 0:
-            show("VERDICT", "NOT the cause: host interpreter runs fine under the inherited env")
-        else:
-            show("VERDICT", "INCONCLUSIVE: host interpreter fails either way")
-
-    # 3. The actual failing command, for completeness.
+    # Baseline for comparison.
     if adaptor:
-        helped = subprocess.run([adaptor, "--help"], capture_output=True, text=True, check=False)
-        show("MayaAdaptor --help returncode", helped.returncode)
-        show("MayaAdaptor --help stderr", helped.stderr.strip()[:300])
+        describe("baseline: MayaAdaptor --help (inherited)", run([adaptor, "--help"]))
 
 
 if __name__ == "__main__":
