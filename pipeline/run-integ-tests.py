@@ -44,6 +44,15 @@ def main():
 
     # Linux uses wrapper script at /usr/local/bin/mayapy that handles all env setup
 
+    # TEMPORARY: run the libpython collision diagnostic under mayapy so it sees
+    # the same environment the adaptor subprocess does. Remove with the
+    # diagnose_libpython.py file once the 2027 segfault is resolved.
+    diagnostic = os.path.join(os.path.dirname(os.path.abspath(__file__)), "diagnose_libpython.py")
+    if os.path.isfile(diagnostic):
+        print("=== libpython collision diagnostic ===", flush=True)
+        subprocess.run(["mayapy", diagnostic], check=False)
+        print("=== end diagnostic ===", flush=True)
+
     sys.exit(
         subprocess.run(
             ["mayapy", "-m", "pytest", "--no-cov", "test/integ", "-vvv", "--numprocesses=1"]
