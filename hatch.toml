@@ -56,11 +56,10 @@ dependencies = [
 # Matrix across Maya versions. All renderers (mtoa, vray, redshift) are
 # installed by default on Linux and Windows.
 [[envs.integ-ci.matrix]]
-# TEMPORARY, revert to ["2025", "2026", "2027"] before merge: 2025 and 2026 only, to
-# regression-check the changes this branch makes to every version (per-version mayapy
-# dispatcher, adaptor dispatchers, Redshift 2026.8.1, V-Ray invocation, --phase2
-# removal). 2027's state is already known: everything passes except minimal_test.
-maya = ["2025", "2026"]
+# TEMPORARY, revert to ["2025", "2026", "2027"] before merge: 2027 only, for the
+# MAYA_VP2_DEVICE_OVERRIDE experiment against the minimal_test VP2 abort.
+# 2025/2026 already regression-checked green on this branch.
+maya = ["2027"]
 
 [envs.integ-ci.env-vars]
 MAYA_VERSION = "{matrix:maya}"
@@ -71,7 +70,10 @@ setup-mtoa = "python ./pipeline/setup-runner.py --versions {matrix:maya} --rende
 setup-vray = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers vray {args}"
 setup-redshift = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers redshift {args}"
 setup-all-renderers = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers mtoa vray redshift {args}"
-test = "python ./pipeline/run-integ-tests.py"
+# TEMPORARY, revert to "python ./pipeline/run-integ-tests.py" before merge: only
+# minimal_test (mayaHardware2), the one test hitting the 2027 VP2 abort, to give the
+# MAYA_VP2_DEVICE_OVERRIDE experiment a fast signal.
+test = 'python ./pipeline/run-integ-tests.py -m "adaptor and maya_renderer"'
 test-submitters = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "not adaptor"'
 test-mtoa = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "adaptor and mtoa_renderer"'
 test-vray = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "adaptor and vray_renderer"'

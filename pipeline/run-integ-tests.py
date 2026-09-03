@@ -58,6 +58,21 @@ def main():
     if system != "Windows":
         os.environ["PATH"] = "/usr/local/maya-adaptor-bin:" + os.environ.get("PATH", "")
 
+    # EXPERIMENT, revert or keep with evidence before merge: Maya 2027's hardware
+    # renderer (mayaHardware2) renders, then aborts in PNG postprocessing on the
+    # headless Linux runner -- libpng receives garbage IHDR dimensions and corrupts
+    # the heap (SIGABRT). 2025/2026 pass on identical infrastructure, and 2027
+    # renders the same scene pixel-correct on a workstation, so the suspect is how
+    # 2027 acquires its offscreen VP2 GL device. Pin the device via Autodesk's
+    # documented MAYA_VP2_DEVICE_OVERRIDE to test that theory.
+    # Linux values: VirtualDeviceGLCore (core profile) or VirtualDeviceGL (legacy).
+    if system == "Linux" and maya_version == "2027":
+        os.environ.setdefault("MAYA_VP2_DEVICE_OVERRIDE", "VirtualDeviceGLCore")
+        print(
+            f"MAYA_VP2_DEVICE_OVERRIDE={os.environ['MAYA_VP2_DEVICE_OVERRIDE']} (2027 VP2 experiment)",
+            flush=True,
+        )
+
     # TEMPORARY, revert before merge: xdist relays worker output and only prints it once
     # a test finishes, so a test that never finishes prints nothing. Run in-process with
     # capture disabled to stream the Maya 2027 adaptor hang as it happens.
