@@ -4,4 +4,4 @@ python-semantic-release == 9.12.*
 # with "type object 'Actor' has no attribute 'name_email_regex'".
 # Remove this pin when moving to python-semantic-release 10.6.*, as
 # deadline-cloud and deadline-cloud-for-nuke already have.
-GitPython == 3.1.57
+GitPython == 3.1.61
