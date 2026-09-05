@@ -1,6 +1,7 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
 import subprocess
+import tempfile
 import yaml
 import json
 
@@ -8,14 +9,29 @@ from pathlib import Path
 from typing import Any
 
 
-def run_command(args: list[str]) -> subprocess.CompletedProcess[bytes]:
-    output = subprocess.run(args, capture_output=True)
+def run_command(args: list[str], timeout: int = 180) -> subprocess.CompletedProcess[bytes]:
+    # Write to files rather than pipes. The adaptor backgrounds a daemon that inherits
+    # our stdout/stderr, so with capture_output=True a timeout kills the child and then
+    # blocks forever waiting for EOF from the surviving grandchild.
+    with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
+        timed_out = False
+        try:
+            returncode = subprocess.run(args, stdout=out, stderr=err, timeout=timeout).returncode
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            returncode = 124
+        out.seek(0)
+        err.seek(0)
+        stdout, stderr = out.read(), err.read()
 
-    print(f"Ran the following: {' '.join(output.args)}")
-    print(f"\nstdout:\n\n{output.stdout.decode('utf-8', errors='replace')}")
-    print(f"\nstderr:\n\n{output.stderr.decode('utf-8', errors='replace')}")
+    if timed_out:
+        print(f"Timed out after {timeout}s: {' '.join(args)}")
+    else:
+        print(f"Ran the following: {' '.join(args)}")
+    print(f"\nstdout:\n\n{stdout.decode('utf-8', errors='replace')}")
+    print(f"\nstderr:\n\n{stderr.decode('utf-8', errors='replace')}")
 
-    return output
+    return subprocess.CompletedProcess(args, returncode=returncode, stdout=stdout, stderr=stderr)
 
 
 def is_valid_template(template_location: Path) -> bool:

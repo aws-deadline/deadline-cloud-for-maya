@@ -13,7 +13,17 @@ import sys
 
 def main():
     maya_version = os.environ.get("MAYA_VERSION", "2025")
+    # Linux's mayapy dispatcher reads this, so export the resolved value.
+    os.environ["MAYA_VERSION"] = maya_version
     system = platform.system()
+
+    # Linux only: the adaptor daemon is a subprocess, so it inherits these rather
+    # than pytest's faulthandler. Without them a SIGSEGV discards the unflushed
+    # stdout. On Windows they make the Maya client dump the ERROR_NO_TOKEN
+    # exceptions it otherwise handles, which breaks session cleanup.
+    if system != "Windows":
+        os.environ["PYTHONUNBUFFERED"] = "1"
+        os.environ["PYTHONFAULTHANDLER"] = "1"
 
     if system == "Windows":
         maya_bin = f"C:\\Program Files\\Autodesk\\Maya{maya_version}\\bin"
@@ -42,13 +52,25 @@ def main():
             os.environ.setdefault("redshift_LICENSE", f"7054@{license_dns}")
             os.environ.setdefault("ADSKFLEX_LICENSE_FILE", f"2702@{license_dns};2701@{license_dns}")
 
-    # Linux uses wrapper script at /usr/local/bin/mayapy that handles all env setup
+    # Linux resolves mayapy through the MAYA_VERSION dispatcher written by
+    # setup-runner.py, and runs the adaptor under mayapy via these dispatchers, which
+    # must precede the hatch env's console scripts. See _write_adaptor_dispatchers.
+    if system != "Windows":
+        os.environ["PATH"] = "/usr/local/maya-adaptor-bin:" + os.environ.get("PATH", "")
 
-    sys.exit(
-        subprocess.run(
-            ["mayapy", "-m", "pytest", "--no-cov", "test/integ", "-vvv", "--numprocesses=1"]
-        ).returncode
-    )
+    cmd = [
+        "mayapy",
+        "-m",
+        "pytest",
+        "--no-cov",
+        "test/integ",
+        "-vvv",
+        "--numprocesses=1",
+        *sys.argv[1:],
+    ]
+    print(f"Running: {' '.join(cmd)}", flush=True)
+
+    sys.exit(subprocess.run(cmd).returncode)
 
 
 if __name__ == "__main__":

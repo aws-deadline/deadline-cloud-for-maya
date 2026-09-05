@@ -20,6 +20,7 @@ import os
 import platform
 import shlex
 import shutil
+import struct
 import subprocess
 import sys
 import time
@@ -78,7 +79,18 @@ MAYA_YEAR_TO_CONFIG: dict[str, MayaVersionConfig] = {
             "windows": "Maya2026_Windows.zip",
         },
     },
+    "2027": {
+        "python": "3.13",
+        "installer": {
+            "linux": "Autodesk_MayaIO_2027_2_Update_Linux.run",
+            "windows": "Maya2027_Windows.zip",
+        },
+    },
 }
+
+# Adaptor dispatchers live here so run-integ-tests.py can put them ahead of the
+# hatch env's console scripts on PATH.
+ADAPTOR_DISPATCH_DIR = Path("/usr/local/maya-adaptor-bin")
 
 MAYA_YEAR_TO_CHECKSUMS: dict[str, MayaChecksums] = {
     "2025": {
@@ -88,6 +100,10 @@ MAYA_YEAR_TO_CHECKSUMS: dict[str, MayaChecksums] = {
     "2026": {
         "linux": "b17b0700933e8e4329939da38cc52c93ed483a93b02e9fa78031fddae763c8e8",
         "windows": "9c9612f6e4d3f1f6de897a21fde6f9930e2e40bb6ddc3ca9647e2668cdba935c",
+    },
+    "2027": {
+        "linux": "eac310135486b2a33e64223721dc451ffca294444880e3a94a96bcc48a4efe9e",
+        "windows": "5380c20e1ab2321776c000e245819b36f33697918ee2cc344efb3ac22e1ead62",
     },
 }
 
@@ -104,6 +120,10 @@ MTOA_YEAR_TO_CONFIG: dict[str, RendererVersionConfig] = {
     "2026": {
         "s3_key": "mtoa/5.5/MtoA-5.5.6.1-linux-2026.run",
         "checksum": "d8881e1cece725178d90aaa6d44507ea017ec64d7d23c76b129b9e349d1c9cc6",
+    },
+    "2027": {
+        "s3_key": "mtoa/5.6.3/MtoA-5.6.3-linux-2027.run",
+        "checksum": "a745b3ef022a1fe41f1d1b90597af6df92deaf2dc49f63593705a96a0f3e6ed1",
     },
 }
 
@@ -257,6 +277,8 @@ def _install_maya_linux(version: str) -> Path:
     )
     if existing.stdout.strip():
         print(f"Maya {version} already installed: {existing.stdout.strip().split(chr(10))[0]}")
+        # Repair an install extracted before this ran, e.g. on reserved capacity.
+        _link_bundled_sonames(Path(existing.stdout.strip().split(chr(10))[0]).parent.parent / "lib")
         return maya_dir
 
     lock_file = Path(f"/tmp/maya-{version}.lock")
@@ -272,6 +294,8 @@ def _install_maya_linux(version: str) -> Path:
             )
             if check.stdout.strip():
                 break
+        if check.stdout.strip():
+            _link_bundled_sonames(Path(check.stdout.strip().split("\n")[0]).parent.parent / "lib")
         return maya_dir
 
     lock_file.touch()
@@ -287,8 +311,7 @@ def _install_maya_linux(version: str) -> Path:
         extract_dir = Path(f"/opt/maya-{version}-extract")
         if extract_dir.exists():
             run(["rm", "-rf", str(extract_dir)], check=False)
-        # --noexec: don't run post-extract scripts (they do rm -rf /tmp/*)
-        # --phase2: skip EULA prompt
+        # --noexec: don't run the embedded setup.sh (it prompts for the EULA)
         print("Extracting installer (this may take a moment)...")
         result = subprocess.run(
             [
@@ -298,7 +321,6 @@ def _install_maya_linux(version: str) -> Path:
                 "--nox11",
                 "--target",
                 str(extract_dir),
-                "--phase2",
             ],
             check=False,
         )
@@ -342,12 +364,73 @@ def _install_maya_linux(version: str) -> Path:
             )
             sys.exit(1)
 
+        _link_bundled_sonames(mayapy_exe.parent.parent / "lib")
+
         installer_path.unlink(missing_ok=True)
         run(["rm", "-rf", str(extract_dir)], check=False)
     finally:
         lock_file.unlink(missing_ok=True)
 
     return maya_dir
+
+
+def _link_bundled_sonames(lib_dir: Path) -> None:
+    """Create the SONAME symlinks that cpio does not extract.
+
+    Maya bundles libraries whose filename carries the full version, and relies on the
+    symlink for its SONAME. rpm2cpio | cpio omits those links, so the loader cannot
+    find the library and the extension modules needing it fail to import. Maya 2025
+    ships OpenSSL 1.1, without which its Python cannot import ssl.
+    """
+    for pattern in ("libssl.so.*", "libcrypto.so.*"):
+        for lib in sorted(lib_dir.glob(pattern)):
+            if not lib.is_file() or lib.is_symlink():
+                continue
+            soname = _read_soname(lib)
+            if not soname or soname == lib.name:
+                continue
+            link = lib_dir / soname
+            if link.is_symlink() and not link.exists():
+                link.unlink()  # dangling link from a partial extraction
+            if link.exists():
+                continue
+            link.symlink_to(lib.name)
+            print(f"Linked {link} -> {lib.name}")
+
+
+def _read_soname(path: Path) -> str | None:
+    """Return an ELF library's DT_SONAME, or None if it declares none."""
+    with open(path, "rb") as f:
+        data = f.read()
+    if data[:4] != b"\x7fELF" or data[4] != 2:
+        return None
+    shoff, shentsize, shnum = (
+        struct.unpack_from("<Q", data, 0x28)[0],
+        struct.unpack_from("<H", data, 0x3A)[0],
+        struct.unpack_from("<H", data, 0x3C)[0],
+    )
+    sections = []
+    for i in range(shnum):
+        off = shoff + i * shentsize
+        sections.append(
+            (
+                struct.unpack_from("<I", data, off + 4)[0],  # sh_type
+                struct.unpack_from("<Q", data, off + 0x18)[0],  # sh_offset
+                struct.unpack_from("<Q", data, off + 0x20)[0],  # sh_size
+                struct.unpack_from("<I", data, off + 0x28)[0],  # sh_link
+            )
+        )
+    for sh_type, sh_offset, sh_size, sh_link in sections:
+        if sh_type != 6:  # SHT_DYNAMIC
+            continue
+        strtab = sections[sh_link][1]
+        for pos in range(0, sh_size, 16):
+            tag, val = struct.unpack_from("<qQ", data, sh_offset + pos)
+            if tag == 0:
+                break
+            if tag == 14:  # DT_SONAME
+                return data[strtab + val : data.index(b"\0", strtab + val)].decode()
+    return None
 
 
 def _install_mtoa_linux(version: str) -> None:
@@ -383,19 +466,33 @@ def _install_mtoa_linux(version: str) -> None:
 
         run(["chmod", "+x", str(installer_path)])
         mtoa_install_dir.mkdir(parents=True, exist_ok=True)
-        # MtoA is a Makeself archive. Extract then unzip the package.
+        # MtoA is a Makeself archive. Extract it, then unpack the payload.
         extract_tmp = Path(f"/tmp/mtoa-{version}-extract")
         if extract_tmp.exists():
             run(["rm", "-rf", str(extract_tmp)], check=False)
         run([str(installer_path), "--noexec", "--target", str(extract_tmp)])
-        # Unzip the package into the install dir
-        pkg_zip = next(extract_tmp.glob("*.zip"), None)
-        if pkg_zip:
-            run(["unzip", "-qo", str(pkg_zip), "-d", str(mtoa_install_dir)])
-        else:
-            print(f"ERROR: No .zip found in {extract_tmp}")
+        # MtoA 5.5.x shipped the payload as a .zip; 5.6.x ships package.tgz.
+        pkg = next(extract_tmp.glob("*.zip"), None) or next(extract_tmp.glob("*.tgz"), None)
+        if pkg is None:
+            print(f"ERROR: No .zip or .tgz payload found in {extract_tmp}")
             run(["ls", "-la", str(extract_tmp)], check=False)
             sys.exit(1)
+        if pkg.suffix == ".zip":
+            run(["unzip", "-qo", str(pkg), "-d", str(mtoa_install_dir)])
+        else:
+            # Strip a single top-level directory if the tarball has one, so that
+            # plug-ins/ lands directly in mtoa_install_dir for either layout.
+            listing = subprocess.run(
+                ["tar", "-tzf", str(pkg)], capture_output=True, text=True, check=False
+            )
+            if listing.returncode != 0:
+                print(f"ERROR: Could not list {pkg}")
+                print(listing.stderr)
+                sys.exit(1)
+            roots = {line.split("/")[0] for line in listing.stdout.splitlines() if line.strip()}
+            strip = ["--strip-components=1"] if len(roots) == 1 else []
+            print(f"Unpacking {pkg.name} (top-level entries: {sorted(roots)[:5]})")
+            run(["tar", "-xzf", str(pkg), "-C", str(mtoa_install_dir), *strip])
         run(["rm", "-rf", str(extract_tmp)], check=False)
 
         # Verify — installer lays down plugins under $prefix/plug-ins.
@@ -540,6 +637,58 @@ def _clean_stale_locks(maya_versions: Sequence[str]) -> None:
             lock_file.unlink()
 
 
+def _write_mayapy_dispatcher() -> None:
+    """Write /usr/local/bin/mayapy, dispatching to the MAYA_VERSION wrapper.
+
+    Every integ-ci matrix cell exports MAYA_VERSION, so routing through this keeps
+    pytest, the adaptor, and its children on the version that cell is testing.
+    Fails loudly rather than guessing, since silently using the wrong Maya makes
+    tests pass or fail for the wrong reasons.
+    """
+    dispatcher = Path("/usr/local/bin/mayapy")
+    script = """#!/bin/sh
+if [ -z "${MAYA_VERSION:-}" ]; then
+    echo "mayapy: MAYA_VERSION is not set, cannot select a Maya version." >&2
+    echo "mayapy: installed: $(ls /usr/local/bin/mayapy-* 2>/dev/null | sed 's|.*/mayapy-||' | tr '\\n' ' ')" >&2
+    exit 1
+fi
+target="/usr/local/bin/mayapy-${MAYA_VERSION}"
+if [ ! -x "$target" ]; then
+    echo "mayapy: no wrapper for Maya ${MAYA_VERSION} at ${target}." >&2
+    exit 1
+fi
+exec "$target" "$@"
+"""
+    dispatcher.write_text(script)
+    run(["chmod", "+x", str(dispatcher)])
+    print(f"Wrote mayapy dispatcher at {dispatcher}")
+
+
+def _write_adaptor_dispatchers() -> None:
+    """Run the adaptor on the host Python, minus Maya's entry in LD_LIBRARY_PATH.
+
+    The adaptor imports boto3, which needs ssl, ruling out Maya 2025's Python. But
+    Maya 2027 ships libpython3.13.so under the same soname as the host's, and the
+    wrapper puts Maya's lib dir on LD_LIBRARY_PATH, so the host Python loaded Maya's
+    copy and segfaulted. Only Maya's entry is harmful, so drop just that and keep the
+    rest. The Maya client is launched via mayapy, whose wrapper re-adds it.
+    run-integ-tests.py prepends this directory to PATH to win over the hatch env.
+    """
+    ADAPTOR_DISPATCH_DIR.mkdir(parents=True, exist_ok=True)
+    script = """#!/bin/sh
+clean=$(printf '%s' "${LD_LIBRARY_PATH:-}" | tr ':' '\\n' | grep -v '^/opt/Autodesk/' | paste -sd: -)
+if [ -n "$clean" ]; then
+    exec env LD_LIBRARY_PATH="$clean" python -m deadline.maya_adaptor.MayaAdaptor "$@"
+fi
+exec env -u LD_LIBRARY_PATH python -m deadline.maya_adaptor.MayaAdaptor "$@"
+"""
+    for name in ("MayaAdaptor", "maya-openjd"):
+        path = ADAPTOR_DISPATCH_DIR / name
+        path.write_text(script)
+        run(["chmod", "+x", str(path)])
+    print(f"Wrote adaptor dispatchers in {ADAPTOR_DISPATCH_DIR}")
+
+
 def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
     pkg_mgr = (
         "dnf"
@@ -578,6 +727,9 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
             "libglvnd-egl",
             "alsa-lib",
             "nss",
+            "openjpeg2",
+            "libatomic",
+            "libpng",
         ]
     )
 
@@ -662,8 +814,8 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
             label=f"pip install project (Maya {version})",
         )
 
-        # Symlink mayapy to PATH so hatch integ-ci:test can find it.
-        # Create a wrapper that sets MAYA_LOCATION and renderer plugin paths.
+        # Per-version wrapper setting MAYA_LOCATION and renderer plugin paths. The
+        # `mayapy` dispatcher written after this loop picks one via MAYA_VERSION.
         mayapy_dir = mayapy_exe.parent.parent  # e.g. /opt/.../usr/autodesk/mayaIO2025
 
         # Renderer paths
@@ -681,7 +833,7 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
         script_paths = f"{redshift_dir}/redshift4maya/common/scripts"
         render_desc_paths = f"{redshift_dir}/redshift4maya/common/rendererDesc"
 
-        wrapper = Path("/usr/local/bin/mayapy")
+        wrapper = Path(f"/usr/local/bin/mayapy-{version}")
         wrapper.write_text(
             f"#!/bin/sh\n"
             f'export MAYA_LOCATION="{mayapy_dir}"\n'
@@ -694,6 +846,25 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
             f'exec "{mayapy_exe}" "$@"\n'
         )
         run(["chmod", "+x", str(wrapper)])
+
+        # The submitter tests import boto3, so report whether this Maya's Python can
+        # import ssl. _link_bundled_sonames is what makes that possible on Maya 2025.
+        probe = subprocess.run(
+            [str(wrapper), "-c", "import ssl; print(ssl.OPENSSL_VERSION)"],
+            capture_output=True,
+            check=False,
+        )
+        if probe.returncode == 0:
+            print(f"Maya {version} Python ssl: OK ({probe.stdout.decode().strip()})")
+        else:
+            tail = probe.stderr.decode(errors="replace").strip().splitlines()
+            print(
+                f"WARNING: Maya {version} Python cannot import ssl "
+                f"({tail[-1] if tail else 'no error output'}); submitter tests will fail"
+            )
+
+    _write_mayapy_dispatcher()
+    _write_adaptor_dispatchers()
 
     # Install requested renderers (always per-Maya-version, except Redshift which
     # is shared across versions).
@@ -834,6 +1005,7 @@ def _install_mtoa_windows(version: str) -> None:
     mtoa_win_config = {
         "2025": "mtoa/5.5/MtoA-5.5.4.2-windows-2025.msi",
         "2026": "mtoa/5.5/MtoA-5.5.4.2-windows-2026.msi",
+        "2027": "mtoa/5.6.3/MtoA-5.6.3-windows-2027.msi",
     }
     if version not in mtoa_win_config:
         print(f"WARNING: No Windows MtoA config for Maya {version}, skipping")
