@@ -137,13 +137,17 @@ VRAY_YEAR_TO_CONFIG: dict[str, RendererVersionConfig] = {
         "s3_key": "maya-vray/72002/vray_adv_72002_maya2026_dr2_rhel8",
         "checksum": "a6e1e65202f6c9b3d4e12e7eb423a780a34dfeac3540658b16f4e20f8009fca6",
     },
+    "2027": {
+        "s3_key": "maya-vray/74004/vray_74004_maya2027_dr2_rhel8",
+        "checksum": "67dab04ce9f71a23d0fcbfd76bdd096b7fc90863c47e86eae7824a4464dff2cf",
+    },
 }
 
-# Redshift — single installer supports both Maya 2025 and 2026.
+# Redshift — single installer supports Maya 2025, 2026 and 2027.
 REDSHIFT_PLATFORM_CONFIG: dict[str, RedshiftPlatformConfig] = {
     "linux": {
-        "s3_key": "redshift/2026/redshift_2026.3.1_2336394021_linux_x64.run",
-        "checksum": "a95e48d2f4dd68e923c7f40693823d206d11acb51e145038d5625b748294777c",
+        "s3_key": "redshift/2026/redshift_2026.8.1_2741261432_linux_x64.run",
+        "checksum": "d653b210ebd7e51e1ceac8795f385fa0204cc8fde38496a7c92b02c97d384e1f",
     },
 }
 
@@ -518,10 +522,18 @@ def _install_vray_linux(version: str) -> None:
         sys.exit(1)
 
     vray_install_dir = Path(f"/usr/ChaosGroup/V-Ray/Maya{version}-x64")
+    # V-Ray 7.40.04 dropped vray/bin/vray; check the plugin Maya loads, which is also
+    # what the MayaVray Conda recipes patchelf, so this holds across versions.
+    vray_plugin = vray_install_dir / "maya_vray" / "plug-ins" / "vrayformaya.so"
     marker = vray_install_dir / ".installed"
-    if marker.exists():
+    # Require the plugin too: a marker written after an install that produced nothing
+    # would otherwise skip the reinstall forever on reserved capacity.
+    if marker.exists() and vray_plugin.exists():
         print(f"V-Ray for Maya {version} already installed")
         return
+    if marker.exists():
+        print(f"Stale V-Ray marker at {marker}; reinstalling")
+        marker.unlink(missing_ok=True)
 
     lock_file = Path(f"/tmp/vray-{version}.lock")
     if lock_file.exists():
@@ -543,26 +555,21 @@ def _install_vray_linux(version: str) -> None:
         verify_checksum(installer_path, VRAY_YEAR_TO_CONFIG[version]["checksum"])
 
         run(["chmod", "+x", str(installer_path)])
-        # Chaos V-Ray installer uses custom flags for silent install
         vray_install_dir.mkdir(parents=True, exist_ok=True)
-        run(
-            [
-                str(installer_path),
-                "-gui=0",
-                "-auto",
-                "-quiet=1",
-                f"-unpackInstall={vray_install_dir}",
-            ],
-            check=False,
-        )
+        # -unpackInstall as a separate argument with "." from inside the destination,
+        # as the Conda recipes invoke it. 7.40.04 silently unpacks nothing given the
+        # equals-joined form that worked for 7.2.
+        run([str(installer_path), "-unpackInstall", "."], check=False, cwd=vray_install_dir)
 
-        # Verify — vray binary lands under $prefix/vray/bin.
-        vray_bin = vray_install_dir / "vray" / "bin" / "vray"
-        if vray_bin.exists():
-            print(f"SUCCESS: vray binary found at {vray_bin}")
+        vray_module = vray_install_dir / "maya_root" / "modules" / "VRayForMaya.module"
+        if vray_plugin.exists() and vray_module.exists():
+            print(f"SUCCESS: vrayformaya.so found at {vray_plugin}")
         else:
-            print(f"WARNING: vray binary not found at {vray_bin}, dumping install tree:")
-            run(["find", str(vray_install_dir), "-maxdepth", "3"], check=False)
+            print(f"ERROR: V-Ray install incomplete for Maya {version}:")
+            print(f"  plugin {vray_plugin} exists={vray_plugin.exists()}")
+            print(f"  module {vray_module} exists={vray_module.exists()}")
+            run(["find", str(vray_install_dir), "-maxdepth", "2"], check=False)
+            sys.exit(1)
         marker.touch()
 
         installer_path.unlink(missing_ok=True)
@@ -570,13 +577,20 @@ def _install_vray_linux(version: str) -> None:
         lock_file.unlink(missing_ok=True)
 
 
-def _install_redshift_linux() -> None:
+def _install_redshift_linux(maya_versions: Sequence[str]) -> None:
     """Install Redshift once; it plugs into every Maya version at runtime."""
     redshift_root = Path("/usr/redshift")
     marker = redshift_root / ".installed"
-    if marker.exists():
+    # One install serves every Maya version, but only those its payload ships, so
+    # require a plugin directory per requested version. Trusting the marker alone left
+    # an older Redshift in place on reserved capacity with no redshift4maya/2027.
+    missing = [v for v in maya_versions if not (redshift_root / "redshift4maya" / v).is_dir()]
+    if marker.exists() and not missing:
         print("Redshift already installed")
         return
+    if marker.exists():
+        print(f"Redshift missing plugins for {', '.join(missing)}; reinstalling")
+        marker.unlink(missing_ok=True)
 
     lock_file = Path("/tmp/redshift.lock")
     if lock_file.exists():
@@ -614,13 +628,19 @@ def _install_redshift_linux() -> None:
             sys.exit(1)
         run(["rm", "-rf", str(extract_tmp)], check=False)
 
-        # Verify — redshiftCmdLine lands in $prefix/bin.
         redshift_cmd = redshift_root / "bin" / "redshiftCmdLine"
-        if redshift_cmd.exists():
+        still_missing = [
+            v for v in maya_versions if not (redshift_root / "redshift4maya" / v).is_dir()
+        ]
+        if redshift_cmd.exists() and not still_missing:
             print(f"SUCCESS: redshiftCmdLine found at {redshift_cmd}")
         else:
-            print(f"WARNING: redshiftCmdLine not found at {redshift_cmd}, dumping install tree:")
-            run(["find", str(redshift_root), "-maxdepth", "3"], check=False)
+            print("ERROR: Redshift install incomplete:")
+            print(f"  redshiftCmdLine exists={redshift_cmd.exists()}")
+            if still_missing:
+                print(f"  no redshift4maya plugin for: {', '.join(still_missing)}")
+            run(["find", str(redshift_root / "redshift4maya"), "-maxdepth", "1"], check=False)
+            sys.exit(1)
         marker.touch()
 
         installer_path.unlink(missing_ok=True)
@@ -875,7 +895,7 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
         for version in maya_versions:
             _install_vray_linux(version)
     if "redshift" in renderers:
-        _install_redshift_linux()
+        _install_redshift_linux(maya_versions)
 
 
 # ---------------------------------------------------------------------------
@@ -974,6 +994,7 @@ def _install_vray_windows(version: str) -> None:
     vray_win_config = {
         "2025": "maya-vray/70002/vray_adv_70002_maya2025_x64.exe",
         "2026": "maya-vray/71002/vray_adv_71002_maya2026_x64.exe",
+        "2027": "maya-vray/74004/vray_74004_maya2027_dr2_x64.exe",
     }
     if version not in vray_win_config:
         print(f"WARNING: No Windows V-Ray config for Maya {version}, skipping")
@@ -1036,7 +1057,7 @@ def _install_redshift_windows() -> None:
     if plugin_check.exists():
         print("Redshift already installed")
         return
-    s3_key = "redshift/2026/redshift_2026.6.0_2497872080_win_x64.exe"
+    s3_key = "redshift/2026/redshift_2026.8.1_2741261432_win_x64.exe"
     installer_path = Path("C:/temp/redshift_install.exe")
     installer_path.parent.mkdir(parents=True, exist_ok=True)
     print("Installing Redshift...")
@@ -1046,13 +1067,13 @@ def _install_redshift_windows() -> None:
         [
             "powershell",
             "-Command",
-            f'Start-Process "{installer_path}" -ArgumentList "--mode","unattended","--enable-components","MayaGroup,PluginMaya2025,PluginMaya2026" -Wait -NoNewWindow',
+            f'Start-Process "{installer_path}" -ArgumentList "--mode","unattended","--enable-components","MayaGroup,PluginMaya2025,PluginMaya2026,PluginMaya2027" -Wait -NoNewWindow',
         ]
     )
     installer_path.unlink(missing_ok=True)
 
     # Register Redshift with each Maya version
-    for ver in ["2025", "2026"]:
+    for ver in ["2025", "2026", "2027"]:
         maya_env_dir = Path(f"C:/Users/Default/Documents/maya/{ver}")
         maya_env_dir.mkdir(parents=True, exist_ok=True)
         maya_env_file = maya_env_dir / "Maya.env"
