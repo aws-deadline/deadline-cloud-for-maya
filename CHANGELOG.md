@@ -1,3 +1,7 @@
+## 0.15.20 (2026-09-09)
+
+### Bug Fixes
+* Fixed an issue where Redshift render jobs with multiple render layers would render all renderable layers in every step instead of only the assigned layer, causing steps to overwrite each other's output. (#470)
 ## 0.15.19 (2026-08-25)
 
 ### Features
