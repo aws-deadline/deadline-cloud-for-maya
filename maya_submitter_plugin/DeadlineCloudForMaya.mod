@@ -1,1 +1,1 @@
-+ DeadlineCloudForMaya 0.15.19 .
++ DeadlineCloudForMaya 0.15.20 .
