@@ -66,8 +66,10 @@ def release_orphaned_maya_licenses(phase):
     refused. Maya reports that refusal as a misleading MAYA_APP_DIR disk-space
     error.
 
-    Runs pre-test (recover from earlier builds) and post-test (don't poison the
-    next). CodeBuild only, so it cannot kill a Maya a developer opened.
+    Runs pre-test and post-test. Post-test covers normal completion; a build
+    killed by timeout or cancellation dies on SIGTERM without unwinding, so its
+    orphans are reclaimed by the next build's pre-test sweep. CodeBuild only, so
+    it cannot kill a Maya a developer opened.
     """
     if not os.environ.get("CODEBUILD_BUILD_ID"):
         _log(f"{phase}: not running in CodeBuild; skipping orphan cleanup")
