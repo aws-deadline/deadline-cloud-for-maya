@@ -13,6 +13,12 @@ import sys
 
 _MAYA_PROCESS_MARKERS = ("mayapy", "maya_client.py", "maya.bin", "maya.exe")
 
+# Fallback for processes whose command line cannot be read: executable names that
+# can hold a license. Compared lowercased, exact match.
+_MAYA_PROCESS_NAMES = frozenset(
+    {"mayapy", "mayapy.bin", "mayapy.exe", "maya", "maya.bin", "maya.exe"}
+)
+
 
 def _log(message):
     """Log a cleanup message.
@@ -24,29 +30,30 @@ def _log(message):
 
 
 def find_orphaned_maya_processes(psutil, protected_pids):
-    """Return (orphans, unreadable_pids) for processes not in protected_pids.
+    """Return [(process, description)] for Maya processes not in protected_pids.
 
-    `orphans` is [(process, cmdline)] for processes matching a Maya marker.
-    `unreadable_pids` are processes whose command line could not be read, which
-    `process_iter` reports as None; they are returned rather than silently
-    dropped because one of them could be the orphan we are looking for.
+    Matches on the command line, falling back to the executable name when the
+    command line cannot be read, which psutil reports as None. The fallback
+    matters because an unreadable process could be the orphan we are looking for,
+    and the name stays readable when the command line does not.
 
     Kept separate from termination so matching can be tested without killing
     processes.
     """
     orphans = []
-    unreadable = []
-    for proc in psutil.process_iter(["pid", "cmdline"]):
+    for proc in psutil.process_iter(["pid", "name", "cmdline"]):
         if proc.pid in protected_pids:
             continue
         cmdline_parts = proc.info.get("cmdline")
         if cmdline_parts is None:
-            unreadable.append(proc.pid)
+            name = proc.info.get("name") or ""
+            if name.lower() in _MAYA_PROCESS_NAMES:
+                orphans.append((proc, f"name={name} (command line unreadable)"))
             continue
         cmdline = " ".join(cmdline_parts)
         if any(marker in cmdline for marker in _MAYA_PROCESS_MARKERS):
             orphans.append((proc, cmdline))
-    return orphans, unreadable
+    return orphans
 
 
 def release_orphaned_maya_licenses(phase):
@@ -75,16 +82,14 @@ def release_orphaned_maya_licenses(phase):
     # Guards against self-termination if this is ever called from mayapy.
     protected_pids = {os.getpid()}
 
-    orphans, unreadable = find_orphaned_maya_processes(psutil, protected_pids)
-    if unreadable:
-        _log(f"{phase}: {len(unreadable)} process(es) with unreadable command line, not inspected")
+    orphans = find_orphaned_maya_processes(psutil, protected_pids)
     if not orphans:
         _log(f"{phase}: no orphaned Maya processes found")
         return
 
     _log(f"{phase}: terminating {len(orphans)} orphaned Maya process(es):")
-    for proc, cmdline in orphans:
-        _log(f"  pid={proc.pid} {cmdline[:160]}")
+    for proc, description in orphans:
+        _log(f"  pid={proc.pid} {description[:160]}")
         try:
             proc.terminate()
         except (psutil.NoSuchProcess, psutil.AccessDenied) as exc:
