@@ -1,9 +1,9 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 """Run integration tests with correct environment for each platform.
 
-Releases Autodesk licenses held by Maya processes orphaned by earlier builds,
-then sets Maya's bin on PATH and renderer environment variables so the
-adaptor's subprocess can find mayapy and renderer plugins.
+Sweeps orphaned Maya processes, then sets Maya's bin on PATH and renderer
+environment variables so the adaptor's subprocess can find mayapy and renderer
+plugins.
 """
 
 import os
@@ -11,19 +11,14 @@ import platform
 import subprocess
 import sys
 
-# Command-line fragments identifying a process that can hold an Autodesk
-# (FlexLM) license checkout.
 _MAYA_PROCESS_MARKERS = ("mayapy", "maya_client.py", "maya.bin", "maya.exe")
 
 
 def _log(message):
-    """Print a cleanup message, flushing immediately.
+    """Log a cleanup message.
 
-    This script's stdout is a pipe under CodeBuild and therefore block
-    buffered, while the pytest subprocess inherits the same descriptor and
-    writes to it directly. Without an explicit flush the parent's output is
-    not emitted until interpreter exit, so these messages surface *after* all
-    test output and read as though cleanup ran last.
+    flush=True keeps ordering against the pytest subprocess, which writes to the
+    same descriptor; unflushed output appears after all test output.
     """
     print(f"[license-cleanup] {message}", flush=True)
 
@@ -31,8 +26,8 @@ def _log(message):
 def find_orphaned_maya_processes(psutil, protected_pids):
     """Return [(process, cmdline)] for Maya processes not in protected_pids.
 
-    Separated from termination so the matching logic can be exercised without
-    signalling anything.
+    Kept separate from termination so matching can be tested without killing
+    processes.
     """
     orphans = []
     for proc in psutil.process_iter(["pid", "cmdline"]):
@@ -48,28 +43,17 @@ def find_orphaned_maya_processes(psutil, protected_pids):
 
 
 def release_orphaned_maya_licenses(phase):
-    """Terminate Maya processes left behind on this host, releasing their licenses.
+    """Terminate leftover Maya processes, releasing their Autodesk licenses.
 
-    Called twice per suite run: ``pre-test`` so a previous build's leftovers
-    cannot starve this one, and ``post-test`` so this build cannot starve the
-    next. The two cover different failures -- a build killed before it reaches
-    the post-test sweep is caught by the next build's pre-test sweep.
+    CodeBuild reserved-capacity hosts are reused between builds. A Maya that
+    dies without releasing its license -- e.g. when maya.standalone.initialize()
+    raises and the test fixture's uninitialize() teardown never runs -- holds the
+    checkout open indefinitely, and once enough accumulate later checkouts are
+    refused. Maya reports that refusal as a misleading MAYA_APP_DIR disk-space
+    error.
 
-    CI runs on CodeBuild reserved-capacity fleets whose hosts are reused between
-    builds. When a Maya process dies without releasing its Autodesk license --
-    for example when ``maya.standalone.initialize()`` raises and the test
-    fixture's ``uninitialize()`` teardown never runs -- the checkout is never
-    returned, and the orphan keeps its license session alive indefinitely. Once
-    enough accumulate, later checkouts are refused and Maya reports it as the
-    misleading "Error encountered when initializing Maya - Please check for
-    sufficient disk space and necessary write permissions of MAYA_APP_DIR."
-
-    No Maya process should be running either before the suite starts or after it
-    exits, so anything matched here is an orphan and safe to terminate.
-
-    Restricted to CodeBuild. The reused-host problem does not exist on a
-    developer machine, where a running Maya is far more likely to be one the
-    developer opened deliberately.
+    Runs pre-test (recover from earlier builds) and post-test (don't poison the
+    next). CodeBuild only, so it cannot kill a Maya a developer opened.
     """
     if not os.environ.get("CODEBUILD_BUILD_ID"):
         _log(f"{phase}: not running in CodeBuild; skipping orphan cleanup")
@@ -81,9 +65,7 @@ def release_orphaned_maya_licenses(phase):
         _log(f"{phase}: psutil unavailable; skipping orphan cleanup")
         return
 
-    # This runner is plain Python, not mayapy, so it cannot match its own
-    # command line. The guard matters only if this is ever called from inside a
-    # Maya interpreter, where an unguarded sweep would terminate itself.
+    # Guards against self-termination if this is ever called from mayapy.
     protected_pids = {os.getpid()}
 
     orphans = find_orphaned_maya_processes(psutil, protected_pids)
