@@ -16,6 +16,18 @@ import sys
 _MAYA_PROCESS_MARKERS = ("mayapy", "maya_client.py", "maya.bin", "maya.exe")
 
 
+def _log(message):
+    """Print a cleanup message, flushing immediately.
+
+    This script's stdout is a pipe under CodeBuild and therefore block
+    buffered, while the pytest subprocess inherits the same descriptor and
+    writes to it directly. Without an explicit flush the parent's output is
+    not emitted until interpreter exit, so these messages surface *after* all
+    test output and read as though cleanup ran last.
+    """
+    print(f"[license-cleanup] {message}", flush=True)
+
+
 def find_orphaned_maya_processes(psutil, protected_pids):
     """Return [(process, cmdline)] for Maya processes not in protected_pids.
 
@@ -35,8 +47,13 @@ def find_orphaned_maya_processes(psutil, protected_pids):
     return orphans
 
 
-def release_orphaned_maya_licenses():
-    """Terminate Maya processes left behind by earlier builds on this host.
+def release_orphaned_maya_licenses(phase):
+    """Terminate Maya processes left behind on this host, releasing their licenses.
+
+    Called twice per suite run: ``pre-test`` so a previous build's leftovers
+    cannot starve this one, and ``post-test`` so this build cannot starve the
+    next. The two cover different failures -- a build killed before it reaches
+    the post-test sweep is caught by the next build's pre-test sweep.
 
     CI runs on CodeBuild reserved-capacity fleets whose hosts are reused between
     builds. When a Maya process dies without releasing its Autodesk license --
@@ -47,21 +64,21 @@ def release_orphaned_maya_licenses():
     misleading "Error encountered when initializing Maya - Please check for
     sufficient disk space and necessary write permissions of MAYA_APP_DIR."
 
-    No Maya process should be running before the suite starts, so anything
-    matched here is an orphan and safe to terminate.
+    No Maya process should be running either before the suite starts or after it
+    exits, so anything matched here is an orphan and safe to terminate.
 
     Restricted to CodeBuild. The reused-host problem does not exist on a
     developer machine, where a running Maya is far more likely to be one the
     developer opened deliberately.
     """
     if not os.environ.get("CODEBUILD_BUILD_ID"):
-        print("[license-cleanup] not running in CodeBuild; skipping orphan cleanup")
+        _log(f"{phase}: not running in CodeBuild; skipping orphan cleanup")
         return
 
     try:
         import psutil
     except ImportError:
-        print("[license-cleanup] psutil unavailable; skipping orphan cleanup")
+        _log(f"{phase}: psutil unavailable; skipping orphan cleanup")
         return
 
     # This runner is plain Python, not mayapy, so it cannot match its own
@@ -71,28 +88,28 @@ def release_orphaned_maya_licenses():
 
     orphans = find_orphaned_maya_processes(psutil, protected_pids)
     if not orphans:
-        print("[license-cleanup] no orphaned Maya processes found")
+        _log(f"{phase}: no orphaned Maya processes found")
         return
 
-    print(f"[license-cleanup] terminating {len(orphans)} orphaned Maya process(es):")
+    _log(f"{phase}: terminating {len(orphans)} orphaned Maya process(es):")
     for proc, cmdline in orphans:
-        print(f"[license-cleanup]   pid={proc.pid} {cmdline[:160]}")
+        _log(f"  pid={proc.pid} {cmdline[:160]}")
         try:
             proc.terminate()
         except (psutil.NoSuchProcess, psutil.AccessDenied) as exc:
-            print(f"[license-cleanup]   pid={proc.pid} terminate failed: {exc}")
+            _log(f"  pid={proc.pid} terminate failed: {exc}")
 
     _, still_alive = psutil.wait_procs([proc for proc, _ in orphans], timeout=15)
     for proc in still_alive:
-        print(f"[license-cleanup]   pid={proc.pid} ignored SIGTERM; sending SIGKILL")
+        _log(f"  pid={proc.pid} ignored SIGTERM; sending SIGKILL")
         try:
             proc.kill()
         except (psutil.NoSuchProcess, psutil.AccessDenied) as exc:
-            print(f"[license-cleanup]   pid={proc.pid} kill failed: {exc}")
+            _log(f"  pid={proc.pid} kill failed: {exc}")
 
 
 def main():
-    release_orphaned_maya_licenses()
+    release_orphaned_maya_licenses("pre-test")
 
     maya_version = os.environ.get("MAYA_VERSION", "2025")
     system = platform.system()
@@ -126,11 +143,18 @@ def main():
 
     # Linux uses wrapper script at /usr/local/bin/mayapy that handles all env setup
 
-    sys.exit(
-        subprocess.run(
+    try:
+        result = subprocess.run(
             ["mayapy", "-m", "pytest", "--no-cov", "test/integ", "-vvv", "--numprocesses=1"]
-        ).returncode
-    )
+        )
+    finally:
+        # A cleanup failure must never change the build result.
+        try:
+            release_orphaned_maya_licenses("post-test")
+        except Exception as exc:  # noqa: BLE001
+            _log(f"post-test: cleanup failed: {exc}")
+
+    sys.exit(result.returncode)
 
 
 if __name__ == "__main__":
