@@ -59,12 +59,11 @@ def find_orphaned_maya_processes(psutil, protected_pids):
 def release_orphaned_maya_licenses(phase):
     """Terminate leftover Maya processes, releasing their Autodesk licenses.
 
-    CodeBuild reserved-capacity hosts are reused between builds. A Maya that
-    dies without releasing its license -- e.g. when maya.standalone.initialize()
-    raises and the test fixture's uninitialize() teardown never runs -- holds the
-    checkout open indefinitely, and once enough accumulate later checkouts are
-    refused. Maya reports that refusal as a misleading MAYA_APP_DIR disk-space
-    error.
+    CodeBuild reserved-capacity hosts are reused between builds. Every orphan
+    observed so far was an adaptor subprocess that outlived a cancelled or
+    timed-out run; it holds its checkout open indefinitely, and once enough
+    accumulate later checkouts are refused. Maya reports that refusal as a
+    misleading MAYA_APP_DIR disk-space error.
 
     Runs pre-test and post-test. Post-test covers normal completion; a build
     killed by timeout or cancellation dies on SIGTERM without unwinding, so its

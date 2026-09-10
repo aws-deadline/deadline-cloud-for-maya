@@ -23,9 +23,9 @@ def initialize_maya():
     Fixture that ensures Maya is open and close after the test runs.
     """
     # Everything after initialize() runs with a license checked out, so it all
-    # belongs inside the try. initialize() itself does not: if it fails there is
-    # no license to release, and an uninitialize() error would mask the original
-    # failure.
+    # belongs inside the try. initialize() is outside it because Maya has to
+    # initialize before there is a license to release, and an uninitialize()
+    # error would hide the original failure.
     maya.standalone.initialize()
     try:
         print(f"MayaClient: Maya Version {maya.cmds.about(version=True)}")
