@@ -24,22 +24,29 @@ def _log(message):
 
 
 def find_orphaned_maya_processes(psutil, protected_pids):
-    """Return [(process, cmdline)] for Maya processes not in protected_pids.
+    """Return (orphans, unreadable_pids) for processes not in protected_pids.
+
+    `orphans` is [(process, cmdline)] for processes matching a Maya marker.
+    `unreadable_pids` are processes whose command line could not be read, which
+    `process_iter` reports as None; they are returned rather than silently
+    dropped because one of them could be the orphan we are looking for.
 
     Kept separate from termination so matching can be tested without killing
     processes.
     """
     orphans = []
+    unreadable = []
     for proc in psutil.process_iter(["pid", "cmdline"]):
         if proc.pid in protected_pids:
             continue
-        try:
-            cmdline = " ".join(proc.info.get("cmdline") or [])
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
+        cmdline_parts = proc.info.get("cmdline")
+        if cmdline_parts is None:
+            unreadable.append(proc.pid)
             continue
+        cmdline = " ".join(cmdline_parts)
         if any(marker in cmdline for marker in _MAYA_PROCESS_MARKERS):
             orphans.append((proc, cmdline))
-    return orphans
+    return orphans, unreadable
 
 
 def release_orphaned_maya_licenses(phase):
@@ -68,7 +75,9 @@ def release_orphaned_maya_licenses(phase):
     # Guards against self-termination if this is ever called from mayapy.
     protected_pids = {os.getpid()}
 
-    orphans = find_orphaned_maya_processes(psutil, protected_pids)
+    orphans, unreadable = find_orphaned_maya_processes(psutil, protected_pids)
+    if unreadable:
+        _log(f"{phase}: {len(unreadable)} process(es) with unreadable command line, not inspected")
     if not orphans:
         _log(f"{phase}: no orphaned Maya processes found")
         return
@@ -83,15 +92,25 @@ def release_orphaned_maya_licenses(phase):
 
     _, still_alive = psutil.wait_procs([proc for proc, _ in orphans], timeout=15)
     for proc in still_alive:
-        _log(f"  pid={proc.pid} ignored SIGTERM; sending SIGKILL")
+        # terminate() is SIGTERM on POSIX but an alias for kill() on Windows, so
+        # this escalation only ever fires on POSIX.
+        _log(f"  pid={proc.pid} did not exit within 15s; killing")
         try:
             proc.kill()
         except (psutil.NoSuchProcess, psutil.AccessDenied) as exc:
             _log(f"  pid={proc.pid} kill failed: {exc}")
 
 
+def _cleanup(phase):
+    """Run a sweep, ensuring a cleanup failure cannot change the build result."""
+    try:
+        release_orphaned_maya_licenses(phase)
+    except Exception as exc:  # noqa: BLE001
+        _log(f"{phase}: cleanup failed: {exc}")
+
+
 def main():
-    release_orphaned_maya_licenses("pre-test")
+    _cleanup("pre-test")
 
     maya_version = os.environ.get("MAYA_VERSION", "2025")
     system = platform.system()
@@ -130,11 +149,7 @@ def main():
             ["mayapy", "-m", "pytest", "--no-cov", "test/integ", "-vvv", "--numprocesses=1"]
         )
     finally:
-        # A cleanup failure must never change the build result.
-        try:
-            release_orphaned_maya_licenses("post-test")
-        except Exception as exc:  # noqa: BLE001
-            _log(f"post-test: cleanup failed: {exc}")
+        _cleanup("post-test")
 
     sys.exit(result.returncode)
 

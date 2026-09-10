@@ -32,10 +32,13 @@ def initialize_maya():
     )
 
     qt_application = QtWidgets.QApplication(sys.argv)
-    yield show_maya_render_submitter, on_create_job_bundle_callback
-
-    qt_application.shutdown()
-    maya.standalone.uninitialize()
+    try:
+        yield show_maya_render_submitter, on_create_job_bundle_callback
+        qt_application.shutdown()
+    finally:
+        # Must run even if the Qt shutdown raises, otherwise the Maya license
+        # stays checked out and starves later builds on this host.
+        maya.standalone.uninitialize()
 
 
 @pytest.mark.submitter
