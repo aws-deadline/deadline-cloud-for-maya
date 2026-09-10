@@ -1,8 +1,9 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 """Run integration tests with correct environment for each platform.
 
-Sets Maya's bin on PATH and renderer environment variables so the adaptor's
-subprocess can find mayapy and renderer plugins.
+Releases Autodesk licenses held by Maya processes orphaned by earlier builds,
+then sets Maya's bin on PATH and renderer environment variables so the
+adaptor's subprocess can find mayapy and renderer plugins.
 """
 
 import os
@@ -10,8 +11,89 @@ import platform
 import subprocess
 import sys
 
+# Command-line fragments identifying a process that can hold an Autodesk
+# (FlexLM) license checkout.
+_MAYA_PROCESS_MARKERS = ("mayapy", "maya_client.py", "maya.bin", "maya.exe")
+
+
+def find_orphaned_maya_processes(psutil, protected_pids):
+    """Return [(process, cmdline)] for Maya processes not in protected_pids.
+
+    Separated from termination so the matching logic can be exercised without
+    signalling anything.
+    """
+    orphans = []
+    for proc in psutil.process_iter(["pid", "cmdline"]):
+        if proc.pid in protected_pids:
+            continue
+        try:
+            cmdline = " ".join(proc.info.get("cmdline") or [])
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+        if any(marker in cmdline for marker in _MAYA_PROCESS_MARKERS):
+            orphans.append((proc, cmdline))
+    return orphans
+
+
+def release_orphaned_maya_licenses():
+    """Terminate Maya processes left behind by earlier builds on this host.
+
+    CI runs on CodeBuild reserved-capacity fleets whose hosts are reused between
+    builds. When a Maya process dies without releasing its Autodesk license --
+    for example when ``maya.standalone.initialize()`` raises and the test
+    fixture's ``uninitialize()`` teardown never runs -- the checkout is never
+    returned, and the orphan keeps its license session alive indefinitely. Once
+    enough accumulate, later checkouts are refused and Maya reports it as the
+    misleading "Error encountered when initializing Maya - Please check for
+    sufficient disk space and necessary write permissions of MAYA_APP_DIR."
+
+    No Maya process should be running before the suite starts, so anything
+    matched here is an orphan and safe to terminate.
+
+    Restricted to CodeBuild. The reused-host problem does not exist on a
+    developer machine, where a running Maya is far more likely to be one the
+    developer opened deliberately.
+    """
+    if not os.environ.get("CODEBUILD_BUILD_ID"):
+        print("[license-cleanup] not running in CodeBuild; skipping orphan cleanup")
+        return
+
+    try:
+        import psutil
+    except ImportError:
+        print("[license-cleanup] psutil unavailable; skipping orphan cleanup")
+        return
+
+    # This runner is plain Python, not mayapy, so it cannot match its own
+    # command line. The guard matters only if this is ever called from inside a
+    # Maya interpreter, where an unguarded sweep would terminate itself.
+    protected_pids = {os.getpid()}
+
+    orphans = find_orphaned_maya_processes(psutil, protected_pids)
+    if not orphans:
+        print("[license-cleanup] no orphaned Maya processes found")
+        return
+
+    print(f"[license-cleanup] terminating {len(orphans)} orphaned Maya process(es):")
+    for proc, cmdline in orphans:
+        print(f"[license-cleanup]   pid={proc.pid} {cmdline[:160]}")
+        try:
+            proc.terminate()
+        except (psutil.NoSuchProcess, psutil.AccessDenied) as exc:
+            print(f"[license-cleanup]   pid={proc.pid} terminate failed: {exc}")
+
+    _, still_alive = psutil.wait_procs([proc for proc, _ in orphans], timeout=15)
+    for proc in still_alive:
+        print(f"[license-cleanup]   pid={proc.pid} ignored SIGTERM; sending SIGKILL")
+        try:
+            proc.kill()
+        except (psutil.NoSuchProcess, psutil.AccessDenied) as exc:
+            print(f"[license-cleanup]   pid={proc.pid} kill failed: {exc}")
+
 
 def main():
+    release_orphaned_maya_licenses()
+
     maya_version = os.environ.get("MAYA_VERSION", "2025")
     system = platform.system()
 

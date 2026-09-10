@@ -4,3 +4,4 @@ openjd-cli == 0.7.*
 flaky == 3.*
 openjd-adaptor-runtime == 0.9.*
 qtpy == 2.4.*
+psutil == 7.*
