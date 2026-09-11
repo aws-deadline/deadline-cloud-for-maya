@@ -72,14 +72,15 @@ def test_does_not_match_processes_that_merely_mention_maya(runner):
 
     Every string here appears near this code in practice: the installer handles
     Maya archives, and the suite's own job parameters contain "RenderLayer"
-    (`rs_<RenderLayer>_<Camera>`). Adding a loose marker such as "Render" would
-    turn these into kill targets.
+    (`rs_<RenderLayer>_<Camera>`). Adding a loose marker such as "Render", or a
+    bare "maya" for pid 205, would turn these into kill targets.
     """
     procs = [
         FakeProcess(201, ["/bin/tar", "-xzf", "/tmp/Autodesk_MayaIO_2026_Linux_64bit.run"]),
         FakeProcess(202, ["/usr/bin/tail", "-f", "/tmp/RenderLayer.log"]),
         FakeProcess(203, ["/opt/python/bin/python", "./pipeline/setup-runner.py", "--renderers"]),
         FakeProcess(204, ["/usr/libexec/Xorg", ":99"]),
+        FakeProcess(205, ["/usr/bin/tail", "-f", "/tmp/maya.log"]),
     ]
     orphans = runner.find_orphaned_maya_processes(FakePsutil(procs), set())
 

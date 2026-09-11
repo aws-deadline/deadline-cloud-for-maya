@@ -13,7 +13,9 @@ import sys
 from types import ModuleType
 from typing import Any
 
-_MAYA_PROCESS_MARKERS = ("mayapy", "maya_client.py", "maya.bin", "maya.exe")
+# Matched as substrings of the command line. Deliberately not a bare "maya",
+# which would match any process merely naming a Maya file.
+_MAYA_PROCESS_MARKERS = ("mayapy", "maya.bin", "maya.exe")
 
 
 def _log(message: str) -> None:
