@@ -10,53 +10,43 @@ import os
 import platform
 import subprocess
 import sys
+from types import ModuleType
+from typing import Any
 
 _MAYA_PROCESS_MARKERS = ("mayapy", "maya_client.py", "maya.bin", "maya.exe")
 
-# Fallback for processes whose command line cannot be read: executable names that
-# can hold a license. Compared lowercased, exact match.
-_MAYA_PROCESS_NAMES = frozenset(
-    {"mayapy", "mayapy.bin", "mayapy.exe", "maya", "maya.bin", "maya.exe"}
-)
 
-
-def _log(message):
-    """Log a cleanup message.
-
-    flush=True keeps ordering against the pytest subprocess, which writes to the
-    same descriptor; unflushed output appears after all test output.
-    """
+def _log(message: str) -> None:
+    """Log a cleanup message."""
+    # flush=True keeps ordering against the pytest subprocess, which writes to
+    # the same descriptor; unflushed output appears after all test output.
     print(f"[license-cleanup] {message}", flush=True)
 
 
-def find_orphaned_maya_processes(psutil, protected_pids):
-    """Return [(process, description)] for Maya processes not in protected_pids.
+def find_orphaned_maya_processes(
+    psutil: ModuleType, protected_pids: set[int]
+) -> list[tuple[Any, str]]:
+    """Return [(process, cmdline)] for Maya processes not in protected_pids.
 
-    Matches on the command line, falling back to the executable name when the
-    command line cannot be read, which psutil reports as None. The fallback
-    matters because an unreadable process could be the orphan we are looking for,
-    and the name stays readable when the command line does not.
+    A process whose command line cannot be read is skipped. psutil reports None
+    for a zombie or for a process this build cannot open, and in neither case can
+    we confirm it is Maya; killing an unidentified process is worse than leaving
+    it.
 
-    Kept separate from termination so matching can be tested without killing
-    processes.
+    psutil is passed in because the caller imports it lazily to keep the sweep
+    best effort; that also lets matching be tested without killing processes.
     """
     orphans = []
-    for proc in psutil.process_iter(["pid", "name", "cmdline"]):
+    for proc in psutil.process_iter(["pid", "cmdline"]):
         if proc.pid in protected_pids:
             continue
-        cmdline_parts = proc.info.get("cmdline")
-        if cmdline_parts is None:
-            name = proc.info.get("name") or ""
-            if name.lower() in _MAYA_PROCESS_NAMES:
-                orphans.append((proc, f"name={name} (command line unreadable)"))
-            continue
-        cmdline = " ".join(cmdline_parts)
+        cmdline = " ".join(proc.info.get("cmdline") or [])
         if any(marker in cmdline for marker in _MAYA_PROCESS_MARKERS):
             orphans.append((proc, cmdline))
     return orphans
 
 
-def release_orphaned_maya_licenses(phase):
+def release_orphaned_maya_licenses(phase: str) -> None:
     """Terminate leftover Maya processes, releasing their Autodesk licenses.
 
     CodeBuild reserved-capacity hosts are reused between builds. Every orphan
@@ -74,6 +64,9 @@ def release_orphaned_maya_licenses(phase):
         _log(f"{phase}: not running in CodeBuild; skipping orphan cleanup")
         return
 
+    # The sweep is best effort and must never fail the build. Importing psutil
+    # here rather than at module scope keeps a missing dependency recoverable: at
+    # module scope the ImportError would be raised before main() and fail outright.
     try:
         import psutil
     except ImportError:
@@ -89,14 +82,18 @@ def release_orphaned_maya_licenses(phase):
         return
 
     _log(f"{phase}: terminating {len(orphans)} orphaned Maya process(es):")
-    for proc, description in orphans:
-        _log(f"  pid={proc.pid} {description[:160]}")
+    terminated = []
+    for proc, cmdline in orphans:
+        _log(f"  pid={proc.pid} {cmdline[:160]}")
         try:
             proc.terminate()
+            terminated.append(proc)
         except (psutil.NoSuchProcess, psutil.AccessDenied) as exc:
             _log(f"  pid={proc.pid} terminate failed: {exc}")
 
-    _, still_alive = psutil.wait_procs([proc for proc, _ in orphans], timeout=15)
+    # Only wait on processes actually signalled, so a failed terminate does not
+    # cost 15s and get reported as though it had ignored the signal.
+    _, still_alive = psutil.wait_procs(terminated, timeout=15)
     for proc in still_alive:
         # terminate() is SIGTERM on POSIX but an alias for kill() on Windows, so
         # this escalation only ever fires on POSIX.
@@ -107,7 +104,7 @@ def release_orphaned_maya_licenses(phase):
             _log(f"  pid={proc.pid} kill failed: {exc}")
 
 
-def _cleanup(phase):
+def _cleanup(phase: str) -> None:
     """Run a sweep, ensuring a cleanup failure cannot change the build result."""
     try:
         release_orphaned_maya_licenses(phase)

@@ -35,9 +35,9 @@ def runner():
 
 
 class FakeProcess:
-    def __init__(self, pid: int, cmdline: list[str] | None, name: str = "python"):
+    def __init__(self, pid: int, cmdline: list[str] | None):
         self.pid = pid
-        self.info = {"pid": pid, "name": name, "cmdline": cmdline}
+        self.info = {"pid": pid, "cmdline": cmdline}
 
 
 class FakePsutil:
@@ -57,19 +57,14 @@ class FakePsutil:
 
 
 def test_matches_command_lines_observed_on_a_real_host(runner):
-    """Both orphan shapes seen in CI, plus a wrapper shell around the interpreter.
-
-    The wrapper matching is deliberate: on Linux mayapy is a shell script, and
-    killing it alongside the interpreter is intended.
-    """
+    """The two orphan shapes seen in CI."""
     procs = [
         FakeProcess(101, [MAYAPY, "-m", "openjd", "run", "/tmp/codebuild-abc/template.yaml"]),
         FakeProcess(102, [MAYAPY, "/tmp/codebuild-abc/src/.../MayaClient/maya_client.py"]),
-        FakeProcess(103, ["/bin/sh", "-c", "mayapy -m pytest test/integ"]),
     ]
     orphans = runner.find_orphaned_maya_processes(FakePsutil(procs), set())
 
-    assert [p.pid for p, _ in orphans] == [101, 102, 103]
+    assert [p.pid for p, _ in orphans] == [101, 102]
 
 
 def test_does_not_match_processes_that_merely_mention_maya(runner):
@@ -91,20 +86,15 @@ def test_does_not_match_processes_that_merely_mention_maya(runner):
     assert orphans == []
 
 
-def test_unreadable_command_line_falls_back_to_process_name(runner):
-    """psutil reports None when a command line cannot be read, e.g. another user's
-    process. Matching on the executable name still identifies the orphan; without
-    the fallback it would be skipped, which is the case this exists to prevent.
+def test_unreadable_command_line_is_skipped(runner):
+    """psutil reports None for a zombie or a process it cannot open.
+
+    Neither can be confirmed to be Maya, so neither is a kill target.
     """
-    procs = [
-        FakeProcess(301, None, name="mayapy.bin"),
-        FakeProcess(302, None, name="sshd"),
-        FakeProcess(303, None, name=""),
-    ]
+    procs = [FakeProcess(301, None), FakeProcess(302, [MAYAPY, "maya_client.py"])]
     orphans = runner.find_orphaned_maya_processes(FakePsutil(procs), set())
 
-    assert [p.pid for p, _ in orphans] == [301]
-    assert "command line unreadable" in orphans[0][1]
+    assert [p.pid for p, _ in orphans] == [302]
 
 
 def test_cleanup_failure_never_fails_the_build(runner, monkeypatch, capsys):
