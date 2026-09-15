@@ -22,6 +22,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import textwrap
 import time
 from pathlib import Path
 from typing import Sequence, TypedDict
@@ -243,20 +244,48 @@ PLATFORM_TO_KEY: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 
-def _install_maya_linux(version: str) -> Path:
+def _host_provided_sonames() -> set[str]:
+    """SONAMEs the host's dynamic linker can already resolve."""
+    cache = subprocess.run(["ldconfig", "-p"], capture_output=True, text=True, check=False)
+    return {line.split()[0] for line in cache.stdout.splitlines() if "=>" in line}
+
+
+def _link_sonames(lib_dir: Path) -> None:
+    """Add the SONAME symlinks the RPM does not ship, skipping host-provided ones.
+
+    Maya 2025 installs lib/libssl.so.1.1.1k, whose SONAME is libssl.so.1.1, with no
+    link at that name, so ld.so cannot find it. lib_dir outranks /lib64, so linking a
+    SONAME the host already provides would override a working library instead.
+    """
+
+    def existing_symlinks() -> set[str]:
+        return {p.name for p in lib_dir.iterdir() if p.is_symlink()}
+
+    shipped_symlinks = existing_symlinks()
+    run(["ldconfig", "-n", str(lib_dir)], check=False)
+    created_symlinks = existing_symlinks() - shipped_symlinks
+
+    host_provides = _host_provided_sonames()
+    for name in sorted(created_symlinks):
+        link = lib_dir / name
+        if name in host_provides:
+            link.unlink()
+        else:
+            print(f"Linked {name} -> {link.readlink()}")
+
+
+def _install_maya_linux(version: str, force_reinstall: bool = False) -> Path:
     config = MAYA_YEAR_TO_CONFIG[version]
     installer_name = config["installer"]["linux"]
     maya_dir = Path(f"/opt/Autodesk/mayaio/{version}")
 
-    # Check if Maya is already installed by looking for the real binary
-    existing = subprocess.run(
-        ["find", str(maya_dir), "-name", "mayapy", "-type", "f"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if existing.stdout.strip():
-        print(f"Maya {version} already installed: {existing.stdout.strip().split(chr(10))[0]}")
+    # Guard on a marker, as the renderers do. mayapy's presence is not enough:
+    # installs left by the older rpm2cpio path have it but never ran %post, so
+    # they lack bin/maya. A marker written only after verification invalidates
+    # those once instead of silently reusing them.
+    marker = maya_dir / ".installed"
+    if marker.exists() and not force_reinstall:
+        print(f"Maya {version} already installed")
         return maya_dir
 
     lock_file = Path(f"/tmp/maya-{version}.lock")
@@ -264,18 +293,19 @@ def _install_maya_linux(version: str) -> Path:
         print(f"Waiting for concurrent Maya {version} install...")
         for _ in range(120):
             time.sleep(1)
-            check = subprocess.run(
-                ["find", str(maya_dir), "-name", "mayapy", "-type", "f"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if check.stdout.strip():
+            if marker.exists():
                 break
         return maya_dir
 
     lock_file.touch()
     try:
+        # Only clear the tree once we hold the lock, so a concurrent install is
+        # never deleted mid-flight.
+        if maya_dir.exists():
+            reason = "forced" if force_reinstall else "no verified install marker"
+            print(f"Reinstalling Maya {version} ({reason})")
+            run(["rm", "-rf", str(maya_dir)], check=False)
+
         print(f"Installing Maya {version}...")
         installer_path = Path(f"/tmp/{installer_name}")
 
@@ -287,40 +317,31 @@ def _install_maya_linux(version: str) -> Path:
         extract_dir = Path(f"/opt/maya-{version}-extract")
         if extract_dir.exists():
             run(["rm", "-rf", str(extract_dir)], check=False)
-        # --noexec: don't run post-extract scripts (they do rm -rf /tmp/*)
-        # --phase2: skip EULA prompt
-        print("Extracting installer (this may take a moment)...")
-        result = subprocess.run(
-            [
-                str(installer_path),
-                "--noexec",
-                "--keep",
-                "--nox11",
-                "--target",
-                str(extract_dir),
-                "--phase2",
-            ],
-            check=False,
-        )
-        print(f"Installer exit code: {result.returncode}")
+        extract_dir.mkdir(parents=True, exist_ok=True)
 
-        # The .run extracts to a directory containing an RPM.
-        # Use rpm2cpio to extract it (same approach as BealineCondaRecipe-Maya).
-        maya_dir.mkdir(parents=True, exist_ok=True)
+        # --tar extracts without running the stub's interactive prompts. Neither
+        # --noexec nor --quiet skips them, so the installer hangs on `read` with
+        # no tty; --phase2 skips them but appends `rm -rf $(dirname $0)`.
+        print("Extracting installer (this may take a moment)...")
+        run([str(installer_path), "--tar", "xf"], cwd=extract_dir)
+
         rpms = list(extract_dir.rglob("*.rpm"))
         if not rpms:
             print(f"ERROR: No RPM found in {extract_dir}")
             run(["ls", "-la", str(extract_dir)], check=False)
             sys.exit(1)
         rpm_path = rpms[0].resolve()
-        subprocess.run(
-            f"rpm2cpio {rpm_path} | cpio -idm",
-            shell=True,
-            check=True,
-            cwd=maya_dir,
-        )
 
-        # MayaIO RPM extracts to usr/autodesk/mayaIO<version>/ inside cwd
+        # Install rather than unpack with rpm2cpio, so %post runs and creates
+        # bin/maya -> maya<version> plus the /usr/local/bin links.
+        #
+        # --prefix *replaces* the package's declared Prefix (/usr), whereas
+        # rpm2cpio treated "usr" as an ordinary path component and extracted
+        # relative to its cwd. Appending /usr here therefore reproduces the old
+        # layout exactly: <maya_dir>/usr/autodesk/mayaIO<version>.
+        maya_dir.mkdir(parents=True, exist_ok=True)
+        run(["rpm", "-Uvh", "--force", f"--prefix={maya_dir}/usr", str(rpm_path)])
+
         # The exact directory name varies by version — find mayapy dynamically.
         result = subprocess.run(
             ["find", str(maya_dir), "-name", "mayapy", "-type", "f"],
@@ -331,16 +352,29 @@ def _install_maya_linux(version: str) -> Path:
         mayapy_exe = None
         if result.stdout.strip():
             mayapy_exe = Path(result.stdout.strip().split("\n")[0])
-        # Verify installation
-        if mayapy_exe and mayapy_exe.exists():
-            print(f"SUCCESS: mayapy found at {mayapy_exe}")
-        else:
+        if not mayapy_exe or not mayapy_exe.exists():
             print(f"ERROR: mayapy NOT found under {maya_dir}")
             run(
                 ["find", str(maya_dir), "-maxdepth", "5", "-type", "f", "-name", "maya*"],
                 check=False,
             )
             sys.exit(1)
+
+        _link_sonames(mayapy_exe.parent.parent / "lib")
+
+        # mayapy is a shell wrapper around CPython and runs even when Maya's own
+        # binaries cannot load, so probe Render instead. Render never exits 0
+        # (-help gives 201, a bad flag 204, no args 206), so judge on the usage
+        # banner: a binary that cannot resolve its libraries never prints it.
+        render_exe = mayapy_exe.parent / "Render"
+        probe = subprocess.run([str(render_exe), "-help"], capture_output=True, check=False)
+        probe_output = probe.stdout + probe.stderr
+        if b"Usage:" not in probe_output:
+            print(f"ERROR: {render_exe} did not run; it cannot load its shared libraries")
+            print(probe_output.decode("utf-8", errors="replace"))
+            sys.exit(1)
+        print(f"SUCCESS: Maya {version} installed and loadable ({mayapy_exe})")
+        marker.touch()
 
         installer_path.unlink(missing_ok=True)
         run(["rm", "-rf", str(extract_dir)], check=False)
@@ -350,7 +384,7 @@ def _install_maya_linux(version: str) -> Path:
     return maya_dir
 
 
-def _install_mtoa_linux(version: str) -> None:
+def _install_mtoa_linux(version: str, force_reinstall: bool = False) -> None:
     """Install MtoA (Arnold for Maya) for the given Maya version."""
     if version not in MTOA_YEAR_TO_CONFIG:
         print(f"ERROR: No MtoA config for Maya {version}")
@@ -358,10 +392,9 @@ def _install_mtoa_linux(version: str) -> None:
 
     mtoa_install_dir = Path(f"/opt/solidangle/mtoa/{version}")
     marker = mtoa_install_dir / ".installed"
-    if marker.exists():
+    if marker.exists() and not force_reinstall:
         print(f"MtoA for Maya {version} already installed")
         return
-
     lock_file = Path(f"/tmp/mtoa-{version}.lock")
     if lock_file.exists():
         print(f"Waiting for concurrent MtoA {version} install...")
@@ -373,6 +406,10 @@ def _install_mtoa_linux(version: str) -> None:
 
     lock_file.touch()
     try:
+        # Clear only once we hold the lock, so a concurrent install survives.
+        if force_reinstall and mtoa_install_dir.exists():
+            print(f"Reinstalling MtoA for Maya {version} (forced)")
+            run(["rm", "-rf", str(mtoa_install_dir)], check=False)
         s3_key = MTOA_YEAR_TO_CONFIG[version]["s3_key"]
         installer_name = Path(s3_key).name
         installer_path = Path(f"/tmp/{installer_name}")
@@ -414,7 +451,7 @@ def _install_mtoa_linux(version: str) -> None:
         lock_file.unlink(missing_ok=True)
 
 
-def _install_vray_linux(version: str) -> None:
+def _install_vray_linux(version: str, force_reinstall: bool = False) -> None:
     """Install V-Ray for Maya for the given Maya version."""
     if version not in VRAY_YEAR_TO_CONFIG:
         print(f"ERROR: No V-Ray config for Maya {version}")
@@ -422,10 +459,9 @@ def _install_vray_linux(version: str) -> None:
 
     vray_install_dir = Path(f"/usr/ChaosGroup/V-Ray/Maya{version}-x64")
     marker = vray_install_dir / ".installed"
-    if marker.exists():
+    if marker.exists() and not force_reinstall:
         print(f"V-Ray for Maya {version} already installed")
         return
-
     lock_file = Path(f"/tmp/vray-{version}.lock")
     if lock_file.exists():
         print(f"Waiting for concurrent V-Ray {version} install...")
@@ -437,6 +473,10 @@ def _install_vray_linux(version: str) -> None:
 
     lock_file.touch()
     try:
+        # Clear only once we hold the lock, so a concurrent install survives.
+        if force_reinstall and vray_install_dir.exists():
+            print(f"Reinstalling V-Ray for Maya {version} (forced)")
+            run(["rm", "-rf", str(vray_install_dir)], check=False)
         s3_key = VRAY_YEAR_TO_CONFIG[version]["s3_key"]
         installer_name = Path(s3_key).name
         installer_path = Path(f"/tmp/{installer_name}")
@@ -473,14 +513,13 @@ def _install_vray_linux(version: str) -> None:
         lock_file.unlink(missing_ok=True)
 
 
-def _install_redshift_linux() -> None:
+def _install_redshift_linux(force_reinstall: bool = False) -> None:
     """Install Redshift once; it plugs into every Maya version at runtime."""
     redshift_root = Path("/usr/redshift")
     marker = redshift_root / ".installed"
-    if marker.exists():
+    if marker.exists() and not force_reinstall:
         print("Redshift already installed")
         return
-
     lock_file = Path("/tmp/redshift.lock")
     if lock_file.exists():
         print("Waiting for concurrent Redshift install...")
@@ -492,6 +531,10 @@ def _install_redshift_linux() -> None:
 
     lock_file.touch()
     try:
+        # Clear only once we hold the lock, so a concurrent install survives.
+        if force_reinstall and redshift_root.exists():
+            print("Reinstalling Redshift (forced)")
+            run(["rm", "-rf", str(redshift_root)], check=False)
         s3_key = REDSHIFT_PLATFORM_CONFIG["linux"]["s3_key"]
         installer_name = Path(s3_key).name
         installer_path = Path(f"/tmp/{installer_name}")
@@ -540,7 +583,37 @@ def _clean_stale_locks(maya_versions: Sequence[str]) -> None:
             lock_file.unlink()
 
 
-def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
+def _write_mayapy_dispatcher() -> None:
+    """Write /usr/local/bin/mayapy, dispatching to the MAYA_VERSION wrapper.
+
+    Every integ-ci matrix cell exports MAYA_VERSION, so routing through this keeps
+    pytest, the adaptor, and its children on the version that cell is testing.
+    Fails loudly rather than guessing, since silently using the wrong Maya makes
+    tests pass or fail for the wrong reasons.
+    """
+    dispatcher = Path("/usr/local/bin/mayapy")
+    script = """\
+        #!/bin/sh
+        if [ -z "${MAYA_VERSION:-}" ]; then
+            echo "mayapy: MAYA_VERSION is not set, cannot select a Maya version." >&2
+            echo "mayapy: installed: $(ls /usr/local/bin/mayapy-* 2>/dev/null | sed 's|.*/mayapy-||' | tr '\\n' ' ')" >&2
+            exit 1
+        fi
+        target="/usr/local/bin/mayapy-${MAYA_VERSION}"
+        if [ ! -x "$target" ]; then
+            echo "mayapy: no wrapper for Maya ${MAYA_VERSION} at ${target}." >&2
+            exit 1
+        fi
+        exec "$target" "$@"
+        """
+    dispatcher.write_text(textwrap.dedent(script))
+    run(["chmod", "+x", str(dispatcher)])
+    print(f"Wrote mayapy dispatcher at {dispatcher}")
+
+
+def setup_linux(
+    maya_versions: Sequence[str], renderers: Sequence[str], force_reinstall: bool = False
+) -> None:
     pkg_mgr = (
         "dnf"
         if subprocess.run(["command", "-v", "dnf"], capture_output=True, check=False).returncode
@@ -554,7 +627,7 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
             pkg_mgr,
             "install",
             "-y",
-            "libGLU",
+            "mesa-libGLU",
             "mesa-libGL",
             "mesa-libEGL",
             "libXmu",
@@ -578,6 +651,12 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
             "libglvnd-egl",
             "alsa-lib",
             "nss",
+            # Needed by libQt6XcbQpa.so, which Qt loads for the xcb platform
+            "xcb-util-cursor",
+            "xcb-util-wm",
+            "xcb-util-image",
+            "xcb-util-keysyms",
+            "xcb-util-renderutil",
         ]
     )
 
@@ -592,7 +671,7 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
 
     # Install Maya first — MtoA/V-Ray/Redshift plug into an existing Maya install.
     for version in maya_versions:
-        _install_maya_linux(version)
+        _install_maya_linux(version, force_reinstall=force_reinstall)
 
     # Install the submitter and deps into each Maya version
     for version in maya_versions:
@@ -662,8 +741,8 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
             label=f"pip install project (Maya {version})",
         )
 
-        # Symlink mayapy to PATH so hatch integ-ci:test can find it.
-        # Create a wrapper that sets MAYA_LOCATION and renderer plugin paths.
+        # Per-version wrapper setting MAYA_LOCATION and renderer plugin paths. The
+        # `mayapy` dispatcher written after this loop picks one via MAYA_VERSION.
         mayapy_dir = mayapy_exe.parent.parent  # e.g. /opt/.../usr/autodesk/mayaIO2025
 
         # Renderer paths
@@ -681,7 +760,7 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
         script_paths = f"{redshift_dir}/redshift4maya/common/scripts"
         render_desc_paths = f"{redshift_dir}/redshift4maya/common/rendererDesc"
 
-        wrapper = Path("/usr/local/bin/mayapy")
+        wrapper = Path(f"/usr/local/bin/mayapy-{version}")
         wrapper.write_text(
             f"#!/bin/sh\n"
             f'export MAYA_LOCATION="{mayapy_dir}"\n'
@@ -695,16 +774,18 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
         )
         run(["chmod", "+x", str(wrapper)])
 
+    _write_mayapy_dispatcher()
+
     # Install requested renderers (always per-Maya-version, except Redshift which
     # is shared across versions).
     if "mtoa" in renderers:
         for version in maya_versions:
-            _install_mtoa_linux(version)
+            _install_mtoa_linux(version, force_reinstall=force_reinstall)
     if "vray" in renderers:
         for version in maya_versions:
-            _install_vray_linux(version)
+            _install_vray_linux(version, force_reinstall=force_reinstall)
     if "redshift" in renderers:
-        _install_redshift_linux()
+        _install_redshift_linux(force_reinstall=force_reinstall)
 
 
 # ---------------------------------------------------------------------------
@@ -1035,6 +1116,15 @@ if __name__ == "__main__":
             "(currently supported on Linux only)."
         ),
     )
+    parser.add_argument(
+        "--force-reinstall",
+        action="store_true",
+        help=(
+            "Ignore cached installs and reinstall from scratch. Reserved-capacity "
+            "fleets persist /opt between builds, so a changed install path is "
+            "otherwise never exercised. Linux only."
+        ),
+    )
     args = parser.parse_args()
 
     maya_versions: list[str] = args.versions
@@ -1062,7 +1152,7 @@ if __name__ == "__main__":
             sys.exit(1)
 
     if system == "Linux":
-        setup_linux(maya_versions, renderers)
+        setup_linux(maya_versions, renderers, force_reinstall=args.force_reinstall)
     elif system == "Windows":
         setup_windows(maya_versions, renderers)
 
