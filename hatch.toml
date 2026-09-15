@@ -62,7 +62,9 @@ maya = ["2025", "2026"]
 MAYA_VERSION = "{matrix:maya}"
 
 [envs.integ-ci.scripts]
-setup = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers mtoa vray redshift {args}"
+# TEMPORARY, revert before merge: --force-reinstall to exercise the new install
+# path on warm reserved-capacity runners. See PR #476.
+setup = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers mtoa vray redshift --force-reinstall {args}"
 setup-mtoa = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers mtoa {args}"
 setup-vray = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers vray {args}"
 setup-redshift = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers redshift {args}"
