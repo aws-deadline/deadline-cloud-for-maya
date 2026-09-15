@@ -117,7 +117,11 @@ def _cleanup(phase: str) -> None:
 def main():
     _cleanup("pre-test")
 
-    maya_version = os.environ.get("MAYA_VERSION", "2025")
+    # hatch sets MAYA_VERSION per integ-ci matrix cell. Fail if it is not set:
+    # setting a default version would run the whole suite against an unintended Maya.
+    maya_version = os.environ.get("MAYA_VERSION")
+    if not maya_version:
+        sys.exit("MAYA_VERSION is not set; hatch sets it per integ-ci matrix cell.")
     system = platform.system()
 
     if system == "Windows":
@@ -147,8 +151,7 @@ def main():
             os.environ.setdefault("redshift_LICENSE", f"7054@{license_dns}")
             os.environ.setdefault("ADSKFLEX_LICENSE_FILE", f"2702@{license_dns};2701@{license_dns}")
 
-    # Linux uses wrapper script at /usr/local/bin/mayapy that handles all env setup
-
+    # Linux resolves mayapy through the MAYA_VERSION dispatcher written by setup-runner.py
     try:
         result = subprocess.run(
             ["mayapy", "-m", "pytest", "--no-cov", "test/integ", "-vvv", "--numprocesses=1"]
