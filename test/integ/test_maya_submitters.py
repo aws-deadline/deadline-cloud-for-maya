@@ -22,20 +22,25 @@ def initialize_maya():
     """
     Fixture that ensures Maya is open and close after the test runs.
     """
+    # Everything after initialize() runs with a license checked out, so it all
+    # belongs inside the try. initialize() is outside it because Maya has to
+    # initialize before there is a license to release, and an uninitialize()
+    # error would hide the original failure.
     maya.standalone.initialize()
-    print(f"MayaClient: Maya Version {maya.cmds.about(version=True)}")
+    try:
+        print(f"MayaClient: Maya Version {maya.cmds.about(version=True)}")
 
-    # Need to import here since it need maya to be initialize first to not throw an error
-    from deadline.maya_submitter.maya_render_submitter import (
-        show_maya_render_submitter,
-        on_create_job_bundle_callback,
-    )
+        # Need to import here since it need maya to be initialize first to not throw an error
+        from deadline.maya_submitter.maya_render_submitter import (
+            show_maya_render_submitter,
+            on_create_job_bundle_callback,
+        )
 
-    qt_application = QtWidgets.QApplication(sys.argv)
-    yield show_maya_render_submitter, on_create_job_bundle_callback
-
-    qt_application.shutdown()
-    maya.standalone.uninitialize()
+        qt_application = QtWidgets.QApplication(sys.argv)
+        yield show_maya_render_submitter, on_create_job_bundle_callback
+        qt_application.shutdown()
+    finally:
+        maya.standalone.uninitialize()
 
 
 @pytest.mark.submitter
