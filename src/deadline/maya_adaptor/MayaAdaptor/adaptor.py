@@ -28,6 +28,18 @@ from .._version import version as adaptor_version
 
 _logger = logging.getLogger(__name__)
 
+_LICENSE_GUIDANCE = (
+    "If you are using bring your own license (BYOL), check your license configuration "
+    "and availability.\n"
+    "If you are using usage-based licensing (UBL) from AWS Deadline Cloud and need a "
+    "higher 'License sessions per license endpoint' limit, contact the AWS Deadline Cloud "
+    "team to request an increase.\n"
+    "For more information on UBL and BYOL: "
+    "https://docs.aws.amazon.com/deadline-cloud/latest/developerguide/license.html\n"
+    "For service quotas: "
+    "https://docs.aws.amazon.com/deadline-cloud/latest/userguide/deadline-cloud-quotas.html\n"
+)
+
 
 class MayaNotRunningError(Exception):
     """Error that is raised when attempting to use Maya while it is not running"""
@@ -200,6 +212,9 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
         )
         _vray_license_error = "error: Could not obtain a license"
         _renderman_license_error = r".*{SEVERE}\s+License.*"
+        # Measured: "licensing", not "license". Demo mode does not attempt a
+        # checkout, so this line means Redshift tried and failed.
+        _redshift_license_error = r".*Maxon licen(?:[sc]e|sing) error.*"
         _legacy_render_layer_error = (
             r"Error:[^\n]*contains legacy render layers[^\n]*uses render setup"
         )
@@ -225,7 +240,7 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
                             "(aborting render because (?:the abort_on_license_fail option was enabled|this is a batch render and abort_on_license_fail option is enabled))"
                         )
                     ],
-                    self._handle_error,
+                    self._handle_arnold_license_error,
                 )
             )
         callback_list.append(
@@ -235,6 +250,11 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
         )
         callback_list.append(
             RegexCallback([re.compile(_vray_license_error)], self._handle_vray_license_error)
+        )
+        callback_list.append(
+            RegexCallback(
+                [re.compile(_redshift_license_error)], self._handle_redshift_license_error
+            )
         )
         callback_list.append(
             RegexCallback(
@@ -317,6 +337,7 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
             f"{match.group(0)}\n"
             "This error is typically associated with a licensing error"
             " when using MayaIO. Check your licensing configuration.\n"
+            f"{_LICENSE_GUIDANCE}"
             f"Free disc space: {shutil_usage.free//1024//1024}M\n"
             f"MAYA_APP_DIR: {maya_app_dir}\n"
             f"ADSKFLEX_LICENSE_FILE: {license_file}"
@@ -332,10 +353,50 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
             RuntimeError: Always raises a runtime error to halt the adaptor.
         """
         self._exc_info = RuntimeError(
-            f"{match.group(0)}\n"
-            "This error is typically associated with a licensing error"
-            " when using Vray renderer with MayaIO."
-            " Check your licensing configuration.\n"
+            "V-Ray failed to acquire a license.\n"
+            "This is typically associated with a licensing error"
+            " when using Vray renderer with MayaIO.\n"
+            f"{_LICENSE_GUIDANCE}"
+            f"Error: {match.group(0)}"
+        )
+
+    def _handle_redshift_license_error(self, match: re.Match) -> None:
+        """
+        Callback for stdout that indicates a license error with Redshift.
+
+        Args:
+            match (re.Match): The match object from the regex pattern that was matched the message
+
+        Raises:
+            RuntimeError: Always raises a runtime error to halt the adaptor.
+        """
+        redshift_license = os.environ.get("redshift_LICENSE")
+        self._exc_info = RuntimeError(
+            "Redshift failed to acquire a license.\n"
+            f"{_LICENSE_GUIDANCE}"
+            f"redshift_LICENSE: {redshift_license}\n"
+            f"Error: {match.group(0)}"
+        )
+
+    def _handle_arnold_license_error(self, match: re.Match) -> None:
+        """
+        Callback for stdout that indicates a license error with Arnold.
+
+        Only registered when error_on_arnold_license_fail is set; otherwise
+        Arnold watermarks rather than failing, emitting no error line.
+
+        Args:
+            match (re.Match): The match object from the regex pattern that was matched the message
+
+        Raises:
+            RuntimeError: Always raises a runtime error to halt the adaptor.
+        """
+        arnold_license_order = os.environ.get("ARNOLD_LICENSE_ORDER")
+        self._exc_info = RuntimeError(
+            "Arnold failed to acquire a license.\n"
+            f"{_LICENSE_GUIDANCE}"
+            f"ARNOLD_LICENSE_ORDER: {arnold_license_order}\n"
+            f"Error: {match.group(0)}"
         )
 
     def _handle_renderman_license_error(self, match: re.Match) -> None:
@@ -353,6 +414,7 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
             f"{match.group(0)}\n"
             "This error is typically associated with a licensing error "
             "when using RenderMan. Check your licensing configuration.\n"
+            f"{_LICENSE_GUIDANCE}"
             f"RMANTREE: {rmantree}\n"
             f"PIXAR_LICENSE_FILE: {pixar_license_file}\n"
         )
@@ -503,6 +565,10 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
         )
 
         if len(self._action_queue) > 0:
+            # A recorded exception names an actual cause, so prefer it over the
+            # generic messages below.
+            if self._exc_info is not None:
+                raise self._exc_info
             if is_not_timed_out():
                 raise RuntimeError(
                     "Maya encountered an error and was not able to complete initialization actions."
