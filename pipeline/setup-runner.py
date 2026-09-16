@@ -149,6 +149,10 @@ REDSHIFT_PLATFORM_CONFIG: dict[str, RedshiftPlatformConfig] = {
 
 SUPPORTED_RENDERERS: tuple[str, ...] = ("mtoa", "vray", "redshift")
 
+# Adaptor dispatchers live here so run-integ-tests.py can put them ahead of the hatch
+# env's console scripts on PATH.
+ADAPTOR_DISPATCH_DIR = Path("/usr/local/maya-adaptor-bin")
+
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -629,6 +633,32 @@ def _write_mayapy_dispatcher() -> None:
     print(f"Wrote mayapy dispatcher at {dispatcher}")
 
 
+def _write_adaptor_dispatchers() -> None:
+    """Run the adaptor on the host Python, minus Maya's entry in LD_LIBRARY_PATH.
+
+    Maya 2027 ships libpython3.13.so under the same soname as the host's, and the mayapy
+    wrapper puts Maya's lib dir on LD_LIBRARY_PATH, which the adaptor inherits from
+    pytest. So the host Python loaded Maya's copy and segfaulted on its first native
+    import. Only Maya's entry is harmful, so drop just that and keep the rest. The Maya
+    client is launched via mayapy, whose wrapper re-adds it. run-integ-tests.py prepends
+    this directory to PATH to win over the hatch env's console scripts.
+    """
+    ADAPTOR_DISPATCH_DIR.mkdir(parents=True, exist_ok=True)
+    script = """\
+        #!/bin/sh
+        clean=$(printf '%s' "${LD_LIBRARY_PATH:-}" | tr ':' '\\n' | grep -v '^/opt/Autodesk/' | paste -sd: -)
+        if [ -n "$clean" ]; then
+            exec env LD_LIBRARY_PATH="$clean" python -m deadline.maya_adaptor.MayaAdaptor "$@"
+        fi
+        exec env -u LD_LIBRARY_PATH python -m deadline.maya_adaptor.MayaAdaptor "$@"
+        """
+    for name in ("MayaAdaptor", "maya-openjd"):
+        path = ADAPTOR_DISPATCH_DIR / name
+        path.write_text(textwrap.dedent(script))
+        run(["chmod", "+x", str(path)])
+    print(f"Wrote adaptor dispatchers in {ADAPTOR_DISPATCH_DIR}")
+
+
 def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
     pkg_mgr = (
         "dnf"
@@ -784,6 +814,7 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
         run(["chmod", "+x", str(wrapper)])
 
     _write_mayapy_dispatcher()
+    _write_adaptor_dispatchers()
 
     # Install requested renderers (always per-Maya-version, except Redshift which
     # is shared across versions).

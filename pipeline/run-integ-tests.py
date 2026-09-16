@@ -151,7 +151,12 @@ def main():
             os.environ.setdefault("redshift_LICENSE", f"7054@{license_dns}")
             os.environ.setdefault("ADSKFLEX_LICENSE_FILE", f"2702@{license_dns};2701@{license_dns}")
 
-    # Linux resolves mayapy through the MAYA_VERSION dispatcher written by setup-runner.py
+    # Linux resolves mayapy through the MAYA_VERSION dispatcher written by setup-runner.py,
+    # and runs the adaptor through the dispatchers in this directory, which must precede
+    # the hatch env's console scripts. See _write_adaptor_dispatchers in setup-runner.py.
+    if system != "Windows":
+        os.environ["PATH"] = "/usr/local/maya-adaptor-bin:" + os.environ.get("PATH", "")
+
     try:
         result = subprocess.run(
             ["mayapy", "-m", "pytest", "--no-cov", "test/integ", "-vvv", "--numprocesses=1"]
