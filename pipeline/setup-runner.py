@@ -149,6 +149,13 @@ REDSHIFT_PLATFORM_CONFIG: dict[str, RedshiftPlatformConfig] = {
 
 SUPPORTED_RENDERERS: tuple[str, ...] = ("mtoa", "vray", "redshift")
 
+# Bundled SONAMEs to delete per Maya version, so ld.so resolves them from the host. E.g.
+# Maya 2027's libfreetype statically links libpng 1.6.55 and exports its symbols, which
+# collide with the host's libpng16.so.16.
+BUNDLED_SONAMES_TO_DROP: dict[str, tuple[str, ...]] = {
+    "2027": ("libfreetype.so.6",),
+}
+
 # Adaptor dispatchers live here so run-integ-tests.py can put them ahead of the hatch
 # env's console scripts on PATH.
 ADAPTOR_DISPATCH_DIR = Path("/usr/local/maya-adaptor-bin")
@@ -300,6 +307,21 @@ def _link_sonames(lib_dir: Path) -> None:
             print(f"Linked {name} -> {link.readlink()}")
 
 
+def _drop_bundled_sonames(lib_dir: Path, sonames: Sequence[str]) -> None:
+    """Delete the named SONAMEs from lib_dir, along with the links resolving to them."""
+    for soname in sonames:
+        entry = lib_dir / soname
+        if not entry.exists():
+            print(f"WARNING: {soname} is not in {lib_dir}, nothing to drop")
+            continue
+        target = entry.resolve()
+        for path in sorted(lib_dir.glob("*.so*")):
+            if path.is_symlink() and path.resolve() == target:
+                path.unlink()
+        target.unlink(missing_ok=True)
+        print(f"Dropped {soname}; ld.so will resolve it from the host")
+
+
 def _find_mayapy(maya_dir: Path) -> Path:
     """Locate mayapy; the directory name inside an installed tree varies by version."""
     result = subprocess.run(
@@ -391,8 +413,10 @@ def _install_maya_linux(version: str) -> Path:
         run(["rpm", "-Uvh", "--force", f"--prefix={maya_dir}/usr", str(rpm_path)])
 
         mayapy_exe = _find_mayapy(maya_dir)
+        lib_dir = mayapy_exe.parent.parent / "lib"
 
-        _link_sonames(mayapy_exe.parent.parent / "lib")
+        _link_sonames(lib_dir)
+        _drop_bundled_sonames(lib_dir, BUNDLED_SONAMES_TO_DROP.get(version, ()))
 
         _verify_maya_loads(mayapy_exe)
         print(f"SUCCESS: Maya {version} installed and loadable ({mayapy_exe})")
