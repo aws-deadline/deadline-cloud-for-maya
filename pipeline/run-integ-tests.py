@@ -165,10 +165,15 @@ def main():
     if system != "Windows":
         os.environ["PATH"] = "/usr/local/maya-adaptor-bin:" + os.environ.get("PATH", "")
 
+    pytest_args = ["mayapy", "-m", "pytest", "--no-cov", "test/integ", "-vvv", "--numprocesses=1"]
+    if system == "Windows":
+        # Maya 2027 raises an SEH exception importing OpenMaya as SYSTEM (0x800703f0,
+        # ERROR_NO_TOKEN). Maya handles it and the tests pass, but faulthandler dumps
+        # every thread each time, burying the rest of the log.
+        pytest_args += ["-p", "no:faulthandler"]
+
     try:
-        result = subprocess.run(
-            ["mayapy", "-m", "pytest", "--no-cov", "test/integ", "-vvv", "--numprocesses=1"]
-        )
+        result = subprocess.run(pytest_args)
     finally:
         _cleanup("post-test")
 
