@@ -17,6 +17,9 @@ from typing import Any
 # which would match any process merely naming a Maya file.
 _MAYA_PROCESS_MARKERS = ("mayapy", "maya.bin", "maya.exe")
 
+# Must match ADAPTOR_DISPATCH_DIR in setup-runner.py, which creates these.
+ADAPTOR_DISPATCH_DIR = "/usr/local/maya-adaptor-bin"
+
 
 def _log(message: str) -> None:
     """Log a cleanup message."""
@@ -163,7 +166,7 @@ def main():
     # and runs the adaptor through the dispatchers in this directory, which must precede
     # the hatch env's console scripts. See _write_adaptor_dispatchers in setup-runner.py.
     if system != "Windows":
-        os.environ["PATH"] = "/usr/local/maya-adaptor-bin:" + os.environ.get("PATH", "")
+        os.environ["PATH"] = ADAPTOR_DISPATCH_DIR + ":" + os.environ.get("PATH", "")
 
     pytest_args = ["mayapy", "-m", "pytest", "--no-cov", "test/integ", "-vvv", "--numprocesses=1"]
     if system == "Windows":

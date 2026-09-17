@@ -315,6 +315,9 @@ def _drop_bundled_sonames(lib_dir: Path, sonames: Sequence[str]) -> None:
             print(f"WARNING: {soname} is not in {lib_dir}, nothing to drop")
             continue
         target = entry.resolve()
+        if lib_dir.resolve() not in target.parents:
+            print(f"WARNING: {soname} resolves outside {lib_dir}, not dropping")
+            continue
         for path in sorted(lib_dir.glob("*.so*")):
             if path.is_symlink() and path.resolve() == target:
                 path.unlink()
@@ -827,11 +830,14 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
         wrapper.write_text(
             f"#!/bin/sh\n"
             f'export MAYA_LOCATION="{mayapy_dir}"\n'
-            f'export LD_LIBRARY_PATH="{mayapy_dir}/lib:${{LD_LIBRARY_PATH:-}}"\n'
-            f'export MAYA_MODULE_PATH="{module_paths}:${{MAYA_MODULE_PATH:-}}"\n'
-            f'export MAYA_PLUG_IN_PATH="{plugin_paths}:${{MAYA_PLUG_IN_PATH:-}}"\n'
-            f'export MAYA_SCRIPT_PATH="{script_paths}:${{MAYA_SCRIPT_PATH:-}}"\n'
-            f'export MAYA_RENDER_DESC_PATH="{render_desc_paths}:${{MAYA_RENDER_DESC_PATH:-}}"\n'
+            # ${VAR:+:$VAR} appends the separator only when VAR is set, since an empty
+            # element in LD_LIBRARY_PATH means the current directory to ld.so.
+            f'export LD_LIBRARY_PATH="{mayapy_dir}/lib${{LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}}"\n'
+            f'export MAYA_MODULE_PATH="{module_paths}${{MAYA_MODULE_PATH:+:$MAYA_MODULE_PATH}}"\n'
+            f'export MAYA_PLUG_IN_PATH="{plugin_paths}${{MAYA_PLUG_IN_PATH:+:$MAYA_PLUG_IN_PATH}}"\n'
+            f'export MAYA_SCRIPT_PATH="{script_paths}${{MAYA_SCRIPT_PATH:+:$MAYA_SCRIPT_PATH}}"\n'
+            f'export MAYA_RENDER_DESC_PATH="{render_desc_paths}'
+            f'${{MAYA_RENDER_DESC_PATH:+:$MAYA_RENDER_DESC_PATH}}"\n'
             f'export REDSHIFT_COREDATAPATH="{redshift_dir}"\n'
             f'exec "{mayapy_exe}" "$@"\n'
         )
