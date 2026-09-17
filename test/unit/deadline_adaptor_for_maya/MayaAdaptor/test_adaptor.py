@@ -234,6 +234,41 @@ class TestMayaAdaptor_on_start:
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._get_deadline_telemetry_client")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
+    def test_maya_init_fail_reports_recorded_exception(
+        self,
+        mock_server: Mock,
+        mock_logging_subprocess: Mock,
+        mock_telemetry_client: Mock,
+        mock_actions_queue: Mock,
+        init_data: dict,
+    ) -> None:
+        """
+        Tests that a recorded exception is raised in preference to the generic
+        initialization failure, so a detected cause is not discarded.
+
+        The wait loop short-circuits on _maya_is_running before it evaluates
+        _has_exception, so a recorded exception is only surfaced by the check
+        after the loop. is_running is therefore forced False here.
+        """
+        # GIVEN
+        mock_actions_queue.__len__.return_value = 1
+        mock_logging_subprocess.return_value.is_running = False
+        adaptor = MayaAdaptor(init_data)
+        mock_server.return_value.server_path = "/tmp/9999"
+        recorded = RuntimeError("Redshift failed to acquire a license.")
+        adaptor._exc_info = recorded
+
+        with pytest.raises(RuntimeError) as exc_info:
+            # WHEN
+            adaptor.on_start()
+
+        # THEN
+        assert exc_info.value is recorded
+
+    @patch.object(MayaAdaptor, "_action_queue")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._get_deadline_telemetry_client")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
     def test_populate_action_queue_required_keys(
         self,
         mock_server: Mock,
@@ -989,10 +1024,16 @@ class TestMayaAdaptor_on_cleanup:
     def test_handle_version(self, init_data: dict):
         """Tests that the _handle_maya_version method returns the version correctly"""
         # GIVEN
-        VERSION_CALLBACK_INDEX = 6
         adaptor = MayaAdaptor(init_data)
         regex_callbacks = adaptor._get_regex_callbacks()
-        complete_regex = regex_callbacks[VERSION_CALLBACK_INDEX].regex_list[0]
+        # Identify the callback by its handler, not by position or by first
+        # regex that happens to match; both silently target the wrong one.
+        version_callback = next(
+            regex_callback
+            for regex_callback in regex_callbacks
+            if regex_callback.callback == adaptor._handle_maya_version
+        )
+        complete_regex = version_callback.regex_list[0]
 
         # WHEN
         match = complete_regex.search("MayaClient: Maya Version 2024")
@@ -1028,9 +1069,89 @@ class TestMayaAdaptor_on_cleanup:
             f"{_maya_license_error}\n"
             "This error is typically associated with a licensing error"
             " when using MayaIO. Check your licensing configuration.\n"
+            f"{adaptor_module._LICENSE_GUIDANCE}"
             f"Free disc space: {disk_usage//1024//1024}M\n"
             f"MAYA_APP_DIR: {maya_app_dir}\n"
             f"ADSKFLEX_LICENSE_FILE: {license_file}"
+        )
+
+    def test_vray_license_handle_error(self, init_data: dict) -> None:
+        """Tests that _handle_vray_license_error reports the shared guidance"""
+        # GIVEN
+        adaptor = MayaAdaptor(init_data)
+        line = "error: Could not obtain a license"
+
+        # WHEN
+        match = re.compile(line).search(line)
+        assert match is not None
+        adaptor._handle_vray_license_error(match)
+
+        # THEN
+        assert str(adaptor._exc_info) == (
+            "V-Ray failed to acquire a license.\n"
+            "This is typically associated with a licensing error"
+            " when using Vray renderer with MayaIO.\n"
+            f"{adaptor_module._LICENSE_GUIDANCE}"
+            f"Error: {line}"
+        )
+
+    def test_redshift_license_handle_error(self, init_data: dict) -> None:
+        """Tests that _handle_redshift_license_error reports the shared guidance"""
+        # GIVEN
+        adaptor = MayaAdaptor(init_data)
+        line = "[Redshift] Maxon licensing error: Please update your Maxon App"
+
+        # WHEN
+        match = re.compile(r".*Maxon licen(?:[sc]e|sing) error.*").search(line)
+        assert match is not None
+        adaptor._handle_redshift_license_error(match)
+
+        # THEN
+        assert str(adaptor._exc_info) == (
+            "Redshift failed to acquire a license.\n"
+            f"{adaptor_module._LICENSE_GUIDANCE}"
+            f"redshift_LICENSE: {os.environ.get('redshift_LICENSE')}\n"
+            f"Error: {line}"
+        )
+
+    def test_arnold_license_handle_error(self, init_data: dict) -> None:
+        """Tests that _handle_arnold_license_error reports the shared guidance"""
+        # GIVEN
+        adaptor = MayaAdaptor(init_data)
+        line = "aborting render because the abort_on_license_fail option was enabled"
+
+        # WHEN
+        match = re.compile(line).search(line)
+        assert match is not None
+        adaptor._handle_arnold_license_error(match)
+
+        # THEN
+        assert str(adaptor._exc_info) == (
+            "Arnold failed to acquire a license.\n"
+            f"{adaptor_module._LICENSE_GUIDANCE}"
+            f"ARNOLD_LICENSE_ORDER: {os.environ.get('ARNOLD_LICENSE_ORDER')}\n"
+            f"Error: {line}"
+        )
+
+    def test_renderman_license_handle_error(self, init_data: dict) -> None:
+        """Tests that _handle_renderman_license_error reports the shared guidance"""
+        # GIVEN
+        adaptor = MayaAdaptor(init_data)
+        line = "R90000 {SEVERE} License check failed"
+
+        # WHEN
+        match = re.compile(r".*{SEVERE}\s+License.*").search(line)
+        assert match is not None
+        adaptor._handle_renderman_license_error(match)
+
+        # THEN
+        assert str(adaptor._exc_info) == (
+            f"{line}\n"
+            "This error is typically associated with a licensing error "
+            "when using RenderMan. Check your licensing configuration.\n"
+            f"{adaptor_module._LICENSE_GUIDANCE}"
+            f"RMANTREE: {os.environ.get('RMANTREE')}\n"
+            f"PIXAR_LICENSE_FILE: {os.environ.get('PIXAR_LICENSE_FILE')}\n"
         )
 
     @pytest.mark.parametrize("strict_error_checking", [True, False])
