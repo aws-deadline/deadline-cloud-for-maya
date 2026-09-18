@@ -1,5 +1,5 @@
 coverage[toml] >= 7.10.7; python_version < "3.10"
-coverage[toml] >= 7.15.2; python_version >= "3.10"
+coverage[toml] >= 7.15.4; python_version >= "3.10"
 pytest == 8.*; python_version < "3.10"
 pytest == 9.*; python_version >= "3.10"
 pytest-cov == 7.*
