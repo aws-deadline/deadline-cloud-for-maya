@@ -98,7 +98,8 @@ def _add_console_extra(requirement: str) -> str:
     )
     if not match or match.group("name").lower() != "deadline":
         return requirement
-    extras = [extra for extra in (match.group("extras") or "").split(",") if extra]
+    # Stripped while splitting: "gui, console" must not slip past the dedupe as " console".
+    extras = [extra.strip() for extra in (match.group("extras") or "").split(",") if extra.strip()]
     if "console" not in extras:
         extras.append("console")
     return f"{match.group('name')}[{','.join(extras)}]{match.group('spec')}"

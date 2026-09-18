@@ -124,8 +124,9 @@ def test_deps_bundle_requests_the_console_extra():
         ("deadline>=0.60.4,<0.61", "deadline[console]>=0.60.4,<0.61"),
         # An existing extra is preserved, not replaced.
         ("deadline[gui]==0.60.*", "deadline[gui,console]==0.60.*"),
-        # The extra is not duplicated when already present.
+        # The extra is not duplicated when already present, spacing included.
         ("deadline[console]==0.60.*", "deadline[console]==0.60.*"),
+        ("deadline[gui, console]==0.60.*", "deadline[gui,console]==0.60.*"),
         # Non-deadline requirements pass through untouched.
         ("pyside6-essentials==6.8.3", "pyside6-essentials==6.8.3"),
         ("deadline-cloud-for-maya==0.15.*", "deadline-cloud-for-maya==0.15.*"),
@@ -215,3 +216,39 @@ def test_dev_submitter_pulls_console_requirements_from_a_local_deadline():
     assert [req.spec for req in requirements] == ["awscrt>=0.28.4"]
 
     assert install_dev_submitter._console_extra_requirements([other_local], set()) == []
+
+
+def test_dev_submitter_matches_local_dep_names_canonically():
+    """Name comparisons follow PEP 503, not the spelling either side happens to use.
+
+    local-dep checkouts' pyproject.toml names ("Deadline", "PyYAML") and requirement
+    strings ("pyyaml") come from different repositories, so exact-match comparison
+    fails open and the local checkout would be shadowed by a PyPI pin.
+    """
+    assert install_dev_submitter._canonical_name("PyYAML") == "pyyaml"
+    assert install_dev_submitter._canonical_name("deadline_cloud.for-maya") == (
+        "deadline-cloud-for-maya"
+    )
+    assert install_dev_submitter._requirement_name("Botocore[crt] >= 1.34.0") == "botocore"
+
+    # A checkout declaring name = "Deadline" is still recognized as deadline.
+    local_deadline = {
+        "project": {
+            "name": "Deadline",
+            "optional-dependencies": {"console": ["awscrt>=0.28.4"]},
+        }
+    }
+    requirements = install_dev_submitter._console_extra_requirements([local_deadline], set())
+    assert [req.spec for req in requirements] == ["awscrt>=0.28.4"]
+
+
+def test_dev_submitter_raises_on_a_local_deadline_without_the_console_extra():
+    """A deadline checkout with no console extra is a broken setup, not a no-op.
+
+    The deadline requirement was already filtered out as local, so nothing else
+    would surface the missing extra: the install would quietly build a submitter
+    that cannot sign in -- the failure mode this whole module guards against.
+    """
+    pre_console_deadline = {"project": {"name": "deadline", "optional-dependencies": {"gui": []}}}
+    with pytest.raises(Exception, match="declares no console extra"):
+        install_dev_submitter._console_extra_requirements([pre_console_deadline], set())

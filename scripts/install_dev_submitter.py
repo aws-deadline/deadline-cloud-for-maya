@@ -71,8 +71,19 @@ def _setup_maya_env_file(maya_mod_path: Path, install_path: Path):
 _REQUIREMENT_NAME_REGEX = re.compile(r"\s*([A-Za-z0-9._-]+)")
 
 
+def _canonical_name(name: str) -> str:
+    """PEP 503 name normalization: case-insensitive, [-_.] runs equivalent to '-'.
+
+    Vendored (two lines of packaging.utils.canonicalize_name) because this script
+    runs outside the test environment, and name comparisons here span pyproject.toml
+    files from other repositories whose spelling ("PyYAML", "deadline_cloud") need
+    not match the requirement strings that reference them.
+    """
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
 def _requirement_name(spec: str) -> str:
-    """The package name of a requirement string, regardless of its spacing.
+    """The canonical package name of a requirement string, regardless of spacing.
 
     _project.Dependency.name splits on a single space, which misparses spaceless
     strings ("botocore[crt]>=1.34.0" would yield the whole string), so name
@@ -82,7 +93,7 @@ def _requirement_name(spec: str) -> str:
     match = _REQUIREMENT_NAME_REGEX.match(spec)
     if not match:
         raise ValueError(f"Cannot parse a requirement name out of: {spec!r}")
-    return match.group(1)
+    return _canonical_name(match.group(1))
 
 
 def _specs_for_pipgrip(dependencies: list, add_console_extra: bool = True) -> list[str]:
@@ -117,16 +128,28 @@ def _console_extra_requirements(
 
     The extra's requirements honour the same local_dep_names filter as the declared
     dependencies: anything also supplied with --local-dep must not be pinned from
-    PyPI on top of the local checkout.
+    PyPI on top of the local checkout. local_dep_names must already be canonical.
+
+    A deadline checkout with no console extra at all is a broken dev setup rather
+    than a no-op -- the extra exists in every release from 0.60.4, the floor
+    pyproject.toml requires -- so it raises instead of silently building a
+    submitter that cannot sign in.
     """
     requirements = []
     for project_dict in local_dep_project_dicts:
-        if project_dict["project"]["name"] != "deadline":
+        if _canonical_name(project_dict["project"]["name"]) != "deadline":
             continue
         optional = project_dict["project"].get("optional-dependencies", {})
+        if "console" not in optional:
+            raise Exception(
+                "the --local-dep deadline checkout declares no console extra; every "
+                "deadline release from 0.60.4 (the floor pyproject.toml requires) has "
+                "one, so the checkout is older than the floor or on a broken branch -- "
+                "update it, or drop --local-dep for deadline"
+            )
         requirements.extend(
             Dependency(req)
-            for req in optional.get("console", [])
+            for req in optional["console"]
             if _requirement_name(req) not in local_dep_names
         )
     return requirements
@@ -135,11 +158,15 @@ def _console_extra_requirements(
 def _resolve_dependencies(local_deps: list[Path], add_console_extra: bool = True) -> dict[str, str]:
     project_dict = get_project_dict()
     local_dep_project_dicts = [get_project_dict(local_dep) for local_dep in local_deps]
-    local_dep_names = set([local_dep["project"]["name"] for local_dep in local_dep_project_dicts])
+    # Canonical on both sides: a checkout declaring name = "PyYAML" or "deadline_cloud"
+    # must still match a requirement spelled pyyaml / deadline-cloud.
+    local_dep_names = set(
+        _canonical_name(local_dep["project"]["name"]) for local_dep in local_dep_project_dicts
+    )
     all_project_dicts = [*local_dep_project_dicts, project_dict]
     dependency_lists = [get_dependencies(project_dict) for project_dict in all_project_dicts]
     filtered_dependency_lists = [
-        [dep for dep in dependency_list if dep.name not in local_dep_names]
+        [dep for dep in dependency_list if _requirement_name(dep.spec) not in local_dep_names]
         for dependency_list in dependency_lists
     ]
     flattened_dependency_list = [

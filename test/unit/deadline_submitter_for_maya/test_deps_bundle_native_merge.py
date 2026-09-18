@@ -19,6 +19,7 @@ access to.
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -162,7 +163,10 @@ def test_native_trees_are_merged_lowest_python_version_first(tmp_path, monkeypat
         requested_versions.append(args[args.index("--python-version") + 1])
         return subprocess.CompletedProcess(args, 0)
 
-    monkeypatch.setattr(deps_bundle.subprocess, "run", record)
+    # Replaces deps_bundle's own subprocess binding rather than patching run on the
+    # shared stdlib module object, which would leak to unrelated code for the test's
+    # duration (coverage internals, other fixtures) under parallel runs.
+    monkeypatch.setattr(deps_bundle, "subprocess", SimpleNamespace(run=record))
 
     tree_paths = deps_bundle._download_native_dependencies(tmp_path, tmp_path / "base_env")
 
@@ -178,9 +182,11 @@ def test_get_package_version_matches_pip_list_casing(monkeypatch):
     """
     output = b"Package  Version\n-------- -------\nPyYAML   6.0.3\nxxhash   3.6.0\n"
     monkeypatch.setattr(
-        deps_bundle.subprocess,
-        "run",
-        lambda args, **kwargs: subprocess.CompletedProcess(args, 0, stdout=output),
+        deps_bundle,
+        "subprocess",
+        SimpleNamespace(
+            run=lambda args, **kwargs: subprocess.CompletedProcess(args, 0, stdout=output)
+        ),
     )
 
     assert deps_bundle._get_package_version("pyyaml", Path("/unused")) == "6.0.3"
