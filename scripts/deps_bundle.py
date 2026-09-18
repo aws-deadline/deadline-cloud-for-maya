@@ -30,6 +30,12 @@ SUPPORTED_PLATFORMS = ["win_amd64", "manylinux2014_x86_64", "macosx_10_9_x86_64"
 # (or has not yet added) a wheel for one end of the range fails the bundle build loudly at
 # that pip step (check=True) -- deliberate, since the alternative is shipping a bundle that
 # silently cannot serve that interpreter.
+#
+# The macosx_10_9_x86_64 constraint pyproject.toml documents for awscrt does not apply
+# here: that tag only restricts resolution when passed explicitly via --platform (the
+# adaptor build, and install_dev_submitter.py's Maya 2023 leg). This script resolves
+# against the build host's full tag set, and any supported macOS host -- x86_64 or arm64,
+# 10.15+ -- accepts awscrt's cp39 macosx_10_15_universal2 wheel.
 NATIVE_DEPENDENCIES = ["xxhash", "psutil", "awscrt", "pyyaml"]
 
 
@@ -80,9 +86,15 @@ def _get_package_version(package: str, install_path: Path) -> str:
 
 
 def _add_console_extra(requirement: str) -> str:
-    """Add deadline's `console` extra to a requirement string, preserving its specifier."""
+    """Add deadline's `console` extra to a requirement string, preserving its specifier.
+
+    Tolerates whitespace around the name so callers can pass pyproject.toml's
+    spacing ("deadline >= 0.60.4") verbatim; the specifier -- environment marker
+    included -- is carried over byte-for-byte. Anything not named deadline is
+    returned untouched.
+    """
     match = re.fullmatch(
-        r"(?P<name>[A-Za-z0-9._-]+)(?:\[(?P<extras>[^\]]*)\])?(?P<spec>.*)", requirement
+        r"\s*(?P<name>[A-Za-z0-9._-]+)(?:\s*\[(?P<extras>[^\]]*)\])?(?P<spec>.*)", requirement
     )
     if not match or match.group("name").lower() != "deadline":
         return requirement

@@ -129,6 +129,13 @@ def test_deps_bundle_requests_the_console_extra():
         # Non-deadline requirements pass through untouched.
         ("pyside6-essentials==6.8.3", "pyside6-essentials==6.8.3"),
         ("deadline-cloud-for-maya==0.15.*", "deadline-cloud-for-maya==0.15.*"),
+        # pyproject.toml's own spacing is tolerated, and the specifier -- an
+        # environment marker included -- is carried over byte-for-byte.
+        ("deadline >= 0.60.4,< 0.61", "deadline[console] >= 0.60.4,< 0.61"),
+        (
+            'deadline == 0.60.*; python_version >= "3.10" and sys_platform == "win32"',
+            'deadline[console] == 0.60.*; python_version >= "3.10" and sys_platform == "win32"',
+        ),
     ],
 )
 def test_add_console_extra_rewrites(requirement, expected):
@@ -161,21 +168,22 @@ def test_dev_submitter_leaves_other_specs_byte_for_byte():
     """Non-deadline specs must not be whitespace-normalized.
 
     The dev installer's list includes --local-dep checkouts' requirement strings.
-    Removing every space corrupts multi-clause environment markers ('... >= "3.10"
-    and ...' is not tokenizable as '..."3.10"and...'), so the stripped form may only
-    be used for the deadline requirement the rewrite fires on.
+    Removing spaces corrupts multi-clause environment markers ('... >= "3.10"
+    and ...' is not tokenizable as '..."3.10"and...'), so every spec -- the
+    deadline one included -- must keep its marker byte-for-byte.
     """
     marker_spec = 'foo >= 1.0; python_version >= "3.10" and sys_platform == "win32"'
+    deadline_marker_spec = 'deadline >= 0.60.4; sys_platform != "emscripten"'
     specs = install_dev_submitter._specs_for_pipgrip(
-        [Dependency(marker_spec), Dependency("deadline == 0.60.*")]
+        [Dependency(marker_spec), Dependency(deadline_marker_spec)]
     )
-    assert specs == [marker_spec, "deadline[console]==0.60.*"]
+    assert specs == [marker_spec, 'deadline[console] >= 0.60.4; sys_platform != "emscripten"']
 
     # And with the extra disabled (Maya 2023 on macOS), everything passes through.
     specs = install_dev_submitter._specs_for_pipgrip(
-        [Dependency(marker_spec), Dependency("deadline == 0.60.*")], add_console_extra=False
+        [Dependency(marker_spec), Dependency(deadline_marker_spec)], add_console_extra=False
     )
-    assert specs == [marker_spec, "deadline == 0.60.*"]
+    assert specs == [marker_spec, deadline_marker_spec]
 
 
 def test_dev_submitter_pulls_console_requirements_from_a_local_deadline():
@@ -184,6 +192,8 @@ def test_dev_submitter_pulls_console_requirements_from_a_local_deadline():
     The rewrite then has nothing to fire on, so the extra's own contents must be
     read from the local checkout's optional-dependencies instead -- otherwise the
     environment most likely to be debugging console sign-in is the one without it.
+    The extra's requirements honour the same local-dep filter as the declared
+    ones: a package supplied with --local-dep must not also be pinned from PyPI.
     """
     local_deadline = {
         "project": {
@@ -192,7 +202,16 @@ def test_dev_submitter_pulls_console_requirements_from_a_local_deadline():
         }
     }
     other_local = {"project": {"name": "openjd-model"}}
-    requirements = install_dev_submitter._console_extra_requirements([local_deadline, other_local])
+    requirements = install_dev_submitter._console_extra_requirements(
+        [local_deadline, other_local], {"deadline", "openjd-model"}
+    )
     assert [req.spec for req in requirements] == ["awscrt>=0.28.4", "botocore[crt]>=1.34.0"]
 
-    assert install_dev_submitter._console_extra_requirements([other_local]) == []
+    # A --local-dep'd botocore is dropped even though its spec has no spaces,
+    # which _project.Dependency.name would misparse.
+    requirements = install_dev_submitter._console_extra_requirements(
+        [local_deadline], {"deadline", "botocore"}
+    )
+    assert [req.spec for req in requirements] == ["awscrt>=0.28.4"]
+
+    assert install_dev_submitter._console_extra_requirements([other_local], set()) == []

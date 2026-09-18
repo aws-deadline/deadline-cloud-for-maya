@@ -3,6 +3,7 @@
 import argparse
 import json
 import platform
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -67,6 +68,23 @@ def _setup_maya_env_file(maya_mod_path: Path, install_path: Path):
         f.write(maya_env)
 
 
+_REQUIREMENT_NAME_REGEX = re.compile(r"\s*([A-Za-z0-9._-]+)")
+
+
+def _requirement_name(spec: str) -> str:
+    """The package name of a requirement string, regardless of its spacing.
+
+    _project.Dependency.name splits on a single space, which misparses spaceless
+    strings ("botocore[crt]>=1.34.0" would yield the whole string), so name
+    comparisons against requirement strings from other pyproject.toml files go
+    through this instead.
+    """
+    match = _REQUIREMENT_NAME_REGEX.match(spec)
+    if not match:
+        raise ValueError(f"Cannot parse a requirement name out of: {spec!r}")
+    return match.group(1)
+
+
 def _specs_for_pipgrip(dependencies: list, add_console_extra: bool = True) -> list[str]:
     """Requirement strings for pipgrip, with deadline's console extra applied.
 
@@ -76,23 +94,19 @@ def _specs_for_pipgrip(dependencies: list, add_console_extra: bool = True) -> li
     _build_base_environment there). Without it the dev submitter would silently
     lack AWS Console sign-in while the shipped one has it.
 
-    Spaces are stripped before matching because _project.Dependency.spec preserves
-    pyproject.toml's spacing ("deadline >= 0.60.4") and _add_console_extra matches
-    the requirement name at the start of the string. The stripped form is used only
-    when the rewrite actually fired: every other spec passes through byte-for-byte,
-    since this list includes --local-dep checkouts' requirement strings, whose
-    environment markers whitespace removal can corrupt ('... >= "3.10" and ...'
-    is not tokenizable without its spaces).
+    _add_console_extra tolerates pyproject.toml's spacing and preserves the
+    specifier and any environment marker byte-for-byte, and returns anything not
+    named deadline untouched -- important here because this list includes
+    --local-dep checkouts' requirement strings.
     """
-    specs = []
-    for dep in dependencies:
-        stripped = dep.spec.replace(" ", "")
-        rewritten = _add_console_extra(stripped)
-        specs.append(rewritten if add_console_extra and rewritten != stripped else dep.spec)
-    return specs
+    if not add_console_extra:
+        return [dep.spec for dep in dependencies]
+    return [_add_console_extra(dep.spec) for dep in dependencies]
 
 
-def _console_extra_requirements(local_dep_project_dicts: list[dict]) -> list:
+def _console_extra_requirements(
+    local_dep_project_dicts: list[dict], local_dep_names: set[str]
+) -> list:
     """The contents of deadline's console extra, for a --local-dep'd deadline.
 
     When deadline itself is supplied with --local-dep, the requirement on it is
@@ -100,13 +114,21 @@ def _console_extra_requirements(local_dep_project_dicts: list[dict]) -> list:
     and awscrt plus the crt-capable botocore floor would silently drop out of the
     tree -- precisely the setup someone debugging console sign-in would be running.
     Instead, feed the extra's own requirements from that checkout's pyproject.toml.
+
+    The extra's requirements honour the same local_dep_names filter as the declared
+    dependencies: anything also supplied with --local-dep must not be pinned from
+    PyPI on top of the local checkout.
     """
     requirements = []
     for project_dict in local_dep_project_dicts:
         if project_dict["project"]["name"] != "deadline":
             continue
         optional = project_dict["project"].get("optional-dependencies", {})
-        requirements.extend(Dependency(req) for req in optional.get("console", []))
+        requirements.extend(
+            Dependency(req)
+            for req in optional.get("console", [])
+            if _requirement_name(req) not in local_dep_names
+        )
     return requirements
 
 
@@ -124,7 +146,9 @@ def _resolve_dependencies(local_deps: list[Path], add_console_extra: bool = True
         dep for dependency_list in filtered_dependency_lists for dep in dependency_list
     ]
     if add_console_extra:
-        flattened_dependency_list.extend(_console_extra_requirements(local_dep_project_dicts))
+        flattened_dependency_list.extend(
+            _console_extra_requirements(local_dep_project_dicts, local_dep_names)
+        )
 
     args = [
         "pipgrip",
