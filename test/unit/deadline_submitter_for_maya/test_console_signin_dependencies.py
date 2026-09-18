@@ -24,6 +24,7 @@ silently walk back to a release with no usable crypto support.
 import sys
 from pathlib import Path
 
+import pytest
 from packaging.requirements import Requirement
 
 if sys.version_info >= (3, 11):
@@ -31,12 +32,20 @@ if sys.version_info >= (3, 11):
 else:  # pragma: no cover - exercised on Python 3.9 and 3.10 only
     import tomli as tomllib
 
+SCRIPTS_DIR = Path(__file__).parents[3] / "scripts"
+if str(SCRIPTS_DIR) not in sys.path:
+    # Appended rather than prepended: scripts/ holds generically named modules, and
+    # prepending would shadow any same-named import for the rest of the pytest session.
+    sys.path.append(str(SCRIPTS_DIR))
+
+import deps_bundle  # noqa: E402
+
 PYPROJECT = Path(__file__).parents[3] / "pyproject.toml"
 
-# Console sign-in landed in deadline 0.60.4 and nowhere earlier: 0.60.1 through
-# 0.60.3 have no AWS_CONSOLE_LOGIN credentials source and do not declare a
-# `console` extra at all. 0.60.3 is the highest version that must be excluded.
-HIGHEST_DEADLINE_WITHOUT_CONSOLE_SIGNIN = "0.60.3"
+# Console sign-in landed in deadline 0.60.4 and nowhere earlier: these releases have
+# no AWS_CONSOLE_LOGIN credentials source and do not declare a `console` extra at
+# all, so every one of them must be excluded by the floor.
+DEADLINE_VERSIONS_WITHOUT_CONSOLE_SIGNIN = ["0.60.1", "0.60.2", "0.60.3"]
 
 
 def _base_dependencies() -> list[Requirement]:
@@ -52,7 +61,8 @@ def _deadline_requirements() -> list[Requirement]:
     return deadline_reqs
 
 
-def test_deadline_floor_excludes_releases_without_console_signin():
+@pytest.mark.parametrize("bad_version", DEADLINE_VERSIONS_WITHOUT_CONSOLE_SIGNIN)
+def test_deadline_floor_excludes_releases_without_console_signin(bad_version):
     """Guards the floor itself, not whatever a resolver happened to select.
 
     An installed-version check cannot do this: with a loosened ">= 0.60.1"
@@ -60,12 +70,15 @@ def test_deadline_floor_excludes_releases_without_console_signin():
     unnoticed. The floor matters even though the console extra is added at bundle
     time: below 0.60.4 no `console` extra exists at all, so pip backtracks past
     the extra to an older deadline, drops awscrt, warns once, and exits 0.
+
+    Every known-bad version is checked individually rather than only the highest:
+    a "pin around a bad release" edit like `>= 0.60.1, != 0.60.3` excludes the
+    sample while still admitting 0.60.1 and 0.60.2.
     """
     for req in _deadline_requirements():
-        assert not req.specifier.contains(HIGHEST_DEADLINE_WITHOUT_CONSOLE_SIGNIN), (
-            f"allows deadline {HIGHEST_DEADLINE_WITHOUT_CONSOLE_SIGNIN}, which has no "
-            f"console sign-in support: {req}"
-        )
+        assert not req.specifier.contains(
+            bad_version
+        ), f"allows deadline {bad_version}, which has no console sign-in support: {req}"
 
 
 def test_base_dependencies_do_not_request_the_console_extra():
@@ -87,3 +100,35 @@ def test_base_dependencies_do_not_request_the_console_extra():
     assert not [
         r for r in _base_dependencies() if r.name == "awscrt"
     ], "awscrt must not be a base dependency; it would be resolved into the adaptor package"
+
+
+def test_deps_bundle_requests_the_console_extra():
+    """The submitter resolves through the deps bundle, so console is added there.
+
+    Applies the bundler's own rewrite to the requirement pyproject.toml actually
+    declares, so a rename or a pre-existing extras list cannot silently bypass it.
+    """
+    for req in _deadline_requirements():
+        rewritten = Requirement(deps_bundle._add_console_extra(str(req)))
+        assert "console" in rewritten.extras, f"bundler does not add the console extra to: {req}"
+        assert rewritten.specifier == req.specifier, "rewrite must preserve the specifier"
+
+
+@pytest.mark.parametrize(
+    "requirement, expected",
+    [
+        # Plain requirement gains the extra and keeps its specifier.
+        ("deadline==0.60.*", "deadline[console]==0.60.*"),
+        ("deadline>=0.60.4,<0.61", "deadline[console]>=0.60.4,<0.61"),
+        # An existing extra is preserved, not replaced.
+        ("deadline[gui]==0.60.*", "deadline[gui,console]==0.60.*"),
+        # The extra is not duplicated when already present.
+        ("deadline[console]==0.60.*", "deadline[console]==0.60.*"),
+        # Non-deadline requirements pass through untouched.
+        ("pyside6-essentials==6.8.3", "pyside6-essentials==6.8.3"),
+        ("deadline-cloud-for-maya==0.15.*", "deadline-cloud-for-maya==0.15.*"),
+    ],
+)
+def test_add_console_extra_rewrites(requirement, expected):
+    """Pins the rewrite _build_base_environment applies to every dependency."""
+    assert deps_bundle._add_console_extra(requirement) == expected
