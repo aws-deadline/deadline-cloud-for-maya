@@ -39,6 +39,8 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.append(str(SCRIPTS_DIR))
 
 import deps_bundle  # noqa: E402
+import install_dev_submitter  # noqa: E402
+from _project import Dependency  # noqa: E402
 
 PYPROJECT = Path(__file__).parents[3] / "pyproject.toml"
 
@@ -132,3 +134,24 @@ def test_deps_bundle_requests_the_console_extra():
 def test_add_console_extra_rewrites(requirement, expected):
     """Pins the rewrite _build_base_environment applies to every dependency."""
     assert deps_bundle._add_console_extra(requirement) == expected
+
+
+def test_dev_submitter_requests_the_console_extra():
+    """The dev submitter tree must match the shipped bundle, not the adaptor.
+
+    scripts/install_dev_submitter.py resolves project.dependencies through pipgrip
+    rather than deps_bundle, so it needs its own application of the rewrite --
+    otherwise a dev install silently lacks console sign-in while the installer-built
+    submitter has it. Exercised through _project.Dependency because its .spec keeps
+    pyproject.toml's spacing, which the rewrite must strip to match the name.
+    """
+    specs = install_dev_submitter._specs_for_pipgrip(
+        [Dependency(str(req)) for req in _deadline_requirements()]
+        + [Dependency("deadline >= 0.60.4,< 0.61"), Dependency("xxhash == 3.*")]
+    )
+    for spec in specs:
+        rewritten = Requirement(spec)
+        if rewritten.name == "deadline":
+            assert "console" in rewritten.extras, f"dev install misses the console extra: {spec}"
+        else:
+            assert not rewritten.extras, f"unexpected extras on {spec}"

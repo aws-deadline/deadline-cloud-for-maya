@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from _project import get_git_root, get_dependencies, get_project_dict, get_pip_platform
+from deps_bundle import _add_console_extra
 
 
 class MayaVersion:
@@ -66,6 +67,22 @@ def _setup_maya_env_file(maya_mod_path: Path, install_path: Path):
         f.write(maya_env)
 
 
+def _specs_for_pipgrip(dependencies: list) -> list[str]:
+    """Requirement strings for pipgrip, with deadline's console extra applied.
+
+    This tree is a submitter, the same as the installer's dependency bundle, so it
+    needs the same rewrite scripts/deps_bundle.py applies: the console extra lives
+    at build time rather than in project.dependencies (see the comment in
+    _build_base_environment there). Without it the dev submitter would silently
+    lack AWS Console sign-in while the shipped one has it.
+
+    The spaces are stripped first because _project.Dependency.spec preserves
+    pyproject.toml's spacing ("deadline >= 0.60.4") and _add_console_extra matches
+    the requirement name at the start of the string.
+    """
+    return [_add_console_extra(dep.spec.replace(" ", "")) for dep in dependencies]
+
+
 def _resolve_dependencies(local_deps: list[Path]) -> dict[str, str]:
     project_dict = get_project_dict()
     local_dep_project_dicts = [get_project_dict(local_dep) for local_dep in local_deps]
@@ -83,7 +100,7 @@ def _resolve_dependencies(local_deps: list[Path]) -> dict[str, str]:
     args = [
         "pipgrip",
         "--json",
-        *[dep.spec for dep in flattened_dependency_list],
+        *_specs_for_pipgrip(flattened_dependency_list),
     ]
     try:
         result = subprocess.run(args, check=True, capture_output=True, text=True)
