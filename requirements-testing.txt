@@ -14,3 +14,8 @@ ruff == 0.15.*
 moto[s3,sts] == 5.*
 pipgrip == 0.13.*
 types-pyyaml == 6.*
+# Declared because test/unit/deadline_submitter_for_maya/test_console_signin_dependencies.py
+# imports them directly; without these lines tomli is only present transitively via
+# coverage[toml] on Python < 3.11, which is one coverage release away from breaking collection.
+packaging >= 26.3
+tomli == 2.*; python_version < "3.11"
