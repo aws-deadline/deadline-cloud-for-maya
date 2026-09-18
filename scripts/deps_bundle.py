@@ -67,21 +67,31 @@ def _get_dependencies(pyproject_dict: dict[str, Any]) -> list[str]:
     return list(map(lambda dep: dep.replace(" ", ""), deps_noopenjd))
 
 
-def _get_package_version_regex(package: str) -> re.Pattern:
-    # Case-insensitive because `pip list` prints the distribution's own casing, which need not
-    # match how the requirement is spelled -- `pyyaml` is reported as `PyYAML`. The required
-    # whitespace keeps a prefix sibling like `pyyaml-env-tag` from matching.
-    return re.compile(rf"^{re.escape(package)}\s+(\S+)\s*$", re.IGNORECASE)
+def _canonical_name(name: str) -> str:
+    """PEP 503 name normalization: case-insensitive, [-_.] runs equivalent to '-'.
+
+    Vendored (two lines of packaging.utils.canonicalize_name) because this script
+    runs under a bare python3 at bundle-build time, where packaging is not a given.
+    """
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+_PIP_LIST_LINE_REGEX = re.compile(r"^(\S+)\s+(\S+)\s*$")
 
 
 def _get_package_version(package: str, install_path: Path) -> str:
-    version_regex = _get_package_version_regex(package)
+    # Compared canonically because `pip list` prints the distribution's own spelling
+    # of the whole name, not just its capitalization: `pyyaml` is reported as
+    # `PyYAML`, and a `ruamel-yaml` entry would be reported as `ruamel.yaml`.
+    # Whole-field comparison also keeps a prefix sibling like `pyyaml-env-tag`
+    # from matching.
+    wanted = _canonical_name(package)
     pip_args = ["pip", "list", "--path", str(install_path)]
     output = subprocess.run(pip_args, check=True, capture_output=True).stdout.decode("utf-8")
     for line in output.split("\n"):
-        match = version_regex.match(line)
-        if match:
-            return match.group(1)
+        match = _PIP_LIST_LINE_REGEX.match(line)
+        if match and _canonical_name(match.group(1)) == wanted:
+            return match.group(2)
     raise Exception(f"Could not find version for package {package}")
 
 
@@ -96,7 +106,12 @@ def _add_console_extra(requirement: str) -> str:
     match = re.fullmatch(
         r"\s*(?P<name>[A-Za-z0-9._-]+)(?:\s*\[(?P<extras>[^\]]*)\])?(?P<spec>.*)", requirement
     )
-    if not match or match.group("name").lower() != "deadline":
+    if not match:
+        # Not a requirement at all (a multi-line string, leading junk) rather than
+        # "not deadline". Returning it untouched here would fail open: pip exits 0
+        # and the bundle ships without console sign-in support.
+        raise ValueError(f"Cannot parse a requirement: {requirement!r}")
+    if match.group("name").lower() != "deadline":
         return requirement
     # Stripped while splitting: "gui, console" must not slip past the dedupe as " console".
     extras = [extra.strip() for extra in (match.group("extras") or "").split(",") if extra.strip()]

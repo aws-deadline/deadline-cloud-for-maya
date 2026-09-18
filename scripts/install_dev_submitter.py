@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 from _project import Dependency, get_git_root, get_dependencies, get_project_dict, get_pip_platform
-from deps_bundle import _add_console_extra
+from deps_bundle import _add_console_extra, _canonical_name
 
 
 class MayaVersion:
@@ -69,17 +69,6 @@ def _setup_maya_env_file(maya_mod_path: Path, install_path: Path):
 
 
 _REQUIREMENT_NAME_REGEX = re.compile(r"\s*([A-Za-z0-9._-]+)")
-
-
-def _canonical_name(name: str) -> str:
-    """PEP 503 name normalization: case-insensitive, [-_.] runs equivalent to '-'.
-
-    Vendored (two lines of packaging.utils.canonicalize_name) because this script
-    runs outside the test environment, and name comparisons here span pyproject.toml
-    files from other repositories whose spelling ("PyYAML", "deadline_cloud") need
-    not match the requirement strings that reference them.
-    """
-    return re.sub(r"[-_.]+", "-", name).lower()
 
 
 def _requirement_name(spec: str) -> str:
@@ -249,11 +238,15 @@ def install_submitter_package(maya_version_arg: Optional[str], local_deps: list[
     """
     maya_version = MayaVersion(maya_version_arg)
     python_version = maya_version.python_major_minor()
-    # Maya 2023's Python 3.9 install on macOS pins --platform macosx_10_9_x86_64,
-    # and no awscrt wheel satisfying deadline's console extra exists for that tag
-    # (see pyproject.toml). pipgrip's pins are exact, so requesting the extra there
-    # is not a degraded install but a hard resolver failure. Skip it, loudly: the
-    # adaptor package excludes the extra for the same tag.
+    # Maya 2023 targets Python 3.9, where _build_deps_env adds an explicit
+    # --platform for the host OS and pipgrip's pins are exact, so every dependency
+    # must have a cp39 wheel for that literal tag -- pip cannot walk back. Today
+    # only macOS fails that bar: no awscrt wheel satisfying deadline's console
+    # extra exists for macosx_10_9_x86_64 (see pyproject.toml), while cp39 wheels
+    # for win_amd64 and manylinux2014_x86_64 do exist, so those platforms keep
+    # console sign-in. If awscrt drops cp39 wheels entirely, the same hard failure
+    # appears on every platform and this condition must widen to all of 3.9.
+    # Skip it, loudly: the adaptor package excludes the extra for the same tag.
     skip_console_extra = python_version == "3.9" and platform.system() == "Darwin"
     if skip_console_extra:
         print(

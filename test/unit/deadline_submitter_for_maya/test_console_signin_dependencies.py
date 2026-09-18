@@ -50,11 +50,16 @@ PYPROJECT = Path(__file__).parents[3] / "pyproject.toml"
 DEADLINE_VERSIONS_WITHOUT_CONSOLE_SIGNIN = ["0.60.1", "0.60.2", "0.60.3"]
 
 
-def _base_dependencies() -> list[Requirement]:
+def _raw_dependencies() -> list[str]:
+    """The literal requirement strings pyproject.toml declares, unnormalized."""
     project_dict = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
     assert "project" in project_dict, "pyproject.toml has no project table"
     assert "dependencies" in project_dict["project"], "pyproject.toml has no dependencies"
-    return [Requirement(r) for r in project_dict["project"]["dependencies"]]
+    return list(project_dict["project"]["dependencies"])
+
+
+def _base_dependencies() -> list[Requirement]:
+    return [Requirement(r) for r in _raw_dependencies()]
 
 
 def _deadline_requirements() -> list[Requirement]:
@@ -107,13 +112,19 @@ def test_base_dependencies_do_not_request_the_console_extra():
 def test_deps_bundle_requests_the_console_extra():
     """The submitter resolves through the deps bundle, so console is added there.
 
-    Applies the bundler's own rewrite to the requirement pyproject.toml actually
-    declares, so a rename or a pre-existing extras list cannot silently bypass it.
+    Applies the bundler's own rewrite to the *literal* string pyproject.toml
+    declares -- spacing and clause order included -- not packaging's normalized
+    round-trip, which would hide any declaration the rewrite's parser mishandles.
+    A rename or a pre-existing extras list cannot silently bypass it either.
     """
-    for req in _deadline_requirements():
-        rewritten = Requirement(deps_bundle._add_console_extra(str(req)))
-        assert "console" in rewritten.extras, f"bundler does not add the console extra to: {req}"
-        assert rewritten.specifier == req.specifier, "rewrite must preserve the specifier"
+    raw_deadline = [r for r in _raw_dependencies() if Requirement(r).name == "deadline"]
+    assert raw_deadline, "pyproject.toml declares no requirement on deadline"
+    for raw in raw_deadline:
+        rewritten = Requirement(deps_bundle._add_console_extra(raw))
+        assert "console" in rewritten.extras, f"bundler does not add the console extra to: {raw}"
+        assert (
+            rewritten.specifier == Requirement(raw).specifier
+        ), "rewrite must preserve the specifier"
 
 
 @pytest.mark.parametrize(
@@ -144,17 +155,29 @@ def test_add_console_extra_rewrites(requirement, expected):
     assert deps_bundle._add_console_extra(requirement) == expected
 
 
+def test_add_console_extra_raises_on_an_unparseable_requirement():
+    """Not-a-requirement must be loud, not returned untouched.
+
+    Failing open here means pip exits 0 and the bundle ships without console
+    sign-in -- the silent failure this whole module exists to prevent.
+    """
+    with pytest.raises(ValueError, match="Cannot parse a requirement"):
+        deps_bundle._add_console_extra("deadline\n>= 0.60.4")
+
+
 def test_dev_submitter_requests_the_console_extra():
     """The dev submitter tree must match the shipped bundle, not the adaptor.
 
     scripts/install_dev_submitter.py resolves project.dependencies through pipgrip
     rather than deps_bundle, so it needs its own application of the rewrite --
     otherwise a dev install silently lacks console sign-in while the installer-built
-    submitter has it. Exercised through _project.Dependency because its .spec keeps
-    pyproject.toml's spacing, which the rewrite must strip to match the name.
+    submitter has it. Exercised through _project.Dependency over pyproject.toml's
+    *literal* strings, spacing included, which is what production feeds it.
     """
+    raw_deadline = [r for r in _raw_dependencies() if Requirement(r).name == "deadline"]
+    assert raw_deadline, "pyproject.toml declares no requirement on deadline"
     specs = install_dev_submitter._specs_for_pipgrip(
-        [Dependency(str(req)) for req in _deadline_requirements()]
+        [Dependency(raw) for raw in raw_deadline]
         + [Dependency("deadline >= 0.60.4,< 0.61"), Dependency("xxhash == 3.*")]
     )
     for spec in specs:

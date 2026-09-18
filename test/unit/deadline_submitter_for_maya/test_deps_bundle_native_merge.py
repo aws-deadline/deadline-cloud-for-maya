@@ -174,13 +174,23 @@ def test_native_trees_are_merged_lowest_python_version_first(tmp_path, monkeypat
     assert [path.name for path in tree_paths] == ["3_9", "3_10", "3_11", "3_13"]
 
 
-def test_get_package_version_matches_pip_list_casing(monkeypatch):
-    """`pip list` prints the distribution's own casing, not the requirement's.
+def test_get_package_version_matches_pip_list_spelling(monkeypatch):
+    """`pip list` prints the distribution's own spelling, not the requirement's.
 
-    NATIVE_DEPENDENCIES spells `pyyaml`, but pip reports it as `PyYAML`; a case-sensitive
-    match would fail the per-version downloads for a package that is actually installed.
+    PEP 503 makes case and [-_.] runs equivalent in a name: NATIVE_DEPENDENCIES
+    spells `pyyaml` but pip reports `PyYAML`, and a `ruamel-yaml` entry would be
+    reported as `ruamel.yaml`. An exact match would fail the per-version downloads
+    for a package that is actually installed. Whole-field comparison also keeps a
+    prefix sibling (`pyyaml-env-tag`) from matching.
     """
-    output = b"Package  Version\n-------- -------\nPyYAML   6.0.3\nxxhash   3.6.0\n"
+    output = (
+        b"Package         Version\n"
+        b"--------------- -------\n"
+        b"PyYAML          6.0.3\n"
+        b"pyyaml-env-tag  1.1\n"
+        b"ruamel.yaml     0.18.6\n"
+        b"xxhash          3.6.0\n"
+    )
     monkeypatch.setattr(
         deps_bundle,
         "subprocess",
@@ -190,3 +200,5 @@ def test_get_package_version_matches_pip_list_casing(monkeypatch):
     )
 
     assert deps_bundle._get_package_version("pyyaml", Path("/unused")) == "6.0.3"
+    assert deps_bundle._get_package_version("ruamel-yaml", Path("/unused")) == "0.18.6"
+    assert deps_bundle._get_package_version("ruamel_yaml", Path("/unused")) == "0.18.6"
