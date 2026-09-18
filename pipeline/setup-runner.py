@@ -1010,30 +1010,34 @@ def _install_mtoa_windows(version: str) -> None:
     installer_path.unlink(missing_ok=True)
 
 
-def _install_redshift_windows() -> None:
+def _install_redshift_windows(maya_versions: Sequence[str]) -> None:
     """Install Redshift on Windows with Maya plugin registration."""
     redshift_root = Path("C:/Program Files/Maxon Redshift 2026")
-    plugin_check = redshift_root / "Plugins" / "Maya" / "2025" / "nt-x86-64" / "redshift4maya.mll"
-    if plugin_check.exists():
+    plugins = redshift_root / "Plugins" / "Maya"
+    missing = [
+        v for v in maya_versions if not (plugins / v / "nt-x86-64" / "redshift4maya.mll").is_file()
+    ]
+    if not missing:
         print("Redshift already installed")
         return
+    print(f"Redshift has no plugin for Maya {', '.join(missing)}; installing")
     s3_key = "redshift/2026/redshift_2026.8.1_2741261432_win_x64.exe"
     installer_path = Path("C:/temp/redshift_install.exe")
     installer_path.parent.mkdir(parents=True, exist_ok=True)
-    print("Installing Redshift...")
     download_from_s3(s3_key, installer_path)
-    # InstallBuilder with Maya plugin components enabled
+    components = ",".join(["MayaGroup"] + [f"PluginMaya{v}" for v in maya_versions])
     run(
         [
             "powershell",
             "-Command",
-            f'Start-Process "{installer_path}" -ArgumentList "--mode","unattended","--enable-components","MayaGroup,PluginMaya2025,PluginMaya2026,PluginMaya2027" -Wait -NoNewWindow',
+            f'Start-Process "{installer_path}" -ArgumentList "--mode","unattended",'
+            f'"--enable-components","{components}" -Wait -NoNewWindow',
         ]
     )
     installer_path.unlink(missing_ok=True)
 
     # Register Redshift with each Maya version
-    for ver in ["2025", "2026", "2027"]:
+    for ver in maya_versions:
         maya_env_dir = Path(f"C:/Users/Default/Documents/maya/{ver}")
         maya_env_dir.mkdir(parents=True, exist_ok=True)
         maya_env_file = maya_env_dir / "Maya.env"
@@ -1163,7 +1167,7 @@ def setup_windows(maya_versions: Sequence[str], renderers: Sequence[str]) -> Non
         for version in maya_versions:
             _install_mtoa_windows(version)
     if "redshift" in renderers:
-        _install_redshift_windows()
+        _install_redshift_windows(maya_versions)
 
     _register_pywin32()
 

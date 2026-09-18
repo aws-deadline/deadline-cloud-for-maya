@@ -127,14 +127,6 @@ def main():
         sys.exit("MAYA_VERSION is not set; hatch sets it per integ-ci matrix cell.")
     system = platform.system()
 
-    # Linux only: the adaptor daemon is a subprocess, so it inherits these rather than
-    # pytest's faulthandler. Without them a SIGSEGV discards the unflushed stdout. On
-    # Windows they make the Maya client dump the ERROR_NO_TOKEN exceptions it otherwise
-    # handles, which breaks session cleanup.
-    if system != "Windows":
-        os.environ["PYTHONUNBUFFERED"] = "1"
-        os.environ["PYTHONFAULTHANDLER"] = "1"
-
     if system == "Windows":
         maya_bin = f"C:\\Program Files\\Autodesk\\Maya{maya_version}\\bin"
         os.environ["PATH"] = maya_bin + ";" + os.environ.get("PATH", "")
