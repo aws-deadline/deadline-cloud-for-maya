@@ -23,6 +23,13 @@ SUPPORTED_PLATFORMS = ["win_amd64", "manylinux2014_x86_64", "macosx_10_9_x86_64"
 # pyyaml is here because it ships a version-specific `_yaml` extension module: resolved only
 # in the base environment it lands built for a single interpreter, and pyyaml hides that by
 # falling back to its pure-Python parser on the other four.
+#
+# Listing a package here requires the single version the base environment resolves to have
+# wheels for every SUPPORTED_PYTHON_VERSIONS entry: _download_native_dependencies pins that
+# one version and installs it per version under --only-binary=:all:. A release that drops
+# (or has not yet added) a wheel for one end of the range fails the bundle build loudly at
+# that pip step (check=True) -- deliberate, since the alternative is shipping a bundle that
+# silently cannot serve that interpreter.
 NATIVE_DEPENDENCIES = ["xxhash", "psutil", "awscrt", "pyyaml"]
 
 

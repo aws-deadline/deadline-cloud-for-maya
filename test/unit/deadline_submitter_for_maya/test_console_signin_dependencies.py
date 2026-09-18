@@ -155,3 +155,44 @@ def test_dev_submitter_requests_the_console_extra():
             assert "console" in rewritten.extras, f"dev install misses the console extra: {spec}"
         else:
             assert not rewritten.extras, f"unexpected extras on {spec}"
+
+
+def test_dev_submitter_leaves_other_specs_byte_for_byte():
+    """Non-deadline specs must not be whitespace-normalized.
+
+    The dev installer's list includes --local-dep checkouts' requirement strings.
+    Removing every space corrupts multi-clause environment markers ('... >= "3.10"
+    and ...' is not tokenizable as '..."3.10"and...'), so the stripped form may only
+    be used for the deadline requirement the rewrite fires on.
+    """
+    marker_spec = 'foo >= 1.0; python_version >= "3.10" and sys_platform == "win32"'
+    specs = install_dev_submitter._specs_for_pipgrip(
+        [Dependency(marker_spec), Dependency("deadline == 0.60.*")]
+    )
+    assert specs == [marker_spec, "deadline[console]==0.60.*"]
+
+    # And with the extra disabled (Maya 2023 on macOS), everything passes through.
+    specs = install_dev_submitter._specs_for_pipgrip(
+        [Dependency(marker_spec), Dependency("deadline == 0.60.*")], add_console_extra=False
+    )
+    assert specs == [marker_spec, "deadline == 0.60.*"]
+
+
+def test_dev_submitter_pulls_console_requirements_from_a_local_deadline():
+    """--local-dep ../deadline-cloud filters the deadline requirement out entirely.
+
+    The rewrite then has nothing to fire on, so the extra's own contents must be
+    read from the local checkout's optional-dependencies instead -- otherwise the
+    environment most likely to be debugging console sign-in is the one without it.
+    """
+    local_deadline = {
+        "project": {
+            "name": "deadline",
+            "optional-dependencies": {"console": ["awscrt>=0.28.4", "botocore[crt]>=1.34.0"]},
+        }
+    }
+    other_local = {"project": {"name": "openjd-model"}}
+    requirements = install_dev_submitter._console_extra_requirements([local_deadline, other_local])
+    assert [req.spec for req in requirements] == ["awscrt>=0.28.4", "botocore[crt]>=1.34.0"]
+
+    assert install_dev_submitter._console_extra_requirements([other_local]) == []
