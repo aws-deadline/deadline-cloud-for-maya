@@ -203,8 +203,8 @@ def install_submitter_package(maya_version_arg: Optional[str], local_deps: list[
     # (see pyproject.toml). pipgrip's pins are exact, so requesting the extra there
     # is not a degraded install but a hard resolver failure. Skip it, loudly: the
     # adaptor package excludes the extra for the same tag.
-    add_console_extra = not (python_version == "3.9" and platform.system() == "Darwin")
-    if not add_console_extra:
+    skip_console_extra = python_version == "3.9" and platform.system() == "Darwin"
+    if skip_console_extra:
         print(
             "WARNING: not requesting deadline's console extra: no awscrt wheel exists "
             "for --platform macosx_10_9_x86_64 (Maya 2023 / Python 3.9 on macOS), so "
@@ -217,7 +217,7 @@ def install_submitter_package(maya_version_arg: Optional[str], local_deps: list[
         scripts_path,
         python_version,
         local_deps,
-        add_console_extra=add_console_extra,
+        add_console_extra=not skip_console_extra,
     )
     _copy_maya_submitter_source(dest_path=scripts_path)
     _copy_maya_submitter_plugin(dest_path=plugin_env_path)
