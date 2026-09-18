@@ -2,7 +2,7 @@
 #!/usr/bin/env python3
 """Setup runner for Maya integration tests in CodeBuild.
 
-Supports Linux and Windows with Maya 2025 and 2026.
+Supports Linux and Windows with Maya 2025, 2026 and 2027.
 
 Installs the Arnold (MtoA), V-Ray, and Redshift renderers into each Maya
 version so the renderer-specific integ tests can run.
@@ -79,6 +79,13 @@ MAYA_YEAR_TO_CONFIG: dict[str, MayaVersionConfig] = {
             "windows": "Maya2026_Windows.zip",
         },
     },
+    "2027": {
+        "python": "3.13",
+        "installer": {
+            "linux": "Autodesk_MayaIO_2027_2_Update_Linux.run",
+            "windows": "Maya2027_Windows.zip",
+        },
+    },
 }
 
 MAYA_YEAR_TO_CHECKSUMS: dict[str, MayaChecksums] = {
@@ -89,6 +96,10 @@ MAYA_YEAR_TO_CHECKSUMS: dict[str, MayaChecksums] = {
     "2026": {
         "linux": "b17b0700933e8e4329939da38cc52c93ed483a93b02e9fa78031fddae763c8e8",
         "windows": "9c9612f6e4d3f1f6de897a21fde6f9930e2e40bb6ddc3ca9647e2668cdba935c",
+    },
+    "2027": {
+        "linux": "eac310135486b2a33e64223721dc451ffca294444880e3a94a96bcc48a4efe9e",
+        "windows": "5380c20e1ab2321776c000e245819b36f33697918ee2cc344efb3ac22e1ead62",
     },
 }
 
@@ -106,6 +117,10 @@ MTOA_YEAR_TO_CONFIG: dict[str, RendererVersionConfig] = {
         "s3_key": "mtoa/5.5/MtoA-5.5.6.1-linux-2026.run",
         "checksum": "d8881e1cece725178d90aaa6d44507ea017ec64d7d23c76b129b9e349d1c9cc6",
     },
+    "2027": {
+        "s3_key": "mtoa/5.6.3/MtoA-5.6.3-linux-2027.run",
+        "checksum": "a745b3ef022a1fe41f1d1b90597af6df92deaf2dc49f63593705a96a0f3e6ed1",
+    },
 }
 
 # V-Ray for Maya — Chaos RHEL8 self-extracting installer per Maya version.
@@ -118,17 +133,32 @@ VRAY_YEAR_TO_CONFIG: dict[str, RendererVersionConfig] = {
         "s3_key": "maya-vray/72002/vray_adv_72002_maya2026_dr2_rhel8",
         "checksum": "a6e1e65202f6c9b3d4e12e7eb423a780a34dfeac3540658b16f4e20f8009fca6",
     },
+    "2027": {
+        "s3_key": "maya-vray/74004/vray_74004_maya2027_dr2_rhel8",
+        "checksum": "67dab04ce9f71a23d0fcbfd76bdd096b7fc90863c47e86eae7824a4464dff2cf",
+    },
 }
 
-# Redshift — single installer supports both Maya 2025 and 2026.
+# Redshift — single installer supports Maya 2025, 2026 and 2027.
 REDSHIFT_PLATFORM_CONFIG: dict[str, RedshiftPlatformConfig] = {
     "linux": {
-        "s3_key": "redshift/2026/redshift_2026.3.1_2336394021_linux_x64.run",
-        "checksum": "a95e48d2f4dd68e923c7f40693823d206d11acb51e145038d5625b748294777c",
+        "s3_key": "redshift/2026/redshift_2026.8.1_2741261432_linux_x64.run",
+        "checksum": "d653b210ebd7e51e1ceac8795f385fa0204cc8fde38496a7c92b02c97d384e1f",
     },
 }
 
 SUPPORTED_RENDERERS: tuple[str, ...] = ("mtoa", "vray", "redshift")
+
+# Bundled SONAMEs to delete per Maya version, so ld.so resolves them from the host. E.g.
+# Maya 2027's libfreetype statically links libpng 1.6.55 and exports its symbols, which
+# collide with the host's libpng16.so.16.
+BUNDLED_SONAMES_TO_DROP: dict[str, tuple[str, ...]] = {
+    "2027": ("libfreetype.so.6",),
+}
+
+# Adaptor dispatchers live here so run-integ-tests.py can put them ahead of the hatch
+# env's console scripts on PATH.
+ADAPTOR_DISPATCH_DIR = Path("/usr/local/maya-adaptor-bin")
 
 
 # ---------------------------------------------------------------------------
@@ -277,6 +307,24 @@ def _link_sonames(lib_dir: Path) -> None:
             print(f"Linked {name} -> {link.readlink()}")
 
 
+def _drop_bundled_sonames(lib_dir: Path, sonames: Sequence[str]) -> None:
+    """Delete the named SONAMEs from lib_dir, along with the links resolving to them."""
+    for soname in sonames:
+        entry = lib_dir / soname
+        if not entry.exists():
+            print(f"WARNING: {soname} is not in {lib_dir}, nothing to drop")
+            continue
+        target = entry.resolve()
+        if lib_dir.resolve() not in target.parents:
+            print(f"WARNING: {soname} resolves outside {lib_dir}, not dropping")
+            continue
+        for path in sorted(lib_dir.glob("*.so*")):
+            if path.is_symlink() and path.resolve() == target:
+                path.unlink()
+        target.unlink(missing_ok=True)
+        print(f"Dropped {soname}; ld.so will resolve it from the host")
+
+
 def _find_mayapy(maya_dir: Path) -> Path:
     """Locate mayapy; the directory name inside an installed tree varies by version."""
     result = subprocess.run(
@@ -368,8 +416,10 @@ def _install_maya_linux(version: str) -> Path:
         run(["rpm", "-Uvh", "--force", f"--prefix={maya_dir}/usr", str(rpm_path)])
 
         mayapy_exe = _find_mayapy(maya_dir)
+        lib_dir = mayapy_exe.parent.parent / "lib"
 
-        _link_sonames(mayapy_exe.parent.parent / "lib")
+        _link_sonames(lib_dir)
+        _drop_bundled_sonames(lib_dir, BUNDLED_SONAMES_TO_DROP.get(version, ()))
 
         _verify_maya_loads(mayapy_exe)
         print(f"SUCCESS: Maya {version} installed and loadable ({mayapy_exe})")
@@ -416,19 +466,21 @@ def _install_mtoa_linux(version: str) -> None:
 
         run(["chmod", "+x", str(installer_path)])
         mtoa_install_dir.mkdir(parents=True, exist_ok=True)
-        # MtoA is a Makeself archive. Extract then unzip the package.
+        # MtoA is a Makeself archive. Extract it, then unpack the payload.
         extract_tmp = Path(f"/tmp/mtoa-{version}-extract")
         if extract_tmp.exists():
             run(["rm", "-rf", str(extract_tmp)], check=False)
         run([str(installer_path), "--noexec", "--target", str(extract_tmp)])
-        # Unzip the package into the install dir
-        pkg_zip = next(extract_tmp.glob("*.zip"), None)
-        if pkg_zip:
-            run(["unzip", "-qo", str(pkg_zip), "-d", str(mtoa_install_dir)])
-        else:
-            print(f"ERROR: No .zip found in {extract_tmp}")
+        # MtoA 5.5.x shipped the payload as a .zip; 5.6.x ships package.tgz.
+        pkg = next(extract_tmp.glob("*.zip"), None) or next(extract_tmp.glob("*.tgz"), None)
+        if pkg is None:
+            print(f"ERROR: No .zip or .tgz payload found in {extract_tmp}")
             run(["ls", "-la", str(extract_tmp)], check=False)
             sys.exit(1)
+        if pkg.suffix == ".zip":
+            run(["unzip", "-qo", str(pkg), "-d", str(mtoa_install_dir)])
+        else:
+            run(["tar", "-xzf", str(pkg), "-C", str(mtoa_install_dir)])
         run(["rm", "-rf", str(extract_tmp)], check=False)
 
         # Verify — installer lays down plugins under $prefix/plug-ins.
@@ -479,26 +531,20 @@ def _install_vray_linux(version: str) -> None:
         verify_checksum(installer_path, VRAY_YEAR_TO_CONFIG[version]["checksum"])
 
         run(["chmod", "+x", str(installer_path)])
-        # Chaos V-Ray installer uses custom flags for silent install
         vray_install_dir.mkdir(parents=True, exist_ok=True)
-        run(
-            [
-                str(installer_path),
-                "-gui=0",
-                "-auto",
-                "-quiet=1",
-                f"-unpackInstall={vray_install_dir}",
-            ],
-            check=False,
-        )
+        # -unpackInstall as a separate argument, unpacking into the cwd, as the Conda
+        # recipes invoke it for every Maya version. V-Ray 7.40.04 silently unpacks
+        # nothing given the equals-joined form that worked for 7.2.
+        run([str(installer_path), "-unpackInstall", "."], check=False, cwd=vray_install_dir)
 
-        # Verify — vray binary lands under $prefix/vray/bin.
-        vray_bin = vray_install_dir / "vray" / "bin" / "vray"
-        if vray_bin.exists():
-            print(f"SUCCESS: vray binary found at {vray_bin}")
-        else:
-            print(f"WARNING: vray binary not found at {vray_bin}, dumping install tree:")
-            run(["find", str(vray_install_dir), "-maxdepth", "3"], check=False)
+        # 7.40.04 no longer ships vray/bin/vray, so verify the plugin Maya loads. It is
+        # what the MayaVray Conda recipes patchelf, so this path holds across versions.
+        vray_plugin = vray_install_dir / "maya_vray" / "plug-ins" / "vrayformaya.so"
+        if not vray_plugin.exists():
+            print(f"ERROR: V-Ray install incomplete for Maya {version}: no {vray_plugin}")
+            run(["find", str(vray_install_dir), "-maxdepth", "2"], check=False)
+            sys.exit(1)
+        print(f"SUCCESS: vrayformaya.so found at {vray_plugin}")
         marker.touch()
 
         installer_path.unlink(missing_ok=True)
@@ -506,13 +552,20 @@ def _install_vray_linux(version: str) -> None:
         lock_file.unlink(missing_ok=True)
 
 
-def _install_redshift_linux() -> None:
+def _install_redshift_linux(maya_versions: Sequence[str]) -> None:
     """Install Redshift once; it plugs into every Maya version at runtime."""
     redshift_root = Path("/usr/redshift")
     marker = redshift_root / ".installed"
-    if marker.exists():
+    # One install serves every Maya version, but only those its payload ships. Require a
+    # plugin dir per requested version: reserved-capacity hosts carry a marker from an
+    # older Redshift that has no redshift4maya/2027, and would skip the reinstall.
+    missing = [v for v in maya_versions if not (redshift_root / "redshift4maya" / v).is_dir()]
+    if marker.exists() and not missing:
         print("Redshift already installed")
         return
+    if marker.exists():
+        print(f"Redshift missing plugins for {', '.join(missing)}; reinstalling")
+        marker.unlink(missing_ok=True)
 
     lock_file = Path("/tmp/redshift.lock")
     if lock_file.exists():
@@ -550,13 +603,19 @@ def _install_redshift_linux() -> None:
             sys.exit(1)
         run(["rm", "-rf", str(extract_tmp)], check=False)
 
-        # Verify — redshiftCmdLine lands in $prefix/bin.
+        # Verify — redshiftCmdLine lands in $prefix/bin, plus a plugin per Maya version.
         redshift_cmd = redshift_root / "bin" / "redshiftCmdLine"
-        if redshift_cmd.exists():
-            print(f"SUCCESS: redshiftCmdLine found at {redshift_cmd}")
-        else:
-            print(f"WARNING: redshiftCmdLine not found at {redshift_cmd}, dumping install tree:")
-            run(["find", str(redshift_root), "-maxdepth", "3"], check=False)
+        still_missing = [
+            v for v in maya_versions if not (redshift_root / "redshift4maya" / v).is_dir()
+        ]
+        if not redshift_cmd.exists() or still_missing:
+            print("ERROR: Redshift install incomplete:")
+            print(f"  redshiftCmdLine exists={redshift_cmd.exists()}")
+            if still_missing:
+                print(f"  no redshift4maya plugin for: {', '.join(still_missing)}")
+            run(["find", str(redshift_root / "redshift4maya"), "-maxdepth", "1"], check=False)
+            sys.exit(1)
+        print(f"SUCCESS: redshiftCmdLine found at {redshift_cmd}")
         marker.touch()
 
         installer_path.unlink(missing_ok=True)
@@ -599,6 +658,32 @@ def _write_mayapy_dispatcher() -> None:
     dispatcher.write_text(textwrap.dedent(script))
     run(["chmod", "+x", str(dispatcher)])
     print(f"Wrote mayapy dispatcher at {dispatcher}")
+
+
+def _write_adaptor_dispatchers() -> None:
+    """Run the adaptor on the host Python, minus Maya's entry in LD_LIBRARY_PATH.
+
+    Maya 2027 ships libpython3.13.so under the same soname as the host's, and the mayapy
+    wrapper puts Maya's lib dir on LD_LIBRARY_PATH, which the adaptor inherits from
+    pytest. So the host Python loaded Maya's copy and segfaulted on its first native
+    import. Only Maya's entry is harmful, so drop just that and keep the rest. The Maya
+    client is launched via mayapy, whose wrapper re-adds it. run-integ-tests.py prepends
+    this directory to PATH to win over the hatch env's console scripts.
+    """
+    ADAPTOR_DISPATCH_DIR.mkdir(parents=True, exist_ok=True)
+    script = """\
+        #!/bin/sh
+        clean=$(printf '%s' "${LD_LIBRARY_PATH:-}" | tr ':' '\\n' | grep -v '^/opt/Autodesk/' | paste -sd: -)
+        if [ -n "$clean" ]; then
+            exec env LD_LIBRARY_PATH="$clean" python -m deadline.maya_adaptor.MayaAdaptor "$@"
+        fi
+        exec env -u LD_LIBRARY_PATH python -m deadline.maya_adaptor.MayaAdaptor "$@"
+        """
+    for name in ("MayaAdaptor", "maya-openjd"):
+        path = ADAPTOR_DISPATCH_DIR / name
+        path.write_text(textwrap.dedent(script))
+        run(["chmod", "+x", str(path)])
+    print(f"Wrote adaptor dispatchers in {ADAPTOR_DISPATCH_DIR}")
 
 
 def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
@@ -645,6 +730,10 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
             "xcb-util-image",
             "xcb-util-keysyms",
             "xcb-util-renderutil",
+            # Maya 2027 needs these beyond 2026's set
+            "openjpeg2",
+            "libatomic",
+            "libpng",
         ]
     )
 
@@ -741,17 +830,21 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
         wrapper.write_text(
             f"#!/bin/sh\n"
             f'export MAYA_LOCATION="{mayapy_dir}"\n'
-            f'export LD_LIBRARY_PATH="{mayapy_dir}/lib:${{LD_LIBRARY_PATH:-}}"\n'
-            f'export MAYA_MODULE_PATH="{module_paths}:${{MAYA_MODULE_PATH:-}}"\n'
-            f'export MAYA_PLUG_IN_PATH="{plugin_paths}:${{MAYA_PLUG_IN_PATH:-}}"\n'
-            f'export MAYA_SCRIPT_PATH="{script_paths}:${{MAYA_SCRIPT_PATH:-}}"\n'
-            f'export MAYA_RENDER_DESC_PATH="{render_desc_paths}:${{MAYA_RENDER_DESC_PATH:-}}"\n'
+            # ${VAR:+:$VAR} appends the separator only when VAR is set, since an empty
+            # element in LD_LIBRARY_PATH means the current directory to ld.so.
+            f'export LD_LIBRARY_PATH="{mayapy_dir}/lib${{LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}}"\n'
+            f'export MAYA_MODULE_PATH="{module_paths}${{MAYA_MODULE_PATH:+:$MAYA_MODULE_PATH}}"\n'
+            f'export MAYA_PLUG_IN_PATH="{plugin_paths}${{MAYA_PLUG_IN_PATH:+:$MAYA_PLUG_IN_PATH}}"\n'
+            f'export MAYA_SCRIPT_PATH="{script_paths}${{MAYA_SCRIPT_PATH:+:$MAYA_SCRIPT_PATH}}"\n'
+            f'export MAYA_RENDER_DESC_PATH="{render_desc_paths}'
+            f'${{MAYA_RENDER_DESC_PATH:+:$MAYA_RENDER_DESC_PATH}}"\n'
             f'export REDSHIFT_COREDATAPATH="{redshift_dir}"\n'
             f'exec "{mayapy_exe}" "$@"\n'
         )
         run(["chmod", "+x", str(wrapper)])
 
     _write_mayapy_dispatcher()
+    _write_adaptor_dispatchers()
 
     # Install requested renderers (always per-Maya-version, except Redshift which
     # is shared across versions).
@@ -762,7 +855,7 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
         for version in maya_versions:
             _install_vray_linux(version)
     if "redshift" in renderers:
-        _install_redshift_linux()
+        _install_redshift_linux(maya_versions)
 
 
 # ---------------------------------------------------------------------------
@@ -861,6 +954,7 @@ def _install_vray_windows(version: str) -> None:
     vray_win_config = {
         "2025": "maya-vray/70002/vray_adv_70002_maya2025_x64.exe",
         "2026": "maya-vray/71002/vray_adv_71002_maya2026_x64.exe",
+        "2027": "maya-vray/74004/vray_74004_maya2027_dr2_x64.exe",
     }
     if version not in vray_win_config:
         print(f"WARNING: No Windows V-Ray config for Maya {version}, skipping")
@@ -892,6 +986,7 @@ def _install_mtoa_windows(version: str) -> None:
     mtoa_win_config = {
         "2025": "mtoa/5.5/MtoA-5.5.4.2-windows-2025.msi",
         "2026": "mtoa/5.5/MtoA-5.5.4.2-windows-2026.msi",
+        "2027": "mtoa/5.6.3/MtoA-5.6.3-windows-2027.msi",
     }
     if version not in mtoa_win_config:
         print(f"WARNING: No Windows MtoA config for Maya {version}, skipping")
@@ -915,30 +1010,34 @@ def _install_mtoa_windows(version: str) -> None:
     installer_path.unlink(missing_ok=True)
 
 
-def _install_redshift_windows() -> None:
+def _install_redshift_windows(maya_versions: Sequence[str]) -> None:
     """Install Redshift on Windows with Maya plugin registration."""
     redshift_root = Path("C:/Program Files/Maxon Redshift 2026")
-    plugin_check = redshift_root / "Plugins" / "Maya" / "2025" / "nt-x86-64" / "redshift4maya.mll"
-    if plugin_check.exists():
+    plugins = redshift_root / "Plugins" / "Maya"
+    missing = [
+        v for v in maya_versions if not (plugins / v / "nt-x86-64" / "redshift4maya.mll").is_file()
+    ]
+    if not missing:
         print("Redshift already installed")
         return
-    s3_key = "redshift/2026/redshift_2026.6.0_2497872080_win_x64.exe"
+    print(f"Redshift has no plugin for Maya {', '.join(missing)}; installing")
+    s3_key = "redshift/2026/redshift_2026.8.1_2741261432_win_x64.exe"
     installer_path = Path("C:/temp/redshift_install.exe")
     installer_path.parent.mkdir(parents=True, exist_ok=True)
-    print("Installing Redshift...")
     download_from_s3(s3_key, installer_path)
-    # InstallBuilder with Maya plugin components enabled
+    components = ",".join(["MayaGroup"] + [f"PluginMaya{v}" for v in maya_versions])
     run(
         [
             "powershell",
             "-Command",
-            f'Start-Process "{installer_path}" -ArgumentList "--mode","unattended","--enable-components","MayaGroup,PluginMaya2025,PluginMaya2026" -Wait -NoNewWindow',
+            f'Start-Process "{installer_path}" -ArgumentList "--mode","unattended",'
+            f'"--enable-components","{components}" -Wait -NoNewWindow',
         ]
     )
     installer_path.unlink(missing_ok=True)
 
     # Register Redshift with each Maya version
-    for ver in ["2025", "2026"]:
+    for ver in maya_versions:
         maya_env_dir = Path(f"C:/Users/Default/Documents/maya/{ver}")
         maya_env_dir.mkdir(parents=True, exist_ok=True)
         maya_env_file = maya_env_dir / "Maya.env"
@@ -1068,7 +1167,7 @@ def setup_windows(maya_versions: Sequence[str], renderers: Sequence[str]) -> Non
         for version in maya_versions:
             _install_mtoa_windows(version)
     if "redshift" in renderers:
-        _install_redshift_windows()
+        _install_redshift_windows(maya_versions)
 
     _register_pywin32()
 

@@ -17,6 +17,9 @@ from typing import Any
 # which would match any process merely naming a Maya file.
 _MAYA_PROCESS_MARKERS = ("mayapy", "maya.bin", "maya.exe")
 
+# Must match ADAPTOR_DISPATCH_DIR in setup-runner.py, which creates these.
+ADAPTOR_DISPATCH_DIR = "/usr/local/maya-adaptor-bin"
+
 
 def _log(message: str) -> None:
     """Log a cleanup message."""
@@ -151,11 +154,21 @@ def main():
             os.environ.setdefault("redshift_LICENSE", f"7054@{license_dns}")
             os.environ.setdefault("ADSKFLEX_LICENSE_FILE", f"2702@{license_dns};2701@{license_dns}")
 
-    # Linux resolves mayapy through the MAYA_VERSION dispatcher written by setup-runner.py
+    # Linux resolves mayapy through the MAYA_VERSION dispatcher written by setup-runner.py,
+    # and runs the adaptor through the dispatchers in this directory, which must precede
+    # the hatch env's console scripts. See _write_adaptor_dispatchers in setup-runner.py.
+    if system != "Windows":
+        os.environ["PATH"] = ADAPTOR_DISPATCH_DIR + ":" + os.environ.get("PATH", "")
+
+    pytest_args = ["mayapy", "-m", "pytest", "--no-cov", "test/integ", "-vvv", "--numprocesses=1"]
+    if system == "Windows":
+        # Maya 2027 raises an SEH exception importing OpenMaya as SYSTEM (0x800703f0,
+        # ERROR_NO_TOKEN). Maya handles it and the tests pass, but faulthandler dumps
+        # every thread each time, burying the rest of the log.
+        pytest_args += ["-p", "no:faulthandler"]
+
     try:
-        result = subprocess.run(
-            ["mayapy", "-m", "pytest", "--no-cov", "test/integ", "-vvv", "--numprocesses=1"]
-        )
+        result = subprocess.run(pytest_args)
     finally:
         _cleanup("post-test")
 
