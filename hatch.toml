@@ -56,7 +56,7 @@ dependencies = [
 # Matrix across Maya versions. All renderers (mtoa, vray, redshift) are
 # installed by default on Linux and Windows.
 [[envs.integ-ci.matrix]]
-maya = ["2025", "2026"]
+maya = ["2025", "2026", "2027"]
 
 [envs.integ-ci.env-vars]
 MAYA_VERSION = "{matrix:maya}"
