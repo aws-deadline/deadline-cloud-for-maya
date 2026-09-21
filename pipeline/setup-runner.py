@@ -661,14 +661,23 @@ def _write_mayapy_dispatcher() -> None:
 
 
 def _write_adaptor_dispatchers() -> None:
-    """Run the adaptor on the host Python, minus Maya's entry in LD_LIBRARY_PATH.
+    """Run the adaptor without Maya's LD_LIBRARY_PATH entries.
 
-    Maya 2027 ships libpython3.13.so under the same soname as the host's, and the mayapy
-    wrapper puts Maya's lib dir on LD_LIBRARY_PATH, which the adaptor inherits from
-    pytest. So the host Python loaded Maya's copy and segfaulted on its first native
-    import. Only Maya's entry is harmful, so drop just that and keep the rest. The Maya
-    client is launched via mayapy, whose wrapper re-adds it. run-integ-tests.py prepends
-    this directory to PATH to win over the hatch env's console scripts.
+    The tests run under mayapy, so every process below inherits Maya's lib directory.
+    That is right for the processes that are Maya, and wrong for the one that is not:
+
+        mayapy -m pytest          Maya's python, Maya's lib
+         └─ mayapy -m openjd run  Maya's python, Maya's lib
+             └─ MayaAdaptor       HOST python, Maya's lib     <- mismatched
+                 └─ mayapy        Maya's python, Maya's lib
+
+    `command: MayaAdaptor` resolves through PATH to the hatch env, whose interpreter is
+    the host's, and Maya 2027 ships libpython3.13.so.1.0 under the same soname. ld.so
+    searches LD_LIBRARY_PATH before the cache, so native imports bound to Maya's copy
+    and segfaulted. 2025 and 2026 bundle Python 3.11, so nothing collided.
+
+    We drop only the /opt/Autodesk entries, so anything else on the path stays. The
+    mayapy dispatcher later prepends the paths Maya needs to run.
     """
     ADAPTOR_DISPATCH_DIR.mkdir(parents=True, exist_ok=True)
     script = """\
