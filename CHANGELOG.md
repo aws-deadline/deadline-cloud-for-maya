@@ -1,3 +1,8 @@
+## 0.15.21 (2026-09-23)
+
+### Bug Fixes
+* Console sign-in credentials now authenticate correctly in the submitter. The minimum `deadline` dependency has been bumped to 0.60.4 (which includes the `console` extra), and `awscrt` is now properly bundled, fixing silent authentication failures when using console-based credentials. (#482)
+* License error messages during rendering now include consistent remediation guidance with links to the licensing guide and service quotas page. Previously, some license failures could discard the detected cause; this is now fixed so the specific error context is preserved alongside the new guidance. (#480)
 ## 0.15.20 (2026-09-09)
 
 ### Features
