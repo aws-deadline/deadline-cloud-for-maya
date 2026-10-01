@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from io import StringIO
 import os
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 import pytest
 
@@ -41,6 +41,113 @@ class TestDefaultMayaHandler:
             ["layer1", "layer2", "layer3"],
         )
     ]
+
+    @patch("deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds")
+    def test_isolate_render_layer(self, mock_cmds: Mock, mayahandlerbase: DefaultMayaHandler):
+        """
+        Tests that only the assigned layer is left renderable. The renderer-native batch
+        commands render every layer whose 'renderable' attribute is on, so any other layer
+        left on is one this task renders without having been assigned it.
+        """
+        # GIVEN
+        mock_cmds.ls.return_value = ["defaultRenderLayer", "rs_beauty", "rs_shadow"]
+        mock_cmds.getAttr.return_value = True
+
+        # WHEN
+        mayahandlerbase.isolate_render_layer("rs_beauty")
+
+        # THEN
+        # rs_beauty is already renderable, so it is left alone.
+        assert mock_cmds.setAttr.call_args_list == [
+            call("defaultRenderLayer.renderable", False),
+            call("rs_shadow.renderable", False),
+        ]
+
+    @patch("deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds")
+    def test_isolate_render_layer_enables_the_assigned_layer(
+        self, mock_cmds: Mock, mayahandlerbase: DefaultMayaHandler
+    ):
+        """
+        Tests that an assigned layer whose 'renderable' attribute is off gets switched on.
+        Otherwise a step for that layer renders the other layers instead of erroring.
+        """
+        # GIVEN
+        mock_cmds.ls.return_value = ["rs_beauty", "rs_shadow"]
+        mock_cmds.getAttr.side_effect = lambda attribute: attribute == "rs_shadow.renderable"
+
+        # WHEN
+        mayahandlerbase.isolate_render_layer("rs_beauty")
+
+        # THEN
+        assert mock_cmds.setAttr.call_args_list == [
+            call("rs_beauty.renderable", True),
+            call("rs_shadow.renderable", False),
+        ]
+
+    @patch("deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds")
+    def test_isolate_render_layer_tolerates_a_failed_disable(
+        self, mock_cmds: Mock, mayahandlerbase: DefaultMayaHandler
+    ):
+        """
+        Tests that a layer which cannot be disabled does not fail the task. A locked or
+        connected 'renderable' attribute raises, and failing init over a layer this step
+        was not assigned is worse than rendering it, which is the pre-fix behaviour.
+        """
+        # GIVEN
+        mock_cmds.ls.return_value = ["rs_beauty", "rs_shadow", "rs_utility"]
+        mock_cmds.getAttr.return_value = True
+
+        def fail_for_shadow(attribute, value):
+            if attribute == "rs_shadow.renderable":
+                raise RuntimeError("locked or connected and cannot be modified")
+
+        mock_cmds.setAttr.side_effect = fail_for_shadow
+
+        # WHEN
+        mayahandlerbase.isolate_render_layer("rs_beauty")
+
+        # THEN
+        # rs_utility is still attempted, so the failure did not abandon the remaining layers.
+        assert mock_cmds.setAttr.call_args_list == [
+            call("rs_shadow.renderable", False),
+            call("rs_utility.renderable", False),
+        ]
+
+    @patch("deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds")
+    def test_isolate_render_layer_raises_when_the_assigned_layer_cannot_be_enabled(
+        self, mock_cmds: Mock, mayahandlerbase: DefaultMayaHandler
+    ):
+        """
+        Tests that failing to enable the assigned layer fails the task. The step cannot
+        deliver the layer it was assigned, so rendering nothing or another layer silently
+        is worse than erroring.
+        """
+        # GIVEN
+        mock_cmds.ls.return_value = ["rs_beauty", "rs_shadow"]
+        mock_cmds.getAttr.return_value = False
+        mock_cmds.setAttr.side_effect = RuntimeError("locked or connected and cannot be modified")
+
+        # WHEN / THEN
+        with pytest.raises(RuntimeError, match="could not be made renderable"):
+            mayahandlerbase.isolate_render_layer("rs_beauty")
+
+    def test_set_render_layer_does_not_isolate(self, mayahandlerbase: DefaultMayaHandler):
+        """
+        Tests that the default handler does not touch the renderable attributes.
+        maya.cmds.render()'s 'layer' flag renders only that layer regardless of them, so
+        isolating here would be redundant risk.
+        """
+        # GIVEN
+        with (
+            patch.object(mayahandlerbase, "get_render_layer_to_render", return_value="rs_beauty"),
+            patch.object(mayahandlerbase, "isolate_render_layer") as mock_isolate,
+        ):
+            # WHEN
+            mayahandlerbase.set_render_layer({"render_layer": "beauty"})
+
+        # THEN
+        assert mayahandlerbase.render_kwargs["layer"] == "rs_beauty"
+        mock_isolate.assert_not_called()
 
     @pytest.mark.parametrize("args", [{"path_mapping_rules": {}}])
     @patch.object(DirectoryMapping.mappings, "__setitem__")
@@ -279,3 +386,144 @@ class TestDefaultMayaHandler:
             mock_get_attr.assert_called_once_with("defaultRenderGlobals.preMel")
             mock_mel_eval.assert_called_once_with(mock_get_attr.return_value)
             assert "Unrecognized value" in output.getvalue()
+
+
+class TestSetOcioConfigFile:
+    """Tests for DefaultMayaHandler.set_ocio_config_file"""
+
+    @patch("os.path.isfile")
+    def test_set_ocio_config_file_empty_path(
+        self, mock_isfile: Mock, mayahandlerbase: DefaultMayaHandler
+    ):
+        """Tests that empty ocio_config_file path returns early without setting anything"""
+        # WHEN
+        mayahandlerbase.set_ocio_config_file({"ocio_config_file": ""})
+
+        # THEN
+        mock_isfile.assert_not_called()
+
+    @patch("os.path.isfile")
+    def test_set_ocio_config_file_missing_key(
+        self, mock_isfile: Mock, mayahandlerbase: DefaultMayaHandler
+    ):
+        """Tests that missing ocio_config_file key returns early without setting anything"""
+        # WHEN
+        mayahandlerbase.set_ocio_config_file({})
+
+        # THEN
+        mock_isfile.assert_not_called()
+
+    @patch("os.path.isfile")
+    @patch.object(DirectoryMapping, "get_activated")
+    @patch.object(DirectoryMapping, "convert")
+    @patch(
+        "deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds.colorManagementPrefs"
+    )
+    def test_set_ocio_config_file_with_path_mapping(
+        self,
+        mock_color_prefs: Mock,
+        mock_convert: Mock,
+        mock_get_activated: Mock,
+        mock_isfile: Mock,
+        mayahandlerbase: DefaultMayaHandler,
+    ):
+        """Tests that path mapping is applied and env var + prefs + pending path are set"""
+        # GIVEN
+        mock_get_activated.return_value = True
+        mock_convert.return_value = "/mapped/path/config.ocio"
+        mock_isfile.return_value = True
+
+        # WHEN
+        with patch.dict(os.environ, {}, clear=False):
+            mayahandlerbase.set_ocio_config_file({"ocio_config_file": "/original/path/config.ocio"})
+
+            # THEN
+            mock_convert.assert_called_once_with("/original/path/config.ocio")
+            mock_isfile.assert_called_once_with("/mapped/path/config.ocio")
+            mock_color_prefs.assert_called_once_with(
+                e=True, configFilePath="/mapped/path/config.ocio"
+            )
+            assert os.environ.get("OCIO") == "/mapped/path/config.ocio"
+            assert mayahandlerbase._pending_ocio_path == "/mapped/path/config.ocio"
+
+    @patch("os.path.isfile")
+    @patch.object(DirectoryMapping, "get_activated")
+    @patch(
+        "deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds.colorManagementPrefs"
+    )
+    def test_set_ocio_config_file_without_path_mapping(
+        self,
+        mock_color_prefs: Mock,
+        mock_get_activated: Mock,
+        mock_isfile: Mock,
+        mayahandlerbase: DefaultMayaHandler,
+    ):
+        """Tests that original path is used when path mapping is not activated"""
+        # GIVEN
+        mock_get_activated.return_value = False
+        mock_isfile.return_value = True
+
+        # WHEN
+        with patch.dict(os.environ, {}, clear=False):
+            mayahandlerbase.set_ocio_config_file({"ocio_config_file": "/path/to/config.ocio"})
+
+            # THEN
+            mock_isfile.assert_called_once_with("/path/to/config.ocio")
+            mock_color_prefs.assert_called_once_with(e=True, configFilePath="/path/to/config.ocio")
+            assert os.environ.get("OCIO") == "/path/to/config.ocio"
+            assert mayahandlerbase._pending_ocio_path == "/path/to/config.ocio"
+
+    @patch("os.path.isfile")
+    @patch.object(DirectoryMapping, "get_activated")
+    @patch(
+        "deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds.colorManagementPrefs"
+    )
+    def test_set_ocio_config_file_sets_ocio_env_var(
+        self,
+        mock_color_prefs: Mock,
+        mock_get_activated: Mock,
+        mock_isfile: Mock,
+        mayahandlerbase: DefaultMayaHandler,
+    ):
+        """Tests that the OCIO environment variable is set for renderers that read it directly"""
+        # GIVEN
+        mock_get_activated.return_value = False
+        mock_isfile.return_value = True
+
+        # WHEN
+        with patch.dict(os.environ, {}, clear=False):
+            if "OCIO" in os.environ:
+                del os.environ["OCIO"]
+            mayahandlerbase.set_ocio_config_file({"ocio_config_file": "/studio/ocio/config.ocio"})
+
+            # THEN
+            assert os.environ["OCIO"] == "/studio/ocio/config.ocio"
+
+    @patch("os.path.isfile")
+    @patch.object(DirectoryMapping, "get_activated")
+    def test_set_ocio_config_file_not_found(
+        self,
+        mock_get_activated: Mock,
+        mock_isfile: Mock,
+        mayahandlerbase: DefaultMayaHandler,
+    ):
+        """Tests that env var is not set when file doesn't exist"""
+        # GIVEN
+        mock_get_activated.return_value = False
+        mock_isfile.return_value = False
+
+        # WHEN
+        with patch.dict(os.environ, {}, clear=False):
+            if "OCIO" in os.environ:
+                del os.environ["OCIO"]
+            with patch("sys.stdout", new=StringIO()) as output:
+                mayahandlerbase.set_ocio_config_file(
+                    {"ocio_config_file": "/nonexistent/config.ocio"}
+                )
+
+                # THEN
+                mock_isfile.assert_called_once_with("/nonexistent/config.ocio")
+                assert "WARNING" in output.getvalue()
+                assert "/nonexistent/config.ocio" in output.getvalue()
+                assert os.environ.get("OCIO") is None
+                assert mayahandlerbase._pending_ocio_path is None

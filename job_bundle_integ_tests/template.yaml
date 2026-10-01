@@ -1,0 +1,118 @@
+# Job template for running deadline-cloud-for-maya integration tests on
+# Deadline Cloud Service Managed Fleets. See README.md for usage instructions.
+specificationVersion: jobtemplate-2023-09
+name: deadline-cloud-for-maya integ tests
+parameterDefinitions:
+# The local checkout of the deadline-cloud-for-maya repository.
+# Uploaded automatically as a job attachment because dataFlow is IN.
+- name: RepoDir
+  type: PATH
+  objectType: DIRECTORY
+  dataFlow: IN
+  description: Path to the deadline-cloud-for-maya repository root.
+jobEnvironments:
+# Headless Qt: PySide6 needs a platform plugin to initialize.
+# "offscreen" allows it to run without a display server.
+- name: EnvVars
+  variables:
+    QT_QPA_PLATFORM: offscreen
+# Shared setup: installs the package, test dependencies, and symlinks
+# the adaptor entry points onto PATH. Runs once per session and applies
+# to all steps.
+- name: SetupTestEnv
+  script:
+    embeddedFiles:
+    - name: Setup
+      filename: setup.sh
+      type: TEXT
+      runnable: true
+      data: |
+        #!/bin/bash
+        set -euo pipefail
+
+        # Install the package (non-editable so entry points are created)
+        # and pin numpy<2 for Maya 2026 ABI compatibility.
+        mayapy -m pip install '{{Param.RepoDir}}' --force-reinstall
+        mayapy -m pip install 'numpy<2'
+        mayapy -m pip install -r '{{Param.RepoDir}}/requirements-testing.txt'
+        mayapy -m pip install -r '{{Param.RepoDir}}/requirements-integ-testing.txt'
+
+        # pip installs entry points (MayaAdaptor, maya-openjd) into Maya's
+        # internal bin dir, which is not on PATH. Symlink them to .env/bin/
+        # so that `openjd run` can find the adaptor binary.
+        SCRIPTS_DIR=$(mayapy -c "import sysconfig; print(sysconfig.get_path('scripts'))" 2>/dev/null)
+        ENV_BIN=$(dirname $(which mayapy))
+        ln -sf "$SCRIPTS_DIR/MayaAdaptor" "$ENV_BIN/MayaAdaptor"
+        ln -sf "$SCRIPTS_DIR/maya-openjd" "$ENV_BIN/maya-openjd"
+    actions:
+      onEnter:
+        command: '{{Env.File.Setup}}'
+        timeout: 300
+steps:
+# Submitter tests: validate that the Maya submitter generates correct job bundles.
+# Requires LD_LIBRARY_PATH for PySide6 (step-scoped to avoid breaking adaptor).
+- name: submitter
+  hostRequirements:
+      attributes:
+        - name: attr.worker.os.family
+          anyOf:
+            - linux
+  stepEnvironments:
+  # PySide6's shiboken6.Shiboken.so needs Qt shared libraries from
+  # $MAYA_LOCATION/lib. The Conda Maya package has incomplete RPATH patching
+  # for these files. This MUST be step-scoped: setting LD_LIBRARY_PATH
+  # job-wide causes adaptor subprocesses to resolve to a broken system Python.
+  - name: MayaLibPath
+    script:
+      embeddedFiles:
+      - name: SetLibPath
+        filename: set-lib-path.sh
+        type: TEXT
+        runnable: true
+        data: |
+          #!/bin/bash
+          set -euo pipefail
+          echo "openjd_env: LD_LIBRARY_PATH=${MAYA_LOCATION}/lib:${LD_LIBRARY_PATH:-}"
+      actions:
+        onEnter:
+          command: '{{Env.File.SetLibPath}}'
+  script:
+    embeddedFiles:
+    - name: Run
+      filename: run.sh
+      type: TEXT
+      runnable: true
+      data: |
+        #!/bin/bash
+        set -euo pipefail
+        cd '{{Param.RepoDir}}'
+        mayapy -m pytest test/integ/test_maya_submitters.py -vvv --numprocesses=1 --no-cov -m submitter
+    actions:
+      onRun:
+        command: '{{Task.File.Run}}'
+        timeout: 600
+# Adaptor tests: validate that the Maya adaptor renders scenes correctly
+# with all supported renderers (mayaHardware2, Arnold, V-Ray, Redshift).
+# Pytest is pointed at the specific test file to avoid collecting
+# test_maya_submitters.py, which imports PySide6 at module level.
+- name: adaptor
+  hostRequirements:
+    attributes:
+      - name: attr.worker.os.family
+        anyOf:
+          - linux
+  script:
+    embeddedFiles:
+    - name: Run
+      filename: run.sh
+      type: TEXT
+      runnable: true
+      data: |
+        #!/bin/bash
+        set -euo pipefail
+        cd '{{Param.RepoDir}}'
+        mayapy -m pytest test/integ/test_maya_adaptors.py -vvv --numprocesses=1 --no-cov -m adaptor
+    actions:
+      onRun:
+        command: '{{Task.File.Run}}'
+        timeout: 600

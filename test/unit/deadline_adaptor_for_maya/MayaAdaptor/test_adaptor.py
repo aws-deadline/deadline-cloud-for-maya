@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from collections import namedtuple
@@ -20,6 +21,48 @@ from deadline.maya_adaptor.MayaAdaptor import MayaAdaptor
 from deadline.maya_adaptor.MayaAdaptor.adaptor import _FIRST_MAYA_ACTIONS, MayaNotRunningError
 
 # , _MAYA_INIT_KEYS
+
+# Test data that exercises ALL properties in init_data schema
+# If the schema changes (properties added/removed/modified), this test data
+# must be updated AND the integration_data_interface_version must be bumped
+EXPECTED_INIT_DATA_PROPERTIES = {
+    "camera": "test_camera",
+    "error_on_arnold_license_fail": True,
+    "image_height": 1080,
+    "image_width": 1920,
+    "ocio_config_file": "/path/to/config.ocio",
+    "output_file_path": "/path/to/output",
+    "output_file_prefix": "<Scene>/<RenderLayer>",
+    "project_path": "/path/to/project",
+    "render_layer": "defaultRenderLayer",
+    "render_setup_include_lights": True,
+    "renderer": "arnold",
+    "scene_file": "/path/to/scene.mb",
+    "strict_error_checking": True,
+}
+
+# Required fields for init_data schema
+EXPECTED_INIT_DATA_REQUIRED = ["project_path", "render_layer", "renderer", "scene_file"]
+
+# Test data that exercises ALL properties in run_data schema
+# If the schema changes (properties added/removed/modified), this test data
+# must be updated AND the integration_data_interface_version must be bumped
+EXPECTED_RUN_DATA_PROPERTIES = {
+    "frame": 1,
+    "region_min_x": 0,
+    "region_max_x": 1920,
+    "region_min_y": 0,
+    "region_max_y": 1080,
+    "camera": "test_camera",
+    "output_file_prefix": "<Scene>/<RenderLayer>",
+}
+
+# Required fields for run_data schema
+EXPECTED_RUN_DATA_REQUIRED = ["frame"]
+
+# Expected version - must be bumped when schemas change
+EXPECTED_SCHEMA_VERSION_MAJOR = 0
+EXPECTED_SCHEMA_VERSION_MINOR = 2
 
 
 @pytest.fixture()
@@ -186,6 +229,41 @@ class TestMayaAdaptor_on_start:
         # THEN
         error_msg = "Maya encountered an error and was not able to complete initialization actions."
         assert str(exc_info.value) == error_msg
+
+    @patch.object(MayaAdaptor, "_action_queue")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._get_deadline_telemetry_client")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
+    def test_maya_init_fail_reports_recorded_exception(
+        self,
+        mock_server: Mock,
+        mock_logging_subprocess: Mock,
+        mock_telemetry_client: Mock,
+        mock_actions_queue: Mock,
+        init_data: dict,
+    ) -> None:
+        """
+        Tests that a recorded exception is raised in preference to the generic
+        initialization failure, so a detected cause is not discarded.
+
+        The wait loop short-circuits on _maya_is_running before it evaluates
+        _has_exception, so a recorded exception is only surfaced by the check
+        after the loop. is_running is therefore forced False here.
+        """
+        # GIVEN
+        mock_actions_queue.__len__.return_value = 1
+        mock_logging_subprocess.return_value.is_running = False
+        adaptor = MayaAdaptor(init_data)
+        mock_server.return_value.server_path = "/tmp/9999"
+        recorded = RuntimeError("Redshift failed to acquire a license.")
+        adaptor._exc_info = recorded
+
+        with pytest.raises(RuntimeError) as exc_info:
+            # WHEN
+            adaptor.on_start()
+
+        # THEN
+        assert exc_info.value is recorded
 
     @patch.object(MayaAdaptor, "_action_queue")
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._get_deadline_telemetry_client")
@@ -397,6 +475,64 @@ class TestMayaAdaptor_on_start:
                 expected_json, mock_open.return_value.__enter__.return_value
             )
 
+    @pytest.mark.parametrize(
+        "renderer, has_rules, expected",
+        [
+            ("renderman", True, True),
+            ("renderman", False, False),
+            ("arnold", True, False),
+            ("mayaSoftware", True, False),
+        ],
+    )
+    @patch.object(MayaAdaptor, "map_path")
+    @patch.object(MayaAdaptor, "path_mapping_rules", new_callable=PropertyMock)
+    @patch.object(MayaAdaptor, "_action_queue")
+    def test_renderman_texture_pathmapping_action_enqueued(
+        self,
+        mock_actions_queue: Mock,
+        mock_rules: Mock,
+        mock_map: Mock,
+        renderer: str,
+        has_rules: bool,
+        expected: bool,
+    ):
+        """Tests that renderman_texture_pathmapping action is enqueued only for renderman with rules"""
+        # GIVEN
+        if has_rules:
+            mock_rules.return_value = [
+                PathMappingRule(
+                    source_path_format="windows",
+                    source_path="C:\\Users",
+                    destination_os="linux",
+                    destination_path="/mnt/storage",
+                )
+            ]
+        else:
+            mock_rules.return_value = []
+
+        adaptor = MayaAdaptor(
+            {
+                "renderer": renderer,
+                "scene_file": "/path/to/file",
+                "project_path": "/path/to/dir",
+                "animation": True,
+                "version": 2022,
+                "render_layer": "layer",
+            }
+        )
+
+        # WHEN
+        adaptor._populate_action_queue()
+
+        # THEN
+        enqueued_actions = [
+            call.args[0].name for call in mock_actions_queue.enqueue_action.call_args_list
+        ]
+        if expected:
+            assert "renderman_texture_pathmapping" in enqueued_actions
+        else:
+            assert "renderman_texture_pathmapping" not in enqueued_actions
+
     @patch.object(MayaAdaptor, "_maya_is_running", False)
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.ActionsQueue.__len__", return_value=1)
     @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
@@ -470,7 +606,104 @@ class TestMayaAdaptor_on_start:
     def test_semantic_version(self, init_data: dict) -> None:
         """Tests that the adaptor semantic version is in the expected format"""
         adaptor = MayaAdaptor(init_data)
-        assert adaptor.integration_data_interface_version == SemanticVersion(major=0, minor=1)
+        assert adaptor.integration_data_interface_version == SemanticVersion(major=0, minor=2)
+
+    def test_if_init_data_and_run_data_schema_are_changed_schema_version_is_bumped(
+        self, init_data: dict
+    ) -> None:
+        """
+        Test to validate that if the init data or run data schema are changed, we also bump the
+        integration_data_interface_version. We load the schema files and validate expected test data
+        that we define as EXPECTED_INIT_DATA_PROPERTIES and EXPECTED_RUN_DATA_PROPERTIES
+        """
+        adaptor = MayaAdaptor(init_data)
+        semantic_version = adaptor.integration_data_interface_version
+
+        root_directory_path = Path(__file__).parent.parent.parent.parent.parent
+        schema_path = root_directory_path.joinpath(
+            "src", "deadline", "maya_adaptor", "MayaAdaptor", "schemas"
+        )
+        init_data_path = schema_path.joinpath("init_data.schema.json")
+        run_data_path = schema_path.joinpath("run_data.schema.json")
+
+        # Load actual schemas
+        with init_data_path.open() as init_data_schema_file:
+            init_data_schema = json.load(init_data_schema_file)
+
+        with run_data_path.open() as run_data_schema_file:
+            run_data_schema = json.load(run_data_schema_file)
+
+        # Validate that our test data covers all schema properties
+        init_schema_properties = set(init_data_schema.get("properties", {}).keys())
+        expected_init_properties = set(EXPECTED_INIT_DATA_PROPERTIES.keys())
+
+        run_schema_properties = set(run_data_schema.get("properties", {}).keys())
+        expected_run_properties = set(EXPECTED_RUN_DATA_PROPERTIES.keys())
+
+        # Check init_data schema properties
+        assert init_schema_properties == expected_init_properties, (
+            f"If the init_data.schema.json is changed, the integration_data_interface_version must be bumped. "
+            f"Schema properties have changed - "
+            f"Missing in test: {init_schema_properties - expected_init_properties}. "
+            f"Extra in test: {expected_init_properties - init_schema_properties}. "
+        )
+
+        # Check run_data schema properties
+        assert run_schema_properties == expected_run_properties, (
+            f"If the run_data.schema.json is changed, the integration_data_interface_version must be bumped. "
+            f"Schema properties have changed - "
+            f"Missing in test: {run_schema_properties - expected_run_properties}. "
+            f"Extra in test: {expected_run_properties - run_schema_properties}. "
+        )
+
+        # Check init_data required fields
+        init_schema_required = set(init_data_schema.get("required", []))
+        expected_init_required = set(EXPECTED_INIT_DATA_REQUIRED)
+        assert init_schema_required == expected_init_required, (
+            f"If the init_data.schema.json is changed, the integration_data_interface_version must be bumped. "
+            f"Schema required fields have changed - "
+            f"Missing in test: {init_schema_required - expected_init_required}. "
+            f"Extra in test: {expected_init_required - init_schema_required}. "
+        )
+
+        # Check run_data required fields
+        run_schema_required = set(run_data_schema.get("required", []))
+        expected_run_required = set(EXPECTED_RUN_DATA_REQUIRED)
+        assert run_schema_required == expected_run_required, (
+            f"If the run_data.schema.json is changed, the integration_data_interface_version must be bumped. "
+            f"Schema required fields have changed - "
+            f"Missing in test: {run_schema_required - expected_run_required}. "
+            f"Extra in test: {expected_run_required - run_schema_required}. "
+        )
+
+        # Validate test data against schemas using jsonschema
+        try:
+            jsonschema.validate(EXPECTED_INIT_DATA_PROPERTIES, init_data_schema)
+        except jsonschema.ValidationError as e:
+            pytest.fail(
+                f"If the init_data.schema.json is changed, the integration_data_interface_version must be bumped. "
+                f"Schema validation failed: {e.message}. "
+            )
+
+        try:
+            jsonschema.validate(EXPECTED_RUN_DATA_PROPERTIES, run_data_schema)
+        except jsonschema.ValidationError as e:
+            pytest.fail(
+                f"If the run_data.schema.json is changed, the integration_data_interface_version must be bumped. "
+                f"Schema validation failed: {e.message}. "
+            )
+
+        # Verify version matches expected version
+        assert semantic_version.major == EXPECTED_SCHEMA_VERSION_MAJOR, (
+            f"If the init_data.schema.json or run_data.schema.json is changed, "
+            f"the integration_data_interface_version must be bumped. "
+            f"Expected major version {EXPECTED_SCHEMA_VERSION_MAJOR}, got {semantic_version.major}. "
+        )
+        assert semantic_version.minor == EXPECTED_SCHEMA_VERSION_MINOR, (
+            f"If the init_data.schema.json or run_data.schema.json is changed, "
+            f"the integration_data_interface_version must be bumped. "
+            f"Expected minor version {EXPECTED_SCHEMA_VERSION_MINOR}, got {semantic_version.minor}. "
+        )
 
 
 class TestMayaAdaptor_on_run:
@@ -791,10 +1024,16 @@ class TestMayaAdaptor_on_cleanup:
     def test_handle_version(self, init_data: dict):
         """Tests that the _handle_maya_version method returns the version correctly"""
         # GIVEN
-        VERSION_CALLBACK_INDEX = 6
         adaptor = MayaAdaptor(init_data)
         regex_callbacks = adaptor._get_regex_callbacks()
-        complete_regex = regex_callbacks[VERSION_CALLBACK_INDEX].regex_list[0]
+        # Identify the callback by its handler, not by position or by first
+        # regex that happens to match; both silently target the wrong one.
+        version_callback = next(
+            regex_callback
+            for regex_callback in regex_callbacks
+            if regex_callback.callback == adaptor._handle_maya_version
+        )
+        complete_regex = version_callback.regex_list[0]
 
         # WHEN
         match = complete_regex.search("MayaClient: Maya Version 2024")
@@ -830,9 +1069,89 @@ class TestMayaAdaptor_on_cleanup:
             f"{_maya_license_error}\n"
             "This error is typically associated with a licensing error"
             " when using MayaIO. Check your licensing configuration.\n"
+            f"{adaptor_module._LICENSE_GUIDANCE}"
             f"Free disc space: {disk_usage//1024//1024}M\n"
             f"MAYA_APP_DIR: {maya_app_dir}\n"
             f"ADSKFLEX_LICENSE_FILE: {license_file}"
+        )
+
+    def test_vray_license_handle_error(self, init_data: dict) -> None:
+        """Tests that _handle_vray_license_error reports the shared guidance"""
+        # GIVEN
+        adaptor = MayaAdaptor(init_data)
+        line = "error: Could not obtain a license"
+
+        # WHEN
+        match = re.compile(line).search(line)
+        assert match is not None
+        adaptor._handle_vray_license_error(match)
+
+        # THEN
+        assert str(adaptor._exc_info) == (
+            "V-Ray failed to acquire a license.\n"
+            "This is typically associated with a licensing error"
+            " when using Vray renderer with MayaIO.\n"
+            f"{adaptor_module._LICENSE_GUIDANCE}"
+            f"Error: {line}"
+        )
+
+    def test_redshift_license_handle_error(self, init_data: dict) -> None:
+        """Tests that _handle_redshift_license_error reports the shared guidance"""
+        # GIVEN
+        adaptor = MayaAdaptor(init_data)
+        line = "[Redshift] Maxon licensing error: Please update your Maxon App"
+
+        # WHEN
+        match = re.compile(r".*Maxon licen(?:[sc]e|sing) error.*").search(line)
+        assert match is not None
+        adaptor._handle_redshift_license_error(match)
+
+        # THEN
+        assert str(adaptor._exc_info) == (
+            "Redshift failed to acquire a license.\n"
+            f"{adaptor_module._LICENSE_GUIDANCE}"
+            f"redshift_LICENSE: {os.environ.get('redshift_LICENSE')}\n"
+            f"Error: {line}"
+        )
+
+    def test_arnold_license_handle_error(self, init_data: dict) -> None:
+        """Tests that _handle_arnold_license_error reports the shared guidance"""
+        # GIVEN
+        adaptor = MayaAdaptor(init_data)
+        line = "aborting render because the abort_on_license_fail option was enabled"
+
+        # WHEN
+        match = re.compile(line).search(line)
+        assert match is not None
+        adaptor._handle_arnold_license_error(match)
+
+        # THEN
+        assert str(adaptor._exc_info) == (
+            "Arnold failed to acquire a license.\n"
+            f"{adaptor_module._LICENSE_GUIDANCE}"
+            f"ARNOLD_LICENSE_ORDER: {os.environ.get('ARNOLD_LICENSE_ORDER')}\n"
+            f"Error: {line}"
+        )
+
+    def test_renderman_license_handle_error(self, init_data: dict) -> None:
+        """Tests that _handle_renderman_license_error reports the shared guidance"""
+        # GIVEN
+        adaptor = MayaAdaptor(init_data)
+        line = "R90000 {SEVERE} License check failed"
+
+        # WHEN
+        match = re.compile(r".*{SEVERE}\s+License.*").search(line)
+        assert match is not None
+        adaptor._handle_renderman_license_error(match)
+
+        # THEN
+        assert str(adaptor._exc_info) == (
+            f"{line}\n"
+            "This error is typically associated with a licensing error "
+            "when using RenderMan. Check your licensing configuration.\n"
+            f"{adaptor_module._LICENSE_GUIDANCE}"
+            f"RMANTREE: {os.environ.get('RMANTREE')}\n"
+            f"PIXAR_LICENSE_FILE: {os.environ.get('PIXAR_LICENSE_FILE')}\n"
         )
 
     @pytest.mark.parametrize("strict_error_checking", [True, False])

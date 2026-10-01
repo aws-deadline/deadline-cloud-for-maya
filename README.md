@@ -1,5 +1,7 @@
 # AWS Deadline Cloud for Maya
 
+### [User guide](https://docs.aws.amazon.com/deadline-cloud/latest/userguide/autodesk-maya.html) | [Service documentation](https://docs.aws.amazon.com/deadline-cloud/) | [Deadline Cloud on GitHub](https://github.com/aws-deadline/) 
+
 [![pypi](https://img.shields.io/pypi/v/deadline-cloud-for-maya.svg?style=flat)](https://pypi.python.org/pypi/deadline-cloud-for-maya)
 [![python](https://img.shields.io/pypi/pyversions/deadline-cloud-for-maya.svg?style=flat)](https://pypi.python.org/pypi/deadline-cloud-for-maya)
 [![license](https://img.shields.io/pypi/l/deadline-cloud-for-maya.svg?style=flat)](https://github.com/aws-deadline/deadline-cloud-for-maya/blob/mainline/LICENSE)
@@ -22,12 +24,19 @@ ability to run Maya efficiently on your render farm.
 
 This library requires:
 
-1. Maya 2024 - 2026,
+1. Maya 2024 - 2027,
 1. MtoA 5.3.5 or higher,
 1. Python 3.9 or higher; and
 1. Linux, Windows, or a macOS operating system.
 
-Plugin support: Arnold for Maya 2024-2026; VRay and Redshift for Maya 2025-2026.
+Plugin support: Arnold for Maya 2024-2027; VRay and Redshift for Maya 2025-2027.
+
+Maya 2027 requires the `deadline-cloud-v2` conda channel; the `deadline-cloud` channel does
+not support Maya 2027. The submitter plug-in uses it when submitting directly, but exported
+job bundles carry no channel, so point the queue environment at it instead.
+
+Redshift's Maya 2027 support ships inside its 2026 version line, so use the `maya-redshift`
+2026 conda package with Maya 2027; there is no 2027 package.
 
 ## Versioning
 
@@ -151,7 +160,7 @@ create a public GitHub issue in this project.
 
 ## Telemetry
 
-See [telemetry](https://github.com/aws-deadline/deadline-cloud-for-maya/blob/release/docs/telemetry.md) for more information.
+See [telemetry](https://docs.aws.amazon.com/deadline-cloud/latest/userguide/opt-out.html) for more information.
 
 ## License
 

@@ -63,11 +63,20 @@ def are_parameter_values_similar(job_history_dir: Path, expected_parameter_value
             name = parameter_value["name"]
             value = parameter_value["value"]
 
-            # Convert to help with Windows path format
+            # Convert to help with Windows path format. Most Maya path
+            # queries (cmds.file, cmds.workspace) auto-normalize to
+            # forward slashes on Windows, but a few (e.g.
+            # cmds.colorManagementPrefs) preserve the input verbatim. To
+            # avoid coupling the test to which side normalizes, we
+            # canonicalize both expected and actual to forward slashes.
             if not isinstance(value, int):
                 value = value.replace("\\", "/")
 
-            assert value == extract_parameter_value(actual_parameter_values, name)
+            actual_value = extract_parameter_value(actual_parameter_values, name)
+            if isinstance(actual_value, str):
+                actual_value = actual_value.replace("\\", "/")
+
+            assert value == actual_value
 
 
 def are_asset_references_similar(

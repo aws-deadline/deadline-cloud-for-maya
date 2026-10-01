@@ -9,7 +9,9 @@ runs:
   steps:
   - name: Update plugin Version
     shell: bash
+    env:
+      SEMVER: ${{ inputs.semver }}
     run: |
-      echo "+ DeadlineCloudForMaya ${{inputs.semver}} ." > ./maya_submitter_plugin/DeadlineCloudForMaya.mod
-      sed -i "s/^VERSION =.*/VERSION = \"${{inputs.semver}}\"/" ./maya_submitter_plugin/plug-ins/DeadlineCloudForMaya.py
+      echo "+ DeadlineCloudForMaya ${SEMVER} ." > ./maya_submitter_plugin/DeadlineCloudForMaya.mod
+      sed -i "s/^VERSION =.*/VERSION = \"${SEMVER}\"/" ./maya_submitter_plugin/plug-ins/DeadlineCloudForMaya.py
       git add ./maya_submitter_plugin/DeadlineCloudForMaya.mod ./maya_submitter_plugin/plug-ins/DeadlineCloudForMaya.py

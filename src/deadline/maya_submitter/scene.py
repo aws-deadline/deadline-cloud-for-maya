@@ -189,6 +189,44 @@ class Scene:
                 files.append(cache_file)
         return files
 
+    @staticmethod
+    def ocio_config_file() -> Optional[str]:
+        """
+        Returns the OCIO config file path if color management is enabled
+        and using a custom OCIO configuration.
+
+        Checks Maya's colorManagementPrefs first, then falls back to the
+        OCIO environment variable which is the standard mechanism used by
+        OpenColorIO-aware renderers (V-Ray, Arnold, RenderMan, etc.) and
+        pipeline tools (e.g. AYON, ShotGrid).
+
+        Returns:
+            Optional[str]: The path to the OCIO config file,
+                          or None if no usable OCIO config is found
+        """
+        # Check if color management is enabled
+        cm_enabled = maya.cmds.colorManagementPrefs(query=True, cmEnabled=True)
+        if not cm_enabled:
+            return None
+
+        # Get the config file path - Maya returns bool if no path set
+        config_path = maya.cmds.colorManagementPrefs(query=True, configFilePath=True)
+        if isinstance(config_path, str) and "<MAYA_RESOURCES>" not in config_path:
+            # Normalize separators to forward slashes for cross-platform
+            # consistency with other Maya path queries (cmds.file,
+            # cmds.workspace, etc.) which return forward slashes on
+            # Windows. colorManagementPrefs preserves the input verbatim,
+            # so on Windows this would otherwise emit backslash paths
+            # into the job bundle's OCIOConfigFile parameter.
+            return config_path.replace("\\", "/")
+
+        # Fall back to the OCIO environment variable
+        ocio_env = os.environ.get("OCIO", "")
+        if ocio_env:
+            return ocio_env.replace("\\", "/")
+
+        return None
+
 
 @dataclass
 class FrameRange:

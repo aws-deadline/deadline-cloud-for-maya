@@ -48,7 +48,17 @@ Required: paste the contents of job_bundle_output_tests/test-job-bundle-results.
 - Did you update all relevant docstrings for Python functions that you modified?
 - Should the README.md, DEVELOPMENT.md, or other documents in the repository's docs/ directory be updated along with your change?
 - Should the schema files for the adaptor's init-data or run-data be updated?
+
 *delete text ending here*
+
+### Did you modify schema files?
+- [ ] Yes
+- [ ] No
+
+If yes, Did you bump the `integration_data_interface_version` in `src/deadline/maya_adaptor/MayaAdaptor/adaptor.py` and update the test constants?
+See the "Schema Versioning" section in DEVELOPMENT.md for details.
+   - [ ] Yes
+   - [ ] No
 
 ### Is this a breaking change?
 

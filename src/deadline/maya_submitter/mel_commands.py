@@ -3,6 +3,7 @@
 """
 Defines the Render submitter command which is registered in Maya.
 """
+
 import maya.api.OpenMaya as om  # pylint: disable=import-error
 import maya.cmds
 from qtpy.QtCore import Qt  # type: ignore
@@ -13,6 +14,7 @@ from qtpy.QtWidgets import (  # type: ignore
 from deadline.client.ui import gui_error_handler
 from . import logger as deadline_logger  # type: ignore
 from .maya_render_submitter import show_maya_render_submitter
+from .update_utils import check_and_show_update_dialog
 from .job_bundle_output_test_runner import run_maya_render_submitter_job_bundle_output_test
 
 
@@ -59,14 +61,15 @@ class DeadlineCloudSubmitterCmd(om.MPxCommand):
                         DeadlineCloudSubmitterCmd.dialog.close()
                     DeadlineCloudSubmitterCmd.dialog = None
 
-                # Create a new submitter dialog. If this is the first time the submitter is
-                # opened, load the sticky settings. If this is not the first time, close
-                # the existing dialog and create a new one without loading the sticky
-                # settings.
+                if check_and_show_update_dialog():
+                    return
+
+                # Recreate the dialog so scene-derived state (cameras, layers) refreshes,
+                # and load sticky settings so user-set job parameters persist across reopens.
                 if DeadlineCloudSubmitterCmd.dialog:
                     DeadlineCloudSubmitterCmd.dialog.close()
                     DeadlineCloudSubmitterCmd.dialog = show_maya_render_submitter(
-                        parent=mainwin, f=Qt.Tool, load_sticky_setting=False
+                        parent=mainwin, f=Qt.Tool, load_sticky_setting=True
                     )
                 else:
                     DeadlineCloudSubmitterCmd.dialog = show_maya_render_submitter(

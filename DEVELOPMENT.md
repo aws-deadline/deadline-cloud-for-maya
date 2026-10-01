@@ -58,6 +58,11 @@ Note: Hatch uses [environments](https://hatch.pypa.io/1.12/environment/) to isol
 for this package from your system or virtual environment Python. If your build/test run is not making sense, then
 sometimes pruning (`hatch env prune`) all of these environments for the package can fix the issue.
 
+Note: Fetch tags to ensure the correct openjd version is detected:
+```bash
+git fetch --tags
+```
+
 ### Submitter Development Workflow
 
 The submitter plug-in generates job bundles to submit to AWS Deadline Cloud. Developing a change
@@ -84,12 +89,15 @@ export DEADLINE_ENABLE_DEVELOPER_OPTIONS=true
 maya
 ```
 
-```bash
+```powershell
 # Windows
 hatch shell
 $env:DEADLINE_ENABLE_DEVELOPER_OPTIONS = "true"
 maya
 ```
+
+**Note:** The `hatch shell` environment sets `MAYA_ENV_DIR` to point to `plugin_env/`, which causes Maya to load
+the development version of the plug-in. You must launch Maya from within `hatch shell` for this to work.
 
 You will need to load the plug-in within Maya once the application has completed loading. In the main menu bar, go to
 Windows > Settings/Preferences > Plug-In Manager and you will find that `DeadlineCloudForMaya.py` is available as a
@@ -200,6 +208,18 @@ Testing locally like this will allow you to iterate faster on your change than t
 submitting jobs to Deadline Cloud to run using your modified adaptor. Then, test it out on a real render farm only once
 you think that your change is functioning as you'd like.
 
+#### Schema Versioning and the Integration Data Interface Version
+
+The adaptor uses two JSON schema files to define the contract between the Maya submitter (running on artist workstations)
+and the Maya adaptor (running on cloud render workers):
+
+- `src/deadline/maya_adaptor/MayaAdaptor/schemas/init_data.schema.json` - Defines the initialization data passed once when the adaptor starts
+- `src/deadline/maya_adaptor/MayaAdaptor/schemas/run_data.schema.json` - Defines the per-task data passed for each frame/task to render
+
+**Important:** Whenever you modify either of these schema files, you **must** also update the `integration_data_interface_version`
+in `src/deadline/maya_adaptor/MayaAdaptor/adaptor.py` following semantic versioning. 
+
+
 #### Running the Adaptor Locally
 
 To run the adaptor you will first need to create two files:
@@ -279,7 +299,7 @@ You'll need to perform the following steps to substitute your build of the adapt
 2. Clone the [deadline-cloud](https://github.com/aws-deadline/deadline-cloud) and
    [openjd-adaptor-runtime-for-python](https://github.com/OpenJobDescription/openjd-adaptor-runtime-for-python) repositories beside
    this one, and ensure that you `git checkout release` in each to checkout the latest `release` branch.
-2. Build wheels for `openjd_adaptor_runtime`, `deadline` and `deadline_cloud_for_maya`, place them in a "wheels" folder in `deadline-cloud-for-maya`.
+3. Build wheels for `openjd_adaptor_runtime`, `deadline` and `deadline_cloud_for_maya`, place them in the `wheels/` folder in `deadline-cloud-for-maya`.
    A script is provided to do this, just execute from `deadline-cloud-for-maya`:
 
    ```bash
@@ -289,16 +309,18 @@ You'll need to perform the following steps to substitute your build of the adapt
    $ ./scripts/build_wheels.sh
    ```
 
-   Wheels should have been generated in the "wheels" folder:
+   Wheels should have been generated in the `wheels/` folder:
 
    ```bash
-   $ ls ./wheels
+   ls ./wheels
    deadline_cloud_for_maya-<version>-py3-none-any.whl
    deadline-<version>-py3-none-any.whl
    openjd_adaptor_runtime-<version>-py3-none-any.whl
    ```
 
-3. Open the Maya integrated submitter, and in the Job-Specific Settings tab, enable the option 'Include Adaptor Wheels'. This option is only visible when the environment variable `DEADLINE_ENABLE_DEVELOPER_OPTIONS` is set to `true`. Then submit your test job.
+4. Open the Maya integrated submitter, and in the Job-Specific Settings tab, enable the option 'Include Adaptor Wheels'. This option is only visible when the environment variable `DEADLINE_ENABLE_DEVELOPER_OPTIONS` is set to `true`. Then submit your test job.
+
+**Note:** The `wheels/` generated folder need to be copied into `plugin_env/wheels/` after each `hatch run install` for the submitter plug-in dependencies. This ensures local adaptor changes are reflected on your local Maya instance launched in `hatch shell`.
 
 #### Testing the Adaptor
 ##### Unit Tests

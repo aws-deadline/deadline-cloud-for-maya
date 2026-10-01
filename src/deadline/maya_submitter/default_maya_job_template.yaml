@@ -67,6 +67,14 @@ parameterDefinitions:
   allowedValues:
   - 'true'
   - 'false'
+- name: OCIOConfigFile
+  type: PATH
+  objectType: FILE
+  dataFlow: IN
+  userInterface:
+    control: HIDDEN
+  description: The OCIO configuration file path (auto-detected from scene).
+  default: ''
 steps:
 - name: Render
   parameterSpace:
@@ -88,6 +96,7 @@ steps:
           output_file_path: '{{Param.OutputFilePath}}'
           render_setup_include_lights: {{Param.RenderSetupIncludeLights}}
           strict_error_checking: {{Param.StrictErrorChecking}}
+          ocio_config_file: '{{Param.OCIOConfigFile}}'
       actions:
         onEnter:
           command: MayaAdaptor
@@ -102,7 +111,6 @@ steps:
           - file://{{Env.File.initData}}
           cancelation:
             mode: NOTIFY_THEN_TERMINATE
-          timeout: 87000
         onExit:
           command: MayaAdaptor
           args:
@@ -112,7 +120,6 @@ steps:
           - '{{ Session.WorkingDirectory }}/connection.json'
           cancelation:
             mode: NOTIFY_THEN_TERMINATE
-          timeout: 600
   script:
     embeddedFiles:
     - name: runData

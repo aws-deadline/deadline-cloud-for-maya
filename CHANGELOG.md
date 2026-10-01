@@ -1,3 +1,67 @@
+## 0.15.21 (2026-09-23)
+
+### Bug Fixes
+* Console sign-in credentials now authenticate correctly in the submitter. The minimum `deadline` dependency has been bumped to 0.60.4 (which includes the `console` extra), and `awscrt` is now properly bundled, fixing silent authentication failures when using console-based credentials. (#482)
+* License error messages during rendering now include consistent remediation guidance with links to the licensing guide and service quotas page. Previously, some license failures could discard the detected cause; this is now fixed so the specific error context is preserved alongside the new guidance. (#480)
+## 0.15.20 (2026-09-09)
+
+### Features
+* V-Ray and Redshift are now officially supported on Maya 2027. (#471)
+
+### Bug Fixes
+* Fixed an issue where Redshift render jobs with multiple render layers would render all renderable layers in every step instead of only the assigned layer, causing steps to overwrite each other's output. (#470)
+## 0.15.19 (2026-08-25)
+
+### Features
+* Added support for Maya 2027. The submitter and adaptor now officially support Maya 2027 (which bundles Python 3.13). (#465)
+## 0.15.18 (2026-07-27)
+
+### Features
+* Added a headless `MayaSubmitter` implementation based on the unified `BaseSubmitter`, allowing Maya to be driven through the shared submission contract alongside the existing native GUI submitter. (#435)
+## 0.15.17 (2026-07-21)
+
+### Features
+* The Maya render submitter now runs pre-GUI hooks before opening the submit dialog, allowing studios to pre-populate dialog fields via hooks defined in DEADLINE_HOOKS_DIR. (#437)
+
+### Bug Fixes
+* Sticky settings are now properly reloaded each time the submit dialog is reopened, ensuring user-set job parameters are restored while scene-derived fields remain up to date. (#434)
+## 0.15.16 (2026-06-25)
+
+### Features
+* Added timeout setting to Maya job submission, allowing you to configure how long a task can run before being terminated. (#422)
+* Enabled the deadline-cloud-v2 conda channel in the submitter for improved package resolution. (#430)
+* Extracted submitter logic into externally callable functions with a new SubmissionContext pattern. External integrations (e.g. AYON) can now use `create_submission_context()`, `get_job_template_for_submission()`, and related public APIs to programmatically drive submissions without the UI. (#405)
+
+### Bug Fixes
+* Fixed OCIO config file path separators on Windows. Previously, the OCIOConfigFile job bundle parameter could be emitted with backslashes on Windows, causing inconsistent bundles. Paths are now normalized to forward slashes. (#413)
+* Fixed the cameras dropdown not being populated when the submitter dialog first opens. (#402)
+## 0.15.15 (2026-05-06)
+
+### Features
+* The submitter now notifies you if a newer version of the submitter is available. (#393)
+
+### Bug Fixes
+* Fixed RenderMan texture path mapping so that texture paths are correctly resolved when rendering on Deadline Cloud workers. (#401)
+* Fixed RenderMan plugin detection by replacing a brittle plugin name check with a reliable `rfm2` import check. This resolves issues where RenderMan was not detected depending on how the plugin registered itself. (#400)
+* Fixed OCIO color management detection when the `OCIO` environment variable is set by pipeline tools (e.g., AYON, ShotGrid) instead of Maya's internal color management preferences. The OCIO config file path is now correctly detected and remapped on the worker before scene open. (#390)
+* Fixed an error that occurred when using legacy render layers in combination with Render Setup. The submitter now handles this combination gracefully. (#388)
+## 0.15.14 (2026-03-23)
+
+### Bug Fixes
+* Rebuilt deadline-cloud-for-maya with the latest dependencies to fix the "Job bundle validation failed" error for OCIOConfigFile
+
+
+## 0.15.13 (2026-02-11)
+
+
+### Features
+* Add region rendering support to VRay (#343) ([`5c267f8`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/5c267f8a1d97f1cfd0b37974fb303048f310bf61))
+* Remember last used shared job settings for job submissions. Add more sticky settings. ([`920ad5f`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/920ad5ffa3da9acc21f3c64b20c8b973635269eb))
+
+### Bug Fixes
+* enable custom oco config for submitter (#361) ([`bcb3be2`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/bcb3be27e5a21060b3b05c86a69f7098720b462a))
+* Fixed Maya submitter crashes with list attributes and special characters in file paths (#350) ([`4a7d204`](https://github.com/aws-deadline/deadline-cloud-for-maya/commit/4a7d204f9f92e7ecf771675a17052316685c0a73))
+
 ## 0.15.12 (2025-09-29)
 
 

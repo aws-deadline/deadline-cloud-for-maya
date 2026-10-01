@@ -41,6 +41,7 @@ class DefaultMayaHandler:
             "camera": self.set_camera,
             "image_height": self.set_image_height,
             "image_width": self.set_image_width,
+            "ocio_config_file": self.set_ocio_config_file,
             "output_file_path": self.set_output_file_path,
             "output_file_prefix": self.set_output_file_prefix,
             "path_mapping": self.set_path_mapping,
@@ -55,6 +56,7 @@ class DefaultMayaHandler:
         self.camera_name = None
         self.output_file_prefix = None
         self.render_kwargs = {}
+        self._pending_ocio_path = None
 
     def get_camera_to_render(self, data: dict) -> list[str]:
         # The ls function returns all of the camera shapes, but the cameras themselves are represented by
@@ -238,6 +240,47 @@ class DefaultMayaHandler:
             maya.cmds.workspace(path, openWorkspace=True)
             maya.cmds.workspace(directory=path)
 
+    def isolate_render_layer(self, render_layer_name: str) -> None:
+        """
+        Makes render_layer_name the only renderable layer in the scene.
+
+        rsRender takes no layer argument: it renders every layer whose 'renderable'
+        attribute is on, and editRenderLayerGlobals does not scope it. Redshift is the
+        only handler that needs this. Arnold and V-Ray were measured rendering only
+        their assigned layer, and maya.cmds.render()'s 'layer' flag already scopes
+        DefaultMayaHandler.
+
+        No need to restore original state: the assigned layer is set on session
+        initialization, meaning it's fixed for the entire session and each frame
+        rendered within the session uses the same isolation. On session end, no need
+        to revert since the changes are only held in-memory and are not saved to file.
+        """
+        for layer in maya.cmds.ls(type="renderLayer"):
+            should_be_renderable: bool = layer == render_layer_name
+            attribute: str = f"{layer}.renderable"
+
+            if maya.cmds.getAttr(attribute) == should_be_renderable:
+                continue
+
+            try:
+                maya.cmds.setAttr(attribute, should_be_renderable)
+            except RuntimeError as exception:
+                if should_be_renderable:
+                    raise RuntimeError(
+                        f"The assigned render layer, '{render_layer_name}', could not be "
+                        f"made renderable: {exception}"
+                    )
+                # Deliberately not the word 'Warning': strict_error_checking fails the
+                # task on it, which is what this branch exists to avoid.
+                print(
+                    f"MayaClient: Could not disable '{attribute}'; it is locked or "
+                    "connected and may render alongside the assigned layer.",
+                    flush=True,
+                )
+                continue
+
+            print(f"MayaClient: Set '{attribute}' to {should_be_renderable}", flush=True)
+
     def set_render_layer(self, data: dict) -> None:
         """
         Sets the render layer.
@@ -278,9 +321,53 @@ class DefaultMayaHandler:
             raise FileNotFoundError(f"The scene file '{file_path}' does not exist")
         maya.cmds.file(file_path, open=True, force=True, ignoreVersion=ignore_version_flag)
 
+        # Re-apply OCIO config after scene open — maya.cmds.file(open=True)
+        # overrides colorManagementPrefs with the path embedded in the scene file
+        if self._pending_ocio_path:
+            print(
+                f"Re-applying OCIO config after scene open: '{self._pending_ocio_path}'", flush=True
+            )
+            maya.cmds.colorManagementPrefs(e=True, configFilePath=self._pending_ocio_path)
+            self._pending_ocio_path = None
+
         pre_render_mel = maya.cmds.getAttr("defaultRenderGlobals.preMel")
         if pre_render_mel:
             try:
                 maya.mel.eval(pre_render_mel)
             except Exception as e:
                 print("Warning: preMel Failed: %s" % e)
+
+    def set_ocio_config_file(self, data: dict) -> None:
+        """
+        Sets the OCIO config file path for color management.
+
+        This is called before the scene file is opened so that both
+        Maya's color management and renderers like V-Ray (which read
+        the OCIO environment variable) pick up the correct config
+        at scene-open time.
+
+        Args:
+            data (dict): The data given from the Adaptor. Keys expected: ['ocio_config_file']
+        """
+        ocio_path = data.get("ocio_config_file", "")
+        if not ocio_path:
+            return
+
+        # Apply path mapping to convert the source path to the worker's path
+        if DirectoryMapping.get_activated():
+            ocio_path = DirectoryMapping.convert(ocio_path)
+
+        if not os.path.isfile(ocio_path):
+            print(f"WARNING: OCIO config file not found: '{ocio_path}'", flush=True)
+            return
+
+        # Set the OCIO environment variable so renderers pick it up at scene open
+        os.environ["OCIO"] = ocio_path
+
+        # Set Maya's color management prefs before scene open to prevent
+        # Maya from trying to load the unmapped path embedded in the scene file
+        maya.cmds.colorManagementPrefs(e=True, configFilePath=ocio_path)
+
+        # Store path so we can re-apply after scene open (scene open may override)
+        self._pending_ocio_path = ocio_path
+        print(f"Setting OCIO config: '{ocio_path}'", flush=True)

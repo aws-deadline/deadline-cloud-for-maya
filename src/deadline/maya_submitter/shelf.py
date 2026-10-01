@@ -3,6 +3,7 @@
 """
 Creates or updates the AWS Deadline shelf.
 """
+
 import os
 from contextlib import contextmanager
 

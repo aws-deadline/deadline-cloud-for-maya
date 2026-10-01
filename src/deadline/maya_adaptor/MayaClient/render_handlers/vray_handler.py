@@ -46,8 +46,13 @@ class VRayHandler(DefaultMayaHandler):
             data (dict): The data given from the Adaptor. Keys expected: ['frame']
 
         Raises:
-            RuntimeError: If no camera was specified or no renderable camera was found,
-            when no frame was specified or when no vraySettings node found in the scene.
+            RuntimeError: Thrown when a render-time error is found.
+            Causes include:
+            - If no camera was specified
+            - No renderable camera was found
+            - No frame was specified
+            - No vraySettings node found in the scene
+            - Output image type is not exr for a region render
         """
         if not maya.cmds.pluginInfo("vrayformaya", query=True, loaded=True):
             raise RuntimeError(
@@ -63,6 +68,11 @@ class VRayHandler(DefaultMayaHandler):
             raise RuntimeError("MayaClient: start_render called without a valid camera.")
         self.render_kwargs["camera"] = self.camera_name
 
+        if not self.vraySettingsNodeExists():
+            raise RuntimeError(
+                "MayaClient: start_render called with missing vraySettings node in the scene."
+            )
+
         # In order of preference, use the task's output_file_prefix, the step's output_file_prefix, or the scene file setting.
         output_file_prefix = data.get("output_file_prefix", self.output_file_prefix)
         if output_file_prefix:
@@ -76,20 +86,6 @@ class VRayHandler(DefaultMayaHandler):
         if self.image_height is not None:
             maya.cmds.setAttr("vraySettings.height", self.image_height)
             print(f"Set image height to {self.image_height}", flush=True)
-
-        region = [
-            data.get(field)
-            for field in ("region_min_x", "region_max_x", "region_min_y", "region_max_y")
-        ]
-        if any(v is not None for v in region):
-            raise RuntimeError(
-                "MayaClient: A region render was specified, but region rendering support is not implemented for the selected renderer."
-            )
-
-        if not self.vraySettingsNodeExists():
-            raise RuntimeError(
-                "MayaClient: start_render called with missing vraySettings node in the scene."
-            )
 
         # Always set the animation type to 2 (specific frames) and one frame animation
         maya.cmds.setAttr("vraySettings.animType", 2)
@@ -115,6 +111,54 @@ class VRayHandler(DefaultMayaHandler):
         # Set the log message level to 3 (report errors, warnings and general information) if needed
         if maya.cmds.getAttr("vraySettings.sys_message_level") < 3:
             maya.cmds.setAttr("vraySettings.sys_message_level", 3)
+
+        # Perform setup for region rendering if needed, otherwise just use the output size from the submission
+        region = [
+            data.get(field)
+            for field in ("region_min_x", "region_min_y", "region_max_x", "region_max_y")
+        ]
+        if any(v is not None for v in region):
+            print(f"MayaClient: Region bounds {region} specified.", flush=True)
+
+            region_minX, region_minY, region_maxX, region_maxY = region
+            region_str = (
+                f"(minX={region_minX}, minY={region_minY}, maxX={region_maxX}, maxY={region_maxY})"
+            )
+            if any(v is None for v in region):
+                raise RuntimeError(
+                    f"MayaClient: Region bounds {region_str} must be fully defined or all empty, but were partially specified."
+                )
+
+            # Set the output filename
+            maya.cmds.setAttr(
+                "vraySettings.fileNamePrefix", data.get("output_file_prefix"), type="string"
+            )
+
+            # Set to allow region in batch rendering
+            maya.cmds.setAttr("vraySettings.vfbRgnOffBatch", 0)
+
+            # Set to use VFB
+            maya.cmds.setAttr("vraySettings.vfbOn", 1)
+
+            # Make sure the image output is set to EXR. If it isn't the region render will not work so we must fail
+            ouput_extension = maya.cmds.getAttr("vraySettings.imageFormatStr")
+
+            # The exr extension name can be one of "exr", "exr (deep)", or "exr (multichannel)"
+            if "exr" not in ouput_extension.lower():
+                raise RuntimeError(
+                    f'MayaClient: Output image format is set to "{ouput_extension}" but must be EXR for region rendering to work.'
+                )
+
+            # Set the region to render
+            region_cmd = f"vray vfbControl -setregion {region_minX} {region_minY} {region_maxX} {region_maxY}; vraySetBatchDoRegion {region_minX} {region_minY} {region_maxX} {region_maxY};"
+
+            print(f"Setting render region: {region_cmd}")
+            maya.mel.eval(region_cmd)
+
+            get_region_cmd = "vray vfbControl -getregion"
+            print(
+                f"Checking the region is set correctly: {maya.mel.eval(get_region_cmd)}", flush=True
+            )
 
         maya.cmds.vrend(**self.render_kwargs)
         print(f"MayaClient: Finished Rendering Frame {frame}\n", flush=True)

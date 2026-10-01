@@ -4,14 +4,11 @@ from __future__ import annotations
 import os
 
 from dataclasses import dataclass
-from distutils.util import strtobool
 from typing import Optional
 
 import maya.cmds
 
-"""
-Module contain a wrapper around Maya's filepatheditor mel command
-"""
+from .utils import strtobool
 
 
 @dataclass
