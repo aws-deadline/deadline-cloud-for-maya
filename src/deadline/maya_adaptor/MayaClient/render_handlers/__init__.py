@@ -5,6 +5,7 @@ from .arnold_handler import ArnoldHandler
 from .redshift_handler import RedshiftHandler
 from .vray_handler import VRayHandler
 from .renderman_handler import RenderManHandler
+from .octane_handler import OctaneHandler
 
 __all__ = ["DefaultMayaHandler", "get_render_handler"]
 
@@ -27,5 +28,7 @@ def get_render_handler(renderer: str = "mayaSoftware") -> DefaultMayaHandler:
         return RenderManHandler()
     elif renderer == "redshift":
         return RedshiftHandler()
+    elif renderer == "OctaneRender":
+        return OctaneHandler()
     else:
         return DefaultMayaHandler()

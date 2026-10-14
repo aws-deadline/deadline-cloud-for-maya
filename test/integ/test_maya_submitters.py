@@ -138,8 +138,19 @@ class TestSubmitters:
                 file_prefix="vraymayascene",
                 expected_scene_file_paths=[],
             ),
+            pytest.param(
+                JobConfiguration(
+                    name="Octane Test",
+                    asset_folder="octane_test",
+                    frame_list="1",
+                    file_prefix="%s_%p_%l_%c",
+                    expected_scene_file_paths=[r"SampleTexture\.png$"],
+                ),
+                marks=pytest.mark.octane_renderer,
+                id="Octane Test",
+            ),
         ],
-        ids=["Minimal Maya Test", "Redshift Test", "Arnold Test", "VRay Test"],
+        ids=["Minimal Maya Test", "Redshift Test", "Arnold Test", "VRay Test", "Octane Test"],
     )
     def test_scene_submitter(
         self,
