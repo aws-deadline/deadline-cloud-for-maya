@@ -29,7 +29,13 @@ This library requires:
 1. Python 3.9 or higher; and
 1. Linux, Windows, or a macOS operating system.
 
-Plugin support: Arnold for Maya 2024-2027; VRay and Redshift for Maya 2025-2027.
+Plugin support: Arnold for Maya 2024-2027; VRay and Redshift for Maya 2025-2027; OctaneRender
+for Maya 2026.
+
+OctaneRender requires the `maya-octane` conda package, which can be built from the [maya-octane-2026 conda recipe](https://github.com/aws-deadline/deadline-cloud-samples/tree/mainline/conda_recipes/maya-octane-2026).
+The submitter adds `maya-octane` to the conda package list automatically.
+Its `octane` command fails under `mayapy`, so the adaptor runs OctaneRender jobs in `maya -batch`
+instead when an octane render job is detected.
 
 Maya 2027 requires the `deadline-cloud-v2` conda channel; the `deadline-cloud` channel does
 not support Maya 2027. The submitter plug-in uses it when submitting directly, but exported
@@ -122,7 +128,7 @@ $ maya -help
 
 For more information on the commands the OpenJD adaptor runtime provides, see [here][openjd-adaptor-runtime-lifecycle].
 
-Maya Adaptor by default will skip version checking when opening scene. If you want to change this, set the `MAYA_IGNORE_VERSION` enviroment variable accordingly.
+Maya Adaptor by default will skip version checking when opening scene. If you want to change this, set the `MAYA_IGNORE_VERSION` environment variable accordingly.
 
 For example, to enable version checking:
 ```
