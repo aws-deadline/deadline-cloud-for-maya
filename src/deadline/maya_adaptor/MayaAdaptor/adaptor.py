@@ -105,7 +105,7 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
 
     @property
     def integration_data_interface_version(self) -> SemanticVersion:
-        return SemanticVersion(major=0, minor=2)
+        return SemanticVersion(major=0, minor=3)
 
     @staticmethod
     def _get_timer(timeout: int | float) -> Callable[[], bool]:
@@ -218,6 +218,9 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
         _legacy_render_layer_error = (
             r"Error:[^\n]*contains legacy render layers[^\n]*uses render setup"
         )
+        _octane_plugin_missing_error = (
+            'Error: Plug-in, "OctanePlugin", was not found on MAYA_PLUG_IN_PATH.'
+        )
         callback_list = []
         completed_regexes = [re.compile("MayaClient: Finished Rendering Frame [0-9]+")]
         progress_regexes = [
@@ -232,6 +235,12 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
         callback_list.append(RegexCallback(progress_regexes, self._handle_progress))
         if self.init_data.get("strict_error_checking", False):
             callback_list.append(RegexCallback(error_regexes, self._handle_error))
+        if self.init_data.get("renderer") == "OctaneRender":
+            callback_list.append(
+                RegexCallback(
+                    [re.compile(re.escape(_octane_plugin_missing_error))], self._handle_error
+                )
+            )
         if self.init_data.get("error_on_arnold_license_fail", False):
             callback_list.append(
                 RegexCallback(
@@ -447,14 +456,43 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
             f"following directories: {sys.path[1:]}"
         )
 
+    @staticmethod
+    def _get_maya_batch_executable(mayapy_exe: str) -> str:
+        """
+        Finds the Maya batch executable (`maya`, or `mayabatch.exe` on Windows). MayaPy on the
+        PATH can be a wrapper, dispatcher, or symlink, so this looks next to the resolved MayaPy,
+        then on the PATH, then in $MAYA_LOCATION/bin.
+
+        Raises:
+            FileNotFoundError: If no Maya batch executable could be found.
+        """
+        batch_name = "mayabatch" if sys.platform == "win32" else "maya"
+        batch_file = f"{batch_name}.exe" if sys.platform == "win32" else batch_name
+        mayapy_path = os.path.realpath(shutil.which(mayapy_exe) or mayapy_exe)
+        candidates = [os.path.join(os.path.dirname(mayapy_path), batch_file)]
+        batch_on_path = shutil.which(batch_name)
+        if batch_on_path:
+            candidates.append(batch_on_path)
+        maya_location = os.environ.get("MAYA_LOCATION")
+        if maya_location:
+            candidates.append(os.path.join(maya_location, "bin", batch_file))
+        for candidate in candidates:
+            if os.path.isfile(candidate):
+                return candidate
+        raise FileNotFoundError(
+            f"Could not find the Maya batch executable '{batch_file}'. Searched: {candidates}"
+        )
+
     def _start_maya_client(self) -> None:
         """
-        Starts the maya client by launching MayaPy with the maya_client.py file.
+        Starts the maya client by launching MayaPy with the maya_client.py file. For
+        OctaneRender, the client runs inside `maya -batch` instead.
 
         Maya and MayaPy must be on the system PATH, for example due to a Rez environment being active.
 
         Raises:
-            FileNotFoundError: If the maya_client.py file could not be found.
+            FileNotFoundError: If the maya_client.py file or the Maya batch executable could not
+                be found.
         """
         mayapy_exe = os.environ.get("MAYAPY_EXECUTABLE", "mayapy")
         regexhandler = RegexHandler(self._get_regex_callbacks())
@@ -479,8 +517,21 @@ class MayaAdaptor(Adaptor[AdaptorConfiguration]):
         if self.init_data["renderer"] == "arnold":
             self._setup_arnold_pathmapping()
 
+        args = [mayapy_exe, self.maya_client_path]
+        if self.init_data["renderer"] == "OctaneRender":
+            # The octane command fails in setCurrentCamera() under maya.standalone, so the
+            # client runs inside `maya -batch` instead.
+            maya_batch_exe = self._get_maya_batch_executable(mayapy_exe)
+            os.environ["MAYA_ADAPTOR_BATCH_MODE"] = "1"
+            args = [
+                maya_batch_exe,
+                "-batch",
+                "-command",
+                'python("from maya_adaptor.MayaClient.maya_client import main; main()")',
+            ]
+
         self._maya_client = LoggingSubprocess(
-            args=[mayapy_exe, self.maya_client_path],
+            args=args,
             stdout_handler=regexhandler,
             stderr_handler=regexhandler,
         )

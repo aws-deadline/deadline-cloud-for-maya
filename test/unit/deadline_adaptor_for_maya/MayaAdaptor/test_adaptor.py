@@ -62,7 +62,7 @@ EXPECTED_RUN_DATA_REQUIRED = ["frame"]
 
 # Expected version - must be bumped when schemas change
 EXPECTED_SCHEMA_VERSION_MAJOR = 0
-EXPECTED_SCHEMA_VERSION_MINOR = 2
+EXPECTED_SCHEMA_VERSION_MINOR = 3
 
 
 @pytest.fixture()
@@ -403,6 +403,45 @@ class TestMayaAdaptor_on_start:
         else:
             mock_setup_arnold_pathmapping.assert_not_called()
 
+    @pytest.mark.parametrize("renderer", ["mayaSoftware", "OctaneRender"])
+    @patch.dict(os.environ, {"MAYAPY_EXECUTABLE": "mayapy"})
+    @patch.object(MayaAdaptor, "_get_maya_batch_executable", return_value="/maya/bin/maya")
+    @patch.object(MayaAdaptor, "_action_queue")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.MayaAdaptor._get_deadline_telemetry_client")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.LoggingSubprocess")
+    @patch("deadline.maya_adaptor.MayaAdaptor.adaptor.AdaptorServer")
+    def test_maya_client_launch(
+        self,
+        mock_server: Mock,
+        mock_logging_subprocess: Mock,
+        mock_telemetry_client: Mock,
+        mock_actions_queue: Mock,
+        mock_get_maya_batch_executable: Mock,
+        init_data: dict,
+        renderer: str,
+    ):
+        """Tests that OctaneRender runs the client inside maya -batch and other renderers use mayapy"""
+        # GIVEN
+        mock_actions_queue.__len__.return_value = 0
+        mock_server.return_value.server_path = "/tmp/9999"
+        adaptor = MayaAdaptor({**init_data, "renderer": renderer})
+
+        # WHEN
+        adaptor.on_start()
+
+        # THEN
+        args = mock_logging_subprocess.call_args.kwargs["args"]
+        if renderer == "OctaneRender":
+            mock_get_maya_batch_executable.assert_called_once_with("mayapy")
+            assert args[:3] == ["/maya/bin/maya", "-batch", "-command"]
+            assert "'" not in args[3]
+            assert "from maya_adaptor.MayaClient.maya_client import main" in args[3]
+            assert os.environ["MAYA_ADAPTOR_BATCH_MODE"] == "1"
+        else:
+            mock_get_maya_batch_executable.assert_not_called()
+            assert args == ["mayapy", adaptor.maya_client_path]
+            assert "MAYA_ADAPTOR_BATCH_MODE" not in os.environ
+
     @pytest.mark.parametrize(
         "running_os, arnold_os_name",
         [("win32", "windows"), ("linux2", "linux"), ("darwin", "mac")],
@@ -606,7 +645,7 @@ class TestMayaAdaptor_on_start:
     def test_semantic_version(self, init_data: dict) -> None:
         """Tests that the adaptor semantic version is in the expected format"""
         adaptor = MayaAdaptor(init_data)
-        assert adaptor.integration_data_interface_version == SemanticVersion(major=0, minor=2)
+        assert adaptor.integration_data_interface_version == SemanticVersion(major=0, minor=3)
 
     def test_if_init_data_and_run_data_schema_are_changed_schema_version_is_bumped(
         self, init_data: dict

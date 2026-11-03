@@ -388,6 +388,11 @@ To run the integ tests, you need to:
    ```bash
    hatch run integ:test_adaptors_redshift
    ```
+   or
+   ```bash
+   hatch run integ:test_adaptors_octane
+   ```
+   Octane tests require a local OctaneRender for Maya install with a GPU and are excluded from CI.
 
 11. (Optional) Use hatch to run all integ tests:
    ```bash
