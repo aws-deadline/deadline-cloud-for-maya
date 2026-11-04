@@ -1,0 +1,172 @@
+name: "Maya Submitter GUI Tests - Windows"
+
+# Drives the real submitter dialog in GUI Maya with xa11y, against the mock
+# Deadline Cloud service from deadline-cloud-test-fixtures (test/integ_gui).
+#
+# Runs on a GitHub-hosted Windows runner. AWS is needed only for what the mock
+# can't provide: the Maya installer (private installer bucket) and an interactive
+# Maya license (developer-licensing tunnel through an SSM bastion). The CI role
+# trusts this repository's mainline and feat/integ-test-cicd-v2 branches only, so
+# the job is skipped everywhere else. Push to feat/integ-test-cicd-v2 to try
+# workflow changes before they reach mainline.
+
+on:
+  push:
+    branches:
+      - mainline
+      # The integration-test development branch the CI role trusts.
+      - feat/integ-test-cicd-v2
+    paths-ignore:
+      - CHANGELOG.md
+  workflow_dispatch:
+
+permissions: {}
+
+# One run at a time: every run checks out the same developer-licensing seats.
+concurrency:
+  group: maya-gui-tests
+
+jobs:
+  GuiTestsWindows:
+    if: >-
+      github.repository == 'aws-deadline/deadline-cloud-for-maya' &&
+      (github.ref == 'refs/heads/mainline' || github.ref == 'refs/heads/feat/integ-test-cicd-v2')
+    name: Submitter GUI Tests (Windows, Maya ${{ matrix.maya_version }})
+    runs-on: windows-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        maya_version: ["2027"]
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      MAYA_VERSION: ${{ matrix.maya_version }}
+      INSTALLER_BUCKET: ${{ secrets.INSTALLER_BUCKET }}
+      INSTALLER_BUCKET_EXPECTED_OWNER: ${{ secrets.INSTALLER_BUCKET_EXPECTED_OWNER }}
+      # Autodesk FlexLM, forwarded to the developer-licensing server below.
+      ADSKFLEX_LICENSE_FILE: "27002@127.0.0.1"
+      FLEXLM_TIMEOUT: "3000000"
+      AUTODESK_LICENSE_PORTS: "27002 2702"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+
+      - name: Install hatch
+        run: pip install "hatch==1.18.0"
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          mask-aws-account-id: true
+
+      - name: Install Maya and the submitter
+        shell: pwsh
+        run: |
+          # setup-runner.py installs Maya from the installer bucket, then builds the
+          # developer install (plugin_env) that the GUI tests load into Maya.
+          hatch -e "integ-ci.$env:MAYA_VERSION" run python ./pipeline/setup-runner.py --versions $env:MAYA_VERSION
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path "C:\Program Files\Autodesk\Maya$env:MAYA_VERSION\bin\maya.exe")) {
+            Write-Error "GUI Maya was not installed"; exit 1
+          }
+
+      - name: Configure Maya network licensing
+        shell: pwsh
+        run: |
+          # Without this, GUI Maya asks which license type to use on first launch.
+          python ./pipeline/configure-maya-license.py --version $env:MAYA_VERSION --server $env:ADSKFLEX_LICENSE_FILE
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Bring up license tunnel and run GUI tests
+        shell: pwsh
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          LICENSE_ROLE_ARN: ${{ secrets.LICENSE_ROLE_ARN }}
+          BASTION_INSTANCE_TAG: ${{ secrets.BASTION_INSTANCE_TAG }}
+        run: |
+          $region = $env:AWS_REGION.Trim()
+
+          # Session Manager plugin, pinned and checksum-verified.
+          $ssmUrl = "https://s3.amazonaws.com/session-manager-downloads/plugin/1.2.835.0/windows/SessionManagerPluginSetup.exe"
+          $ssmInstaller = Join-Path $env:RUNNER_TEMP "ssm-plugin.exe"
+          Invoke-WebRequest -Uri $ssmUrl -OutFile $ssmInstaller -UseBasicParsing
+          $hash = (Get-FileHash $ssmInstaller -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne "3412f55e21632977e5a28c37938e706388f76fc769a016eaeec0cace0926c4e1") {
+            Write-Error "Session Manager plugin checksum mismatch: $hash"; exit 1
+          }
+          Start-Process -FilePath $ssmInstaller -ArgumentList "/quiet" -Wait
+          $env:PATH = (Join-Path $env:ProgramFiles "Amazon\SessionManagerPlugin\bin") + ";$env:PATH"
+
+          # The licensing role is assumed from the OIDC credentials in the environment.
+          aws configure set profile.license.role_arn $env:LICENSE_ROLE_ARN
+          aws configure set profile.license.credential_source Environment
+          aws configure set profile.license.region $region
+
+          $bastion = (aws ec2 describe-instances `
+            --filters "Name=tag:Name,Values=$($env:BASTION_INSTANCE_TAG)" "Name=instance-state-name,Values=running" `
+            --query 'Reservations[0].Instances[0].InstanceId' `
+            --profile license --region $region --output text).Trim()
+          if (-not $bastion -or $bastion -eq "None") { Write-Error "Bastion host not found"; exit 1 }
+
+          # One port-forward session per Autodesk FlexLM port (license manager and
+          # vendor daemon), recorded for teardown.
+          $sessionIds = @()
+          foreach ($port in $env:AUTODESK_LICENSE_PORTS.Split(" ")) {
+            $paramsFile = Join-Path $env:RUNNER_TEMP "ssm_params_$port.json"
+            @{portNumber=@($port);localPortNumber=@($port)} | ConvertTo-Json -Compress | Out-File -FilePath $paramsFile -Encoding ascii
+            $ssmLog = Join-Path $env:RUNNER_TEMP "ssm_$port.log"
+            Start-Process -FilePath "aws" -ArgumentList "ssm start-session --target $bastion --document-name DccInteg-PortForwardToLicenseServer --parameters file://$paramsFile --profile license --region $region" -NoNewWindow -RedirectStandardOutput $ssmLog
+            $ready = $false
+            for ($i = 0; $i -lt 12; $i++) {
+              Start-Sleep -Seconds 5
+              if (Test-NetConnection -ComputerName 127.0.0.1 -Port $port -WarningAction SilentlyContinue -InformationLevel Quiet) { $ready = $true; break }
+            }
+            if (-not $ready) { Write-Error "License port $port not forwarded after 60s"; if (Test-Path $ssmLog) { Get-Content $ssmLog }; exit 1 }
+            $m = Select-String -Path $ssmLog -Pattern 'SessionId: ([A-Za-z0-9._-]+)' | Select-Object -First 1
+            if ($m) { $sessionIds += $m.Matches[0].Groups[1].Value }
+            Write-Host "License port $port forwarded"
+          }
+          "SSM_SESSION_IDS=$($sessionIds -join ' ')" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+          # Hatch writes normal progress to stderr; the result is the exit code.
+          $env:MAYA_EXECUTABLE = "C:\Program Files\Autodesk\Maya$env:MAYA_VERSION\bin\maya.exe"
+          hatch run integ-gui:test test/integ_gui --basetemp "$env:RUNNER_TEMP\integ_gui" -rA
+          exit $LASTEXITCODE
+
+      - name: Upload test logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maya-${{ matrix.maya_version }}-gui-test-logs
+          path: |
+            ${{ runner.temp }}/integ_gui/**/*.log
+            ${{ runner.temp }}/integ_gui/**/*.txt
+            ${{ runner.temp }}/integ_gui/**/*.png
+            ${{ runner.temp }}/integ_gui/**/*.yaml
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Tear down license tunnel
+        if: always()
+        shell: pwsh
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          # End the sessions on the shared bastion now rather than when SSM notices
+          # the runner is gone.
+          foreach ($id in "$env:SSM_SESSION_IDS".Split(" ", [StringSplitOptions]::RemoveEmptyEntries)) {
+            aws ssm terminate-session --session-id $id --profile license --region $env:AWS_REGION.Trim() 2>$null
+          }
+          Get-Process -Name "session-manager-plugin" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          $global:LASTEXITCODE = 0
