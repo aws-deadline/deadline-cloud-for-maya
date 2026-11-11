@@ -23,9 +23,12 @@ _MIN_BOTOCORE = (1, 37, 5)
 
 
 def _write_status(text):
+    # The launcher reads the file as soon as it exists, so it must appear complete.
     if _STATUS_FILE:
-        with open(_STATUS_FILE, "w", encoding="utf8") as status:
+        partial = _STATUS_FILE + ".partial"
+        with open(partial, "w", encoding="utf8") as status:
             status.write(text)
+        os.replace(partial, _STATUS_FILE)
 
 
 def _open_scene(scene_file):

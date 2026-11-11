@@ -1,4 +1,5 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+from contextlib import contextmanager
 from dataclasses import dataclass
 
 import yaml
@@ -10,6 +11,7 @@ import time
 from pathlib import Path
 from typing import Any, Iterator
 from qtpy import QtWidgets
+from qtpy.QtCore import QTimer  # type: ignore
 
 from deadline.client.api import get_boto3_session, get_deadline_cloud_library_telemetry_client
 from deadline_test_fixtures.deadline_mock import (
@@ -100,16 +102,51 @@ def mock_deadline_service(tmp_path: Path) -> Iterator[MockDeadlineBackend]:
         server.server_close()
 
 
-def _wait_for_submission(widget: Any) -> None:
+@contextmanager
+def _closing_modal_prompts() -> Iterator[list[str]]:
+    """Close any modal prompt other than the progress dialog, and record its text.
+
+    Nothing can answer a prompt in headless mayapy. on_submit, for one, shows an
+    error box when submission fails, which would otherwise hang the test until the
+    build times out. The timer fires inside the prompt's own event loop.
+    """
+    from deadline.client.ui.dialogs.submit_job_progress_dialog import SubmitJobProgressDialog
+
+    prompts: list[str] = []
+
+    def close_prompt() -> None:
+        modal = QtWidgets.QApplication.activeModalWidget()
+        if modal is None or isinstance(modal, SubmitJobProgressDialog):
+            return
+        labels = [label.text() for label in modal.findChildren(QtWidgets.QLabel)]
+        prompts.append(" | ".join([modal.windowTitle(), *filter(None, labels)]))
+        if isinstance(modal, QtWidgets.QDialog):
+            modal.done(QtWidgets.QDialog.Rejected)
+        else:
+            modal.close()
+
+    timer = QTimer()
+    timer.timeout.connect(close_prompt)
+    timer.start(500)
+    try:
+        yield prompts
+    finally:
+        timer.stop()
+
+
+def _wait_for_submission(widget: Any, prompts: list[str]) -> None:
     """Process Qt events until the submission started by ``widget.on_submit()`` creates a job.
 
     The dialog submits on a background thread and records the job ID once
-    CreateJob succeeds. On timeout, fail with the progress dialog's log.
+    CreateJob succeeds. Fail as soon as a modal prompt was closed (see
+    _closing_modal_prompts), or on timeout with the progress dialog's log.
     """
     deadline = time.monotonic() + SUBMISSION_TIMEOUT_S
-    while widget.job_id is None and time.monotonic() < deadline:
+    while widget.job_id is None and not prompts and time.monotonic() < deadline:
         QtWidgets.QApplication.processEvents()
         time.sleep(0.05)
+    if prompts:
+        pytest.fail(f"Submission stopped at a prompt: {prompts}")
     if widget.job_id is None:
         from deadline.client.ui.dialogs.submit_job_progress_dialog import (
             SubmitJobProgressDialog,
@@ -560,8 +597,9 @@ class TestSubmitters:
                 {"name": name, "value": value}
             )
 
-        widget.on_submit()
-        _wait_for_submission(widget)
+        with _closing_modal_prompts() as prompts:
+            widget.on_submit()
+            _wait_for_submission(widget, prompts)
         job_history_dir = Path(widget.job_history_bundle_dir)
         widget.close()
 

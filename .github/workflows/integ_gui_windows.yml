@@ -95,6 +95,15 @@ jobs:
           python ./pipeline/configure-maya-license.py --version $env:MAYA_VERSION --server $env:ADSKFLEX_LICENSE_FILE
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      # The first credentials last an hour, and the install before this can take
+      # most of that. The license profile below is assumed from these.
+      - name: Refresh AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          mask-aws-account-id: true
+
       - name: Bring up license tunnel and run GUI tests
         shell: pwsh
         env:
@@ -139,12 +148,16 @@ jobs:
               Start-Sleep -Seconds 5
               if (Test-NetConnection -ComputerName 127.0.0.1 -Port $port -WarningAction SilentlyContinue -InformationLevel Quiet) { $ready = $true; break }
             }
+            # Record the session before checking the port, so teardown ends it even if
+            # this port or a later one fails. The last SSM_SESSION_IDS line wins.
+            $m = if (Test-Path $ssmLog) { Select-String -Path $ssmLog -Pattern 'SessionId: ([A-Za-z0-9._-]+)' | Select-Object -First 1 }
+            if ($m) {
+              $sessionIds += $m.Matches[0].Groups[1].Value
+              "SSM_SESSION_IDS=$($sessionIds -join ' ')" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+            }
             if (-not $ready) { Write-Error "License port $port not forwarded after 60s"; if (Test-Path $ssmLog) { Get-Content $ssmLog }; exit 1 }
-            $m = Select-String -Path $ssmLog -Pattern 'SessionId: ([A-Za-z0-9._-]+)' | Select-Object -First 1
-            if ($m) { $sessionIds += $m.Matches[0].Groups[1].Value }
             Write-Host "License port $port forwarded"
           }
-          "SSM_SESSION_IDS=$($sessionIds -join ' ')" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
           # Hatch writes normal progress to stderr; the result is the exit code.
           $env:MAYA_EXECUTABLE = "C:\Program Files\Autodesk\Maya$env:MAYA_VERSION\bin\maya.exe"
@@ -152,7 +165,8 @@ jobs:
           exit $LASTEXITCODE
 
       - name: Upload test logs
-        if: failure()
+        # A job that hits timeout-minutes ends as cancelled, not failed.
+        if: failure() || cancelled()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: maya-${{ matrix.maya_version }}-gui-test-logs

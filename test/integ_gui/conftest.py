@@ -31,6 +31,9 @@ def maya_executable() -> Path:
     try:
         return find_maya_executable()
     except FileNotFoundError as error:
+        # Skip only when nothing asked for a specific Maya; a wrong path is an error.
+        if os.environ.get("MAYA_EXECUTABLE"):
+            pytest.fail(str(error))
         pytest.skip(str(error))
 
 
