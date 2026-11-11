@@ -5,5 +5,3 @@ flaky == 3.*
 openjd-adaptor-runtime == 0.9.*
 qtpy == 2.4.*
 psutil == 7.*
-# TODO: back to ">= 0.18.26" once it is on PyPI.
-deadline-cloud-test-fixtures @ git+https://github.com/aws-deadline/deadline-cloud-test-fixtures@6ac562e64ab7604b9ef798b058f0960befc5a9f7

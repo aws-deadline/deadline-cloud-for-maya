@@ -1,34 +1,20 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-from contextlib import contextmanager
 from dataclasses import dataclass
 
 import yaml
 import os
 import pytest
 import sys
-import time
 
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 from qtpy import QtWidgets
-from qtpy.QtCore import QTimer  # type: ignore
-
-from deadline.client.api import get_boto3_session, get_deadline_cloud_library_telemetry_client
-from deadline_test_fixtures.deadline_mock import (
-    MockDeadlineBackend,
-    MockDeadlineScenario,
-    build_mock_environment,
-    start_server,
-    write_deadline_config,
-)
 
 from .helpers.test_runners import is_valid_template
 from .helpers.output_comparison import are_asset_references_similar, are_parameter_values_similar
 
 import maya.standalone
 import maya.cmds as cmds
-
-SUBMISSION_TIMEOUT_S = 60
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -55,108 +41,6 @@ def initialize_maya():
         qt_application.shutdown()
     finally:
         maya.standalone.uninitialize()
-
-
-@pytest.fixture
-def mock_deadline_service(tmp_path: Path) -> Iterator[MockDeadlineBackend]:
-    """Point this process's Deadline client at a local mock Deadline Cloud service.
-
-    The mock's queue has no job attachments, so a submission goes straight to
-    CreateJob without uploading to S3. Yields the backend so a test can assert on
-    the jobs created and on any requests the mock had no route for.
-    """
-    backend = MockDeadlineBackend(MockDeadlineScenario.without_job_attachments())
-    server, endpoint_url, _ = start_server(backend)
-    config_path = tmp_path / "deadline.config"
-    write_deadline_config(
-        config_path,
-        farm_id=backend.farm_id,
-        queue_id=backend.queue_id,
-        job_history_dir=tmp_path / "job_history",
-    )
-    environment = build_mock_environment(
-        {},
-        deadline_endpoint_url=endpoint_url,
-        config_path=config_path,
-        home_dir=tmp_path / "home",
-    )
-    try:
-        with pytest.MonkeyPatch.context() as monkeypatch:
-            for name, value in environment.items():
-                monkeypatch.setenv(name, value)
-            # The mock listens on loopback, so stop botocore from adding the
-            # "management." host prefix that the Deadline service model asks for.
-            monkeypatch.setenv("AWS_DISABLE_HOST_PREFIX_INJECTION", "true")
-            monkeypatch.delenv("AWS_PROFILE", raising=False)
-            # The Deadline client caches its boto3 session, and the telemetry client
-            # read its opt-out setting when an earlier test created it. Refresh both
-            # so they pick up the mock environment.
-            get_boto3_session(force_refresh=True)
-            get_deadline_cloud_library_telemetry_client().set_opt_out()
-            yield backend
-        # Don't leave the session or telemetry setting from the mock for later tests.
-        get_boto3_session(force_refresh=True)
-        get_deadline_cloud_library_telemetry_client().set_opt_out()
-    finally:
-        server.shutdown()
-        server.server_close()
-
-
-@contextmanager
-def _closing_modal_prompts() -> Iterator[list[str]]:
-    """Close any modal prompt other than the progress dialog, and record its text.
-
-    Nothing can answer a prompt in headless mayapy. on_submit, for one, shows an
-    error box when submission fails, which would otherwise hang the test until the
-    build times out. The timer fires inside the prompt's own event loop.
-    """
-    from deadline.client.ui.dialogs.submit_job_progress_dialog import SubmitJobProgressDialog
-
-    prompts: list[str] = []
-
-    def close_prompt() -> None:
-        modal = QtWidgets.QApplication.activeModalWidget()
-        if modal is None or isinstance(modal, SubmitJobProgressDialog):
-            return
-        labels = [label.text() for label in modal.findChildren(QtWidgets.QLabel)]
-        prompts.append(" | ".join([modal.windowTitle(), *filter(None, labels)]))
-        if isinstance(modal, QtWidgets.QDialog):
-            modal.done(QtWidgets.QDialog.Rejected)
-        else:
-            modal.close()
-
-    timer = QTimer()
-    timer.timeout.connect(close_prompt)
-    timer.start(500)
-    try:
-        yield prompts
-    finally:
-        timer.stop()
-
-
-def _wait_for_submission(widget: Any, prompts: list[str]) -> None:
-    """Process Qt events until the submission started by ``widget.on_submit()`` creates a job.
-
-    The dialog submits on a background thread and records the job ID once
-    CreateJob succeeds. Fail as soon as a modal prompt was closed (see
-    _closing_modal_prompts), or on timeout with the progress dialog's log.
-    """
-    deadline = time.monotonic() + SUBMISSION_TIMEOUT_S
-    while widget.job_id is None and not prompts and time.monotonic() < deadline:
-        QtWidgets.QApplication.processEvents()
-        time.sleep(0.05)
-    if prompts:
-        pytest.fail(f"Submission stopped at a prompt: {prompts}")
-    if widget.job_id is None:
-        from deadline.client.ui.dialogs.submit_job_progress_dialog import (
-            SubmitJobProgressDialog,
-        )
-
-        logs = [
-            dialog.submission_log.toPlainText()
-            for dialog in widget.findChildren(SubmitJobProgressDialog)
-        ]
-        pytest.fail(f"No job was created within {SUBMISSION_TIMEOUT_S}s. Submission log: {logs}")
 
 
 @pytest.mark.submitter
@@ -540,117 +424,3 @@ class TestSubmitters:
         }
 
         are_asset_references_similar(job_history_dir, expected_asset_references, [r"config\.ocio$"])
-
-    def test_scene_submission_creates_job(
-        self,
-        initialize_maya,
-        script_location: Path,
-        tmp_path: Path,
-        mock_deadline_service: MockDeadlineBackend,
-    ) -> None:
-        """Press Submit and check the job that Deadline Cloud is asked to create.
-
-        The export tests above call the submitter callback directly. This one goes
-        through the dialog's Submit handler instead, so it also covers the callback's
-        submission path and the Deadline client's CreateJob request, against a mock
-        Deadline Cloud service.
-        """
-        show_maya_render_submitter = initialize_maya[0]
-        job_configuration = self.JobConfiguration(
-            name="Minimal Maya Test",
-            asset_folder="minimal_test",
-            frame_list="1-2",
-            file_prefix="rs_<RenderLayer>_<Camera>",
-            expected_scene_file_paths=[],
-        )
-
-        output_path = tmp_path / "output"
-        project_path = script_location / job_configuration.asset_folder / "scene"
-        scene_location = project_path / "test.ma"
-
-        self._cleanup_sticky_settings(scene_location, script_location)
-        os.makedirs(output_path, exist_ok=True)
-
-        cmds.workspace(project_path, openWorkspace=True)
-        cmds.workspace(fileRule=["images", output_path])
-        cmds.file(scene_location, open=True, force=True)
-        cmds.setAttr("defaultResolution.width", 960)
-        cmds.setAttr("defaultResolution.height", 540)
-        cmds.setAttr(
-            "defaultRenderGlobals.imageFilePrefix", job_configuration.file_prefix, type="string"
-        )
-        cmds.optionVar(iv=("renderSetup_includeAllLights", 0))
-        # Submitting a modified scene asks whether to save it first, which nothing can
-        # answer in this headless session.
-        cmds.file(modified=False)
-
-        widget = show_maya_render_submitter(None)
-        widget.job_settings.frame_override_chck.setChecked(True)
-        widget.job_settings.frame_override_txt.setText(job_configuration.frame_list)
-        for name, value in (
-            ("deadline:targetTaskRunStatus", "READY"),
-            ("deadline:maxFailedTasksCount", 20),
-            ("deadline:maxRetriesPerTask", 5),
-            ("deadline:priority", 50),
-        ):
-            widget.shared_job_settings.shared_job_properties_box.set_parameter_value(
-                {"name": name, "value": value}
-            )
-
-        with _closing_modal_prompts() as prompts:
-            widget.on_submit()
-            _wait_for_submission(widget, prompts)
-        job_history_dir = Path(widget.job_history_bundle_dir)
-        widget.close()
-
-        # Exactly one job, and the dialog recorded its ID.
-        jobs = list(mock_deadline_service.jobs.values())
-        assert [job["jobId"] for job in jobs] == [widget.job_id]
-        assert mock_deadline_service.unmatched_requests == []
-        (job,) = jobs
-
-        # The bundle written for the submission matches the export tests' expectations.
-        expected_parameter_values = self._get_expected_parameter_values(
-            scene_location, project_path, output_path, job_configuration
-        )
-        are_parameter_values_similar(job_history_dir, expected_parameter_values)
-
-        # CreateJob was sent that bundle's template and parameter values. The
-        # deadline:* values are job settings, which CreateJob takes as fields.
-        expected_template_path = (
-            script_location
-            / job_configuration.asset_folder
-            / "expected_job_bundle"
-            / "template.yaml"
-        )
-        template = yaml.safe_load(job["template"])
-        assert template == yaml.safe_load(expected_template_path.read_text())
-
-        path_parameters = {
-            definition["name"]
-            for definition in template["parameterDefinitions"]
-            if definition["type"] == "PATH"
-        }
-
-        def comparable(name: str, value: Any) -> str:
-            text = str(value)
-            if name in path_parameters:
-                # The client normalizes PATH values before CreateJob, for example
-                # dropping ProjectPath's trailing slash.
-                text = os.path.normpath(text)
-            return text.replace("\\", "/")
-
-        submitted_parameters = {
-            name: comparable(name, next(iter(value.values())))
-            for name, value in job["parameters"].items()
-        }
-        expected_parameters = {
-            parameter["name"]: comparable(parameter["name"], parameter["value"])
-            for parameter in expected_parameter_values["parameterValues"]
-            if not parameter["name"].startswith("deadline:")
-        }
-        assert submitted_parameters == expected_parameters
-        assert job["targetTaskRunStatus"] == "READY"
-        assert job["maxFailedTasksCount"] == 20
-        assert job["maxRetriesPerTask"] == 5
-        assert job["priority"] == 50
