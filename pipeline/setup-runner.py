@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import platform
 import shlex
@@ -25,7 +26,7 @@ import sys
 import textwrap
 import time
 from pathlib import Path
-from typing import Sequence, TypedDict
+from typing import Callable, Sequence, TypedDict
 
 import boto3
 from botocore.config import Config
@@ -872,6 +873,216 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
 # ---------------------------------------------------------------------------
 
 
+# Upper bound on Maya's Windows installer, from Setup.exe start to Windows
+# Installer going idle.
+MAYA_SETUP_TIMEOUT = 45 * 60
+# Once mayapy.exe is installed and Windows Installer has been idle this long,
+# the install is complete even if Setup.exe itself hasn't exited.
+MAYA_SETUP_SETTLE = 5 * 60
+MAYA_SETUP_POLL = 10
+MAYA_SETUP_REPORT_EVERY = 60
+
+
+def _msi_install_in_progress() -> bool:
+    """Whether Windows Installer is running an installation.
+
+    Windows Installer holds the Global\\_MSIExecute mutex for the duration of
+    each package install.
+    """
+    if sys.platform != "win32":
+        return False
+    import ctypes
+
+    from ctypes import wintypes
+
+    synchronize = 0x00100000
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenMutexW.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.LPCWSTR]
+    kernel32.OpenMutexW.restype = wintypes.HANDLE
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    handle = kernel32.OpenMutexW(synchronize, False, "Global\\_MSIExecute")
+    if not handle:
+        return False
+    kernel32.CloseHandle(handle)
+    return True
+
+
+class ProcessInfo(TypedDict):
+    Name: str
+    ProcessId: int
+    ParentProcessId: int
+    ExecutablePath: str | None
+
+
+def _windows_processes() -> list[ProcessInfo]:
+    """Running processes, or an empty list if they can't be listed."""
+    script = (
+        "Get-CimInstance Win32_Process | "
+        "Select-Object Name,ProcessId,ParentProcessId,ExecutablePath | "
+        "ConvertTo-Json -Compress"
+    )
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", script],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+        data = json.loads(result.stdout or "[]")
+    except (subprocess.TimeoutExpired, ValueError) as e:
+        print(f"WARNING: could not list processes: {e}")
+        return []
+    return data if isinstance(data, list) else [data]
+
+
+def _is_install_related(p: ProcessInfo) -> bool:
+    path = (p.get("ExecutablePath") or "").lower()
+    return "autodesk" in path or "maya_setup" in path or p["Name"].lower() == "msiexec.exe"
+
+
+def _format_processes(processes: Sequence[ProcessInfo]) -> list[str]:
+    return [
+        f"{p['Name']} pid={p['ProcessId']} parent={p['ParentProcessId']} {p.get('ExecutablePath') or ''}"
+        for p in processes
+    ]
+
+
+def _wait_for_maya_setup(
+    proc: subprocess.Popen[bytes],
+    setup_dir: Path,
+    mayapy_exe: Path,
+    *,
+    list_processes: Callable[[], list[ProcessInfo]] = _windows_processes,
+    msi_busy: Callable[[], bool] = _msi_install_in_progress,
+    clock: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+) -> bool:
+    """Wait for Maya's Setup.exe install to finish; False if it times out.
+
+    This waits for the installer, not every process it starts. `Start-Process
+    -Wait` waits for the whole process tree, and on a runner with a desktop
+    session (GitHub-hosted) the installer leaves Autodesk apps running, so that
+    never returns.
+
+    The install is complete when Setup.exe has exited, Windows Installer is
+    idle and nothing from the extracted package is still running. If Setup.exe
+    (or something from the package) stays up after mayapy.exe is installed and
+    Windows Installer has been idle for MAYA_SETUP_SETTLE, it is left running
+    and the install counts as done.
+    """
+    package_dir = str(setup_dir.resolve()).lower()
+    start = clock()
+    msi_idle_since: float | None = None
+    next_report = start
+    while True:
+        now = clock()
+        elapsed = now - start
+        exit_code = proc.poll()
+        if msi_busy():
+            msi_idle_since = None
+        elif msi_idle_since is None:
+            msi_idle_since = now
+        msi_idle = msi_idle_since is not None
+        processes = list_processes()
+        from_package = [
+            p for p in processes if (p.get("ExecutablePath") or "").lower().startswith(package_dir)
+        ]
+
+        if exit_code is not None and msi_idle and not from_package:
+            print(f"Setup.exe exited with code {exit_code} after {elapsed:.0f}s")
+            leftover = [p for p in processes if _is_install_related(p)]
+            if leftover:
+                print("Install-related processes still running (not waited for):")
+                for line in _format_processes(leftover):
+                    print(f"    {line}")
+            return True
+
+        if (
+            mayapy_exe.exists()
+            and msi_idle_since is not None
+            and now - msi_idle_since >= MAYA_SETUP_SETTLE
+        ):
+            waiting_on = "Setup.exe" if exit_code is None else "processes from the package"
+            print(
+                f"WARNING: {waiting_on} still running after {elapsed:.0f}s, but mayapy.exe is"
+                f" installed and Windows Installer has been idle for {MAYA_SETUP_SETTLE}s."
+                " Continuing without waiting for them."
+            )
+            for line in _format_processes([p for p in processes if _is_install_related(p)]):
+                print(f"    {line}")
+            return True
+
+        if elapsed >= MAYA_SETUP_TIMEOUT:
+            print(f"ERROR: Maya installation did not finish within {MAYA_SETUP_TIMEOUT}s")
+            for line in _format_processes([p for p in processes if _is_install_related(p)]):
+                print(f"    {line}")
+            return False
+
+        if now >= next_report:
+            state = "running" if exit_code is None else f"exited ({exit_code})"
+            print(
+                f"[{elapsed:.0f}s] Setup.exe {state}; mayapy.exe"
+                f" {'present' if mayapy_exe.exists() else 'absent'};"
+                f" Windows Installer {'idle' if msi_idle else 'busy'}"
+            )
+            for line in _format_processes([p for p in processes if _is_install_related(p)]):
+                print(f"    {line}")
+            next_report = now + MAYA_SETUP_REPORT_EVERY
+        sleep(MAYA_SETUP_POLL)
+
+
+def _dump_maya_setup_diagnostics(since: float) -> None:
+    """Print the newest Autodesk install logs and save logs and a screenshot.
+
+    Files go to MAYA_SETUP_DIAGNOSTICS_DIR when it's set (the GUI workflow
+    uploads it); otherwise only the log tails are printed.
+    """
+    out_dir_env = os.environ.get("MAYA_SETUP_DIAGNOSTICS_DIR")
+    out_dir = Path(out_dir_env) if out_dir_env else None
+    if out_dir is not None:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        processes = _format_processes(_windows_processes())
+        (out_dir / "processes.txt").write_text("\n".join(processes) + "\n", encoding="utf-8")
+        screenshot = out_dir / "desktop.png"
+        script = (
+            "Add-Type -AssemblyName System.Windows.Forms, System.Drawing; "
+            "$b = [System.Windows.Forms.SystemInformation]::VirtualScreen; "
+            "$bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height; "
+            "[System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Left, $b.Top, 0, 0, $bmp.Size); "
+            f"$bmp.Save('{screenshot}', [System.Drawing.Imaging.ImageFormat]::Png)"
+        )
+        run(["powershell", "-NoProfile", "-Command", script], check=False)
+
+    roots = [
+        os.environ.get("TEMP"),
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Autodesk"),
+        os.path.join(os.environ.get("PROGRAMDATA", ""), "Autodesk"),
+    ]
+    logs: list[Path] = []
+    for root in roots:
+        if not root or not os.path.isdir(root):
+            continue
+        for log in Path(root).rglob("*.log"):
+            try:
+                stat = log.stat()
+            except OSError:
+                continue
+            if stat.st_mtime >= since and stat.st_size <= 20 * 1024 * 1024:
+                logs.append(log)
+    logs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    print(f"Found {len(logs)} log file(s) written since the install started")
+    for i, log in enumerate(logs[:40]):
+        print(f"    {log}")
+        if out_dir is not None:
+            shutil.copy2(log, out_dir / f"{i:02d}-{log.name}")
+    for log in logs[:3]:
+        lines = log.read_text(encoding="utf-8", errors="replace").splitlines()
+        print(f"--- last 30 lines of {log} ---")
+        for line in lines[-30:]:
+            print(line)
+
+
 def _install_maya_windows(version: str) -> Path:
     config = MAYA_YEAR_TO_CONFIG[version]
     installer_name = config["installer"]["windows"]
@@ -923,29 +1134,28 @@ def _install_maya_windows(version: str) -> Path:
         run(["powershell", "-Command", f"Get-ChildItem -Recurse '{setup_dir}'"], check=False)
         sys.exit(1)
 
-    print(f"Starting Maya installation via {setup_exe}...")
-    result = subprocess.run(
-        [
-            "powershell",
-            "-Command",
-            f'Start-Process "{setup_exe}" -ArgumentList "-q" -Wait',
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    print(f"Installation exit code: {result.returncode}")
-    if result.stdout:
-        print(f"Installation output: {result.stdout}")
-    if result.stderr:
-        print(f"Installation errors: {result.stderr}")
-
     mayapy_exe = maya_dir / "bin" / "mayapy.exe"
+    print(f"Starting Maya installation via {setup_exe}...")
+    started_at = time.time()
+    # No pipes: Autodesk apps the installer leaves running would inherit them and
+    # keep this step's output open.
+    proc = subprocess.Popen(
+        [str(setup_exe), "-q"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if not _wait_for_maya_setup(proc, setup_dir, mayapy_exe):
+        _dump_maya_setup_diagnostics(started_at)
+        proc.kill()
+        sys.exit(1)
+
     if mayapy_exe.exists():
         print(f"SUCCESS: mayapy.exe found at {mayapy_exe}")
         maya_marker.touch()
     else:
         print(f"ERROR: mayapy.exe NOT found at {mayapy_exe}")
+        _dump_maya_setup_diagnostics(started_at)
         run(["powershell", "-Command", f"Get-ChildItem -Recurse '{maya_dir}'"], check=False)
         sys.exit(1)
 

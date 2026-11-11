@@ -72,6 +72,10 @@ jobs:
 
       - name: Install Maya and the submitter
         shell: pwsh
+        env:
+          # If the installer stalls, setup-runner.py saves a screenshot, the process
+          # list and Autodesk's install logs here for "Upload test logs".
+          MAYA_SETUP_DIAGNOSTICS_DIR: ${{ runner.temp }}/integ_gui/maya-install
         run: |
           # setup-runner.py installs Maya from the installer bucket, then builds the
           # developer install (plugin_env) that the GUI tests load into Maya.
