@@ -73,6 +73,9 @@ jobs:
       - name: Install Maya and the submitter
         shell: pwsh
         env:
+          # Stage the installer on the runner's temp drive (D:). C: doesn't have room
+          # for both the ~12 GB of installer files and Maya itself.
+          MAYA_SETUP_WORK_DIR: ${{ runner.temp }}/maya_setup
           # If the installer stalls, setup-runner.py saves a screenshot, the process
           # list and Autodesk's install logs here for "Upload test logs".
           MAYA_SETUP_DIAGNOSTICS_DIR: ${{ runner.temp }}/integ_gui/maya-install

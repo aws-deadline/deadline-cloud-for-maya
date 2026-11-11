@@ -883,6 +883,12 @@ MAYA_SETUP_POLL = 10
 MAYA_SETUP_REPORT_EVERY = 60
 
 
+def _print_free_space(*paths: str | os.PathLike[str]) -> None:
+    for path in paths:
+        free_gb = shutil.disk_usage(path).free / 1024**3
+        print(f"Free space on {Path(path).anchor or path}: {free_gb:.1f} GB")
+
+
 def _msi_install_in_progress() -> bool:
     """Whether Windows Installer is running an installation.
 
@@ -1024,7 +1030,9 @@ def _wait_for_maya_setup(
             print(
                 f"[{elapsed:.0f}s] Setup.exe {state}; mayapy.exe"
                 f" {'present' if mayapy_exe.exists() else 'absent'};"
-                f" Windows Installer {'idle' if msi_idle else 'busy'}"
+                f" Windows Installer {'idle' if msi_idle else 'busy'};"
+                f" {shutil.disk_usage(mayapy_exe.anchor or '/').free / 1024**3:.1f} GB free"
+                f" on {mayapy_exe.anchor or '/'}"
             )
             for line in _format_processes([p for p in processes if _is_install_related(p)]):
                 print(f"    {line}")
@@ -1033,7 +1041,7 @@ def _wait_for_maya_setup(
 
 
 def _dump_maya_setup_diagnostics(since: float) -> None:
-    """Print the newest Autodesk install logs and save logs and a screenshot.
+    """Print why Autodesk's installer failed, and save its logs and a screenshot.
 
     Files go to MAYA_SETUP_DIAGNOSTICS_DIR when it's set (the GUI workflow
     uploads it); otherwise only the log tails are printed.
@@ -1076,11 +1084,22 @@ def _dump_maya_setup_diagnostics(since: float) -> None:
         print(f"    {log}")
         if out_dir is not None:
             shutil.copy2(log, out_dir / f"{i:02d}-{log.name}")
-    for log in logs[:3]:
-        lines = log.read_text(encoding="utf-8", errors="replace").splitlines()
-        print(f"--- last 30 lines of {log} ---")
-        for line in lines[-30:]:
-            print(line)
+
+    # ODIS (Autodesk's installer) writes its outcome to Summary.log and the
+    # reason a package failed to Install.log.
+    odis = Path(os.environ.get("LOCALAPPDATA", "")) / "Autodesk" / "ODIS"
+    summary = odis / "Summary.log"
+    if summary.is_file():
+        print(f"--- {summary} ---")
+        print(summary.read_text(encoding="utf-8", errors="replace").strip())
+    install_log = odis / "Install.log"
+    if install_log.is_file():
+        markers = ("Failed to install Package", "HandleIntermediateErrors", "Disk space", "ERROR")
+        lines = install_log.read_text(encoding="utf-8", errors="replace").splitlines()
+        failures = [line for line in lines if any(m in line for m in markers)]
+        print(f"--- failures in {install_log} (last 40 of {len(failures)}) ---")
+        for line in failures[-40:]:
+            print(line[:400])
 
 
 def _install_maya_windows(version: str) -> Path:
@@ -1094,9 +1113,13 @@ def _install_maya_windows(version: str) -> Path:
         return maya_dir
 
     print(f"Installing Maya {version}...")
-    setup_dir = Path(f"C:/maya_setup/{version}")
+    # Staging the installer takes about 12 GB at peak. MAYA_SETUP_WORK_DIR moves
+    # it off C:, which Maya itself is installed on; GitHub-hosted runners don't
+    # have room for both there.
+    setup_dir = Path(os.environ.get("MAYA_SETUP_WORK_DIR") or "C:/maya_setup") / version
     setup_dir.mkdir(parents=True, exist_ok=True)
     installer_zip = setup_dir / installer_name
+    _print_free_space(maya_dir.anchor, setup_dir)
 
     download_from_s3(f"maya/{version}/{installer_name}", installer_zip)
     verify_checksum(installer_zip, MAYA_YEAR_TO_CHECKSUMS[version]["windows"])
@@ -1109,6 +1132,7 @@ def _install_maya_windows(version: str) -> Path:
             f"Expand-Archive -Path '{installer_zip}' -DestinationPath '{setup_dir}' -Force",
         ]
     )
+    installer_zip.unlink()
 
     # The zip contains _001_002.exe (GUI, hangs headlessly) + _002_002.7z (payload).
     # Extract the .7z directly with 7-Zip, then run Setup.exe -q.
@@ -1128,6 +1152,8 @@ def _install_maya_windows(version: str) -> Path:
             ]
         )
         setup_exe = next(extract_dest.rglob("Setup.exe"), None)
+        seven_z.unlink()
+    _print_free_space(maya_dir.anchor, setup_dir)
 
     if setup_exe is None:
         print(f"ERROR: Setup.exe not found under {setup_dir}")
