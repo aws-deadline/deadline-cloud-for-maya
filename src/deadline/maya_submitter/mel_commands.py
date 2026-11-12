@@ -4,8 +4,6 @@
 Defines the Render submitter command which is registered in Maya.
 """
 
-from __future__ import annotations
-
 from typing import TYPE_CHECKING, Optional
 
 import maya.api.OpenMaya as om  # pylint: disable=import-error
@@ -33,7 +31,7 @@ class DeadlineCloudSubmitterCmd(om.MPxCommand):
     """
 
     # Current submitter dialog if any
-    dialog: Optional[SubmitJobToDeadlineDialog] = None
+    dialog: Optional["SubmitJobToDeadlineDialog"] = None
     # Scene name at dialog's time of creation
     dialog_scene_name: Optional[str] = None
 
