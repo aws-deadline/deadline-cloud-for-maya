@@ -91,5 +91,5 @@ try:
 
     if _STATUS_FILE and _SCENE_FILE:
         maya.utils.executeDeferred(_open_submitter)
-except BaseException:
+except Exception:
     _write_status("ERROR (opener top level)\n" + traceback.format_exc())

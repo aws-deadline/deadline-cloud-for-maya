@@ -899,8 +899,7 @@ def _msi_install_in_progress() -> bool:
     if sys.platform != "win32":
         return False
     import ctypes
-
-    from ctypes import wintypes
+    import ctypes.wintypes as wintypes
 
     synchronize = 0x00100000
     error_file_not_found = 2

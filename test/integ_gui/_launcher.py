@@ -38,8 +38,16 @@ PRIVACY_DIALOG = "Privacy Settings"
 _PRIVACY_CONFIRM_BUTTONS = ("OK", "Continue", "Save", "Done", "Close")
 
 # Inherited AWS settings that would override the mock's credentials, and Maya
-# settings that would change which plug-ins or prefs the run uses.
+# settings that would change which plug-ins or prefs the run uses. In CI the
+# environment holds the real OIDC role's credentials. build_mock_environment
+# replaces the key, secret and session token, but botocore reads
+# AWS_SECURITY_TOKEN before AWS_SESSION_TOKEN, so drop all of them.
 _SCRUBBED_ENV_VARS = (
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_SESSION_TOKEN",
+    "AWS_SECURITY_TOKEN",
+    "AWS_CREDENTIAL_EXPIRATION",
     "AWS_CONFIG_FILE",
     "AWS_SHARED_CREDENTIALS_FILE",
     "AWS_PROFILE",

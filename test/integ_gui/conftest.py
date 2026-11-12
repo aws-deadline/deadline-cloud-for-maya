@@ -29,12 +29,13 @@ from ._pages import MayaSubmitterDialog
 @pytest.fixture(scope="session")
 def maya_executable() -> Path:
     try:
-        return find_maya_executable()
+        path = find_maya_executable()
     except FileNotFoundError as error:
         # Skip only when nothing asked for a specific Maya; a wrong path is an error.
         if os.environ.get("MAYA_EXECUTABLE"):
-            pytest.fail(str(error))
-        pytest.skip(str(error))
+            raise pytest.fail.Exception(str(error)) from error
+        raise pytest.skip.Exception(str(error)) from error
+    return path
 
 
 @pytest.fixture(scope="session")
