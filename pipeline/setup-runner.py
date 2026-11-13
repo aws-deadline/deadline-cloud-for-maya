@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import platform
 import shlex
@@ -25,7 +26,7 @@ import sys
 import textwrap
 import time
 from pathlib import Path
-from typing import Sequence, TypedDict
+from typing import Callable, Sequence, TypedDict
 
 import boto3
 from botocore.config import Config
@@ -872,6 +873,250 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
 # ---------------------------------------------------------------------------
 
 
+# Upper bound on Maya's Windows installer, from Setup.exe start to the install
+# being confirmed finished.
+MAYA_SETUP_TIMEOUT = 45 * 60
+# How long the install has to look finished before it counts as finished. One
+# poll could land between two of the bundle's packages.
+MAYA_SETUP_CONFIRM = 30
+MAYA_SETUP_POLL = 10
+MAYA_SETUP_REPORT_EVERY = 60
+
+
+def _print_free_space(*paths: str | os.PathLike[str]) -> None:
+    for path in paths:
+        free_gb = shutil.disk_usage(path).free / 1024**3
+        print(f"Free space on {Path(path).anchor or path}: {free_gb:.1f} GB")
+
+
+def _msi_install_in_progress() -> bool:
+    """Whether Windows Installer is running an installation.
+
+    Windows Installer holds the Global\\_MSIExecute mutex for the duration of
+    each package install. Any failure to open it other than "not found" (for
+    example access denied, which means it exists) counts as busy.
+    """
+    if sys.platform != "win32":
+        return False
+    import ctypes
+    import ctypes.wintypes as wintypes
+
+    synchronize = 0x00100000
+    error_file_not_found = 2
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenMutexW.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.LPCWSTR]
+    kernel32.OpenMutexW.restype = wintypes.HANDLE
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    handle = kernel32.OpenMutexW(synchronize, False, "Global\\_MSIExecute")
+    if not handle:
+        return ctypes.get_last_error() != error_file_not_found
+    kernel32.CloseHandle(handle)
+    return True
+
+
+class ProcessInfo(TypedDict):
+    Name: str
+    ProcessId: int
+    ParentProcessId: int
+    ExecutablePath: str | None
+
+
+def _windows_processes() -> list[ProcessInfo] | None:
+    """Running processes, or None if they can't be listed."""
+    script = (
+        "Get-CimInstance Win32_Process | "
+        "Select-Object Name,ProcessId,ParentProcessId,ExecutablePath | "
+        "ConvertTo-Json -Compress"
+    )
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", script],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+        data = json.loads(result.stdout)
+    except (OSError, subprocess.TimeoutExpired, ValueError) as e:
+        print(f"WARNING: could not list processes: {e}")
+        return None
+    return data if isinstance(data, list) else [data]
+
+
+def _is_install_related(p: ProcessInfo) -> bool:
+    path = (p.get("ExecutablePath") or "").lower()
+    return "autodesk" in path or "maya_setup" in path or p["Name"].lower() == "msiexec.exe"
+
+
+def _format_processes(processes: Sequence[ProcessInfo] | None) -> list[str]:
+    if processes is None:
+        return ["(process list unavailable)"]
+    return [
+        f"{p['Name']} pid={p['ProcessId']} parent={p['ParentProcessId']} {p.get('ExecutablePath') or ''}"
+        for p in processes
+    ]
+
+
+def _print_install_related(processes: Sequence[ProcessInfo] | None) -> None:
+    related = None if processes is None else [p for p in processes if _is_install_related(p)]
+    for line in _format_processes(related):
+        print(f"    {line}")
+
+
+def _wait_for_maya_setup(
+    proc: subprocess.Popen[bytes],
+    setup_dir: Path,
+    mayapy_exe: Path,
+    *,
+    list_processes: Callable[[], list[ProcessInfo] | None] = _windows_processes,
+    msi_busy: Callable[[], bool] = _msi_install_in_progress,
+    clock: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+) -> bool:
+    """Wait for Maya's Setup.exe install to finish; False if it times out.
+
+    This waits for the installer, not every process it starts. `Start-Process
+    -Wait` waits for the whole process tree, and on a runner with a desktop
+    session (GitHub-hosted) the installer leaves Autodesk apps running, so that
+    never returns.
+
+    The install is finished once, for MAYA_SETUP_CONFIRM seconds in a row,
+    Setup.exe has exited, Windows Installer is idle and nothing from the
+    extracted package is running. A poll where processes can't be listed
+    doesn't count.
+    """
+    package_dir = str(setup_dir.resolve()).lower()
+    start = clock()
+    finished_since: float | None = None
+    next_report = start
+    while True:
+        now = clock()
+        elapsed = now - start
+        exit_code = proc.poll()
+        msi_idle = not msi_busy()
+        processes = list_processes()
+        from_package = (
+            None
+            if processes is None
+            else [
+                p
+                for p in processes
+                if (p.get("ExecutablePath") or "").lower().startswith(package_dir)
+            ]
+        )
+
+        if exit_code is not None and msi_idle and from_package == []:
+            if finished_since is None:
+                finished_since = now
+            if now - finished_since >= MAYA_SETUP_CONFIRM:
+                print(
+                    f"Setup.exe exited with code {exit_code}; install finished after {elapsed:.0f}s"
+                )
+                print("Install-related processes still running (not waited for):")
+                _print_install_related(processes)
+                return True
+        else:
+            finished_since = None
+
+        if elapsed >= MAYA_SETUP_TIMEOUT:
+            print(f"ERROR: Maya installation did not finish within {MAYA_SETUP_TIMEOUT}s")
+            _print_install_related(processes)
+            return False
+
+        if now >= next_report:
+            state = "running" if exit_code is None else f"exited ({exit_code})"
+            print(
+                f"[{elapsed:.0f}s] Setup.exe {state}; mayapy.exe"
+                f" {'present' if mayapy_exe.exists() else 'absent'};"
+                f" Windows Installer {'idle' if msi_idle else 'busy'};"
+                f" {shutil.disk_usage(mayapy_exe.anchor or '/').free / 1024**3:.1f} GB free"
+                f" on {mayapy_exe.anchor or '/'}"
+            )
+            _print_install_related(processes)
+            next_report = now + MAYA_SETUP_REPORT_EVERY
+        sleep(MAYA_SETUP_POLL)
+
+
+def _dump_maya_setup_diagnostics(since: float) -> None:
+    """Print why Autodesk's installer failed, and save its logs and a screenshot.
+
+    Files go to MAYA_SETUP_DIAGNOSTICS_DIR when it's set (the GUI workflow
+    uploads it); otherwise they're only listed. Best effort: the installer may
+    still be writing, moving or locking any of these files.
+    """
+    out_dir_env = os.environ.get("MAYA_SETUP_DIAGNOSTICS_DIR")
+    out_dir = Path(out_dir_env) if out_dir_env else None
+    if out_dir is not None:
+        try:
+            out_dir.mkdir(parents=True, exist_ok=True)
+            processes = _format_processes(_windows_processes())
+            (out_dir / "processes.txt").write_text("\n".join(processes) + "\n", encoding="utf-8")
+        except OSError as e:
+            print(f"WARNING: could not save the process list: {e}")
+        screenshot = out_dir / "desktop.png"
+        script = (
+            "Add-Type -AssemblyName System.Windows.Forms, System.Drawing; "
+            "$b = [System.Windows.Forms.SystemInformation]::VirtualScreen; "
+            "$bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height; "
+            "[System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Left, $b.Top, 0, 0, $bmp.Size); "
+            f"$bmp.Save('{screenshot}', [System.Drawing.Imaging.ImageFormat]::Png)"
+        )
+        try:
+            run(["powershell", "-NoProfile", "-Command", script], check=False)
+        except OSError as e:
+            print(f"WARNING: could not take a screenshot: {e}")
+
+    roots = [
+        os.environ.get("TEMP"),
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Autodesk"),
+        os.path.join(os.environ.get("PROGRAMDATA", ""), "Autodesk"),
+    ]
+    logs: list[tuple[float, Path]] = []
+    for root in roots:
+        if not root or not os.path.isdir(root):
+            continue
+        for log in Path(root).rglob("*.log"):
+            try:
+                stat = log.stat()
+            except OSError:
+                continue
+            if stat.st_mtime >= since and stat.st_size <= 20 * 1024 * 1024:
+                logs.append((stat.st_mtime, log))
+    logs.sort(reverse=True)
+    print(f"Found {len(logs)} log file(s) written since the install started")
+    for i, (_, log) in enumerate(logs[:40]):
+        print(f"    {log}")
+        if out_dir is not None:
+            try:
+                shutil.copy2(log, out_dir / f"{i:02d}-{log.name}")
+            except OSError as e:
+                print(f"    WARNING: could not copy it: {e}")
+
+    # ODIS (Autodesk's installer) writes its outcome to Summary.log and the
+    # reason a package failed to Install.log.
+    odis = Path(os.environ.get("LOCALAPPDATA", "")) / "Autodesk" / "ODIS"
+    try:
+        summary = odis / "Summary.log"
+        if summary.is_file():
+            print(f"--- {summary} ---")
+            print(summary.read_text(encoding="utf-8", errors="replace").strip())
+        install_log = odis / "Install.log"
+        if install_log.is_file():
+            markers = (
+                "Failed to install Package",
+                "HandleIntermediateErrors",
+                "Disk space",
+                "ERROR",
+            )
+            lines = install_log.read_text(encoding="utf-8", errors="replace").splitlines()
+            failures = [line for line in lines if any(m in line for m in markers)]
+            print(f"--- failures in {install_log} (last 40 of {len(failures)}) ---")
+            for line in failures[-40:]:
+                print(line[:400])
+    except OSError as e:
+        print(f"WARNING: could not read the ODIS logs: {e}")
+
+
 def _install_maya_windows(version: str) -> Path:
     config = MAYA_YEAR_TO_CONFIG[version]
     installer_name = config["installer"]["windows"]
@@ -883,9 +1128,13 @@ def _install_maya_windows(version: str) -> Path:
         return maya_dir
 
     print(f"Installing Maya {version}...")
-    setup_dir = Path(f"C:/maya_setup/{version}")
+    # Staging the installer takes about 12 GB at peak. MAYA_SETUP_WORK_DIR moves
+    # it off C:, which Maya itself is installed on; GitHub-hosted runners don't
+    # have room for both there.
+    setup_dir = Path(os.environ.get("MAYA_SETUP_WORK_DIR") or "C:/maya_setup") / version
     setup_dir.mkdir(parents=True, exist_ok=True)
     installer_zip = setup_dir / installer_name
+    _print_free_space(maya_dir.anchor, setup_dir)
 
     download_from_s3(f"maya/{version}/{installer_name}", installer_zip)
     verify_checksum(installer_zip, MAYA_YEAR_TO_CHECKSUMS[version]["windows"])
@@ -898,6 +1147,7 @@ def _install_maya_windows(version: str) -> Path:
             f"Expand-Archive -Path '{installer_zip}' -DestinationPath '{setup_dir}' -Force",
         ]
     )
+    installer_zip.unlink()
 
     # The zip contains _001_002.exe (GUI, hangs headlessly) + _002_002.7z (payload).
     # Extract the .7z directly with 7-Zip, then run Setup.exe -q.
@@ -917,35 +1167,36 @@ def _install_maya_windows(version: str) -> Path:
             ]
         )
         setup_exe = next(extract_dest.rglob("Setup.exe"), None)
+        seven_z.unlink()
+    _print_free_space(maya_dir.anchor, setup_dir)
 
     if setup_exe is None:
         print(f"ERROR: Setup.exe not found under {setup_dir}")
         run(["powershell", "-Command", f"Get-ChildItem -Recurse '{setup_dir}'"], check=False)
         sys.exit(1)
 
-    print(f"Starting Maya installation via {setup_exe}...")
-    result = subprocess.run(
-        [
-            "powershell",
-            "-Command",
-            f'Start-Process "{setup_exe}" -ArgumentList "-q" -Wait',
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    print(f"Installation exit code: {result.returncode}")
-    if result.stdout:
-        print(f"Installation output: {result.stdout}")
-    if result.stderr:
-        print(f"Installation errors: {result.stderr}")
-
     mayapy_exe = maya_dir / "bin" / "mayapy.exe"
+    print(f"Starting Maya installation via {setup_exe}...")
+    started_at = time.time()
+    # No pipes: Autodesk apps the installer leaves running would inherit them and
+    # keep this step's output open.
+    proc = subprocess.Popen(
+        [str(setup_exe), "-q"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if not _wait_for_maya_setup(proc, setup_dir, mayapy_exe):
+        proc.kill()
+        _dump_maya_setup_diagnostics(started_at)
+        sys.exit(1)
+
     if mayapy_exe.exists():
         print(f"SUCCESS: mayapy.exe found at {mayapy_exe}")
         maya_marker.touch()
     else:
         print(f"ERROR: mayapy.exe NOT found at {mayapy_exe}")
+        _dump_maya_setup_diagnostics(started_at)
         run(["powershell", "-Command", f"Get-ChildItem -Recurse '{maya_dir}'"], check=False)
         sys.exit(1)
 
