@@ -1,4 +1,3 @@
-# TODO: back to ">= 0.18.26" once it is on PyPI.
-deadline-cloud-test-fixtures @ git+https://github.com/aws-deadline/deadline-cloud-test-fixtures@6ac562e64ab7604b9ef798b058f0960befc5a9f7
+deadline-cloud-test-fixtures >= 0.18.26
 pytest == 9.*
 pyyaml == 6.*
