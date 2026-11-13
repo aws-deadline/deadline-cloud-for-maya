@@ -4,6 +4,8 @@
 Defines the Render submitter command which is registered in Maya.
 """
 
+from typing import TYPE_CHECKING, Optional
+
 import maya.api.OpenMaya as om  # pylint: disable=import-error
 import maya.cmds
 from qtpy.QtCore import Qt  # type: ignore
@@ -17,6 +19,11 @@ from .maya_render_submitter import show_maya_render_submitter
 from .update_utils import check_and_show_update_dialog
 from .job_bundle_output_test_runner import run_maya_render_submitter_job_bundle_output_test
 
+if TYPE_CHECKING:
+    from deadline.client.ui.dialogs.submit_job_to_deadline_dialog import (
+        SubmitJobToDeadlineDialog,
+    )
+
 
 class DeadlineCloudSubmitterCmd(om.MPxCommand):
     """
@@ -24,9 +31,9 @@ class DeadlineCloudSubmitterCmd(om.MPxCommand):
     """
 
     # Current submitter dialog if any
-    dialog = None
+    dialog: Optional["SubmitJobToDeadlineDialog"] = None
     # Scene name at dialog's time of creation
-    dialog_scene_name = None
+    dialog_scene_name: Optional[str] = None
 
     @staticmethod
     def doIt(_):  # pylint: disable=invalid-name,
