@@ -1,0 +1,76 @@
+name: Maya Submitter GUI Tests - Linux
+
+on:
+  push:
+    branches:
+      - feat/integ-test-cicd-v2
+    paths:
+      - .github/workflows/integ_gui_linux.yml
+      - pipeline/run-integ-gui-linux.py
+      - test/integ_gui/**
+      - test/unit/test_gui_maya_launcher.py
+      - test/unit/test_run_integ_gui_linux.py
+      - hatch.toml
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  LinuxRunner:
+    name: Verify Linux GUI runner
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+      - name: Verify runner and startup diagnostics
+        run: |
+          python -m pip install "pytest==9.*"
+          python -m pytest -o addopts= -p no:cacheprovider \
+            test/unit/test_run_integ_gui_linux.py test/unit/test_gui_maya_launcher.py -vv
+
+  InstallerInventory:
+    name: Discover full Linux Maya installer
+    if: >-
+      github.repository == 'aws-deadline/deadline-cloud-for-maya' &&
+      github.ref == 'refs/heads/feat/integ-test-cicd-v2'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          mask-aws-account-id: true
+      - name: List available Maya installers
+        env:
+          INSTALLER_BUCKET: ${{ secrets.INSTALLER_BUCKET }}
+          INSTALLER_BUCKET_EXPECTED_OWNER: ${{ secrets.INSTALLER_BUCKET_EXPECTED_OWNER }}
+        run: |
+          aws s3api list-objects-v2 \
+            --bucket "$INSTALLER_BUCKET" \
+            --expected-bucket-owner "$INSTALLER_BUCKET_EXPECTED_OWNER" \
+            --prefix maya/ \
+            --query 'Contents[].{Key:Key,Size:Size}' \
+            --output json > "$RUNNER_TEMP/maya-installers.json"
+          python - "$RUNNER_TEMP/maya-installers.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          installers = json.loads(Path(sys.argv[1]).read_text()) or []
+          for installer in installers:
+              print(f"{installer['Key']} ({installer['Size']} bytes)")
+          PY

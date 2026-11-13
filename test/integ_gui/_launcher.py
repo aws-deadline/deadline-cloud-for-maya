@@ -16,11 +16,9 @@ import signal
 import subprocess
 import sys
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, Optional
-
-from deadline_test_fixtures.deadline_mock import build_mock_environment
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PLUGIN_ENV_DIR = REPO_ROOT / "plugin_env"
@@ -103,6 +101,8 @@ def build_maya_environment(
     scene_file: Path,
 ) -> dict[str, str]:
     """Environment for the Maya process, pointed at the mock Deadline Cloud service."""
+    from deadline_test_fixtures.deadline_mock import build_mock_environment
+
     if not (PLUGIN_ENV_DIR / "Maya.env").is_file():
         raise FileNotFoundError(
             f"{PLUGIN_ENV_DIR / 'Maya.env'} is missing; run `hatch run install` first"
@@ -147,10 +147,12 @@ class MayaSession:
         return self.work_dir / "maya.log"
 
     def tail_log(self, max_chars: int = 4000) -> str:
-        if not self.log_file.exists():
-            return "(no Maya log)"
-        text = self.log_file.read_text(encoding="utf8", errors="replace")
-        return f"--- Maya log (tail) ---\n{text[-max_chars:]}"
+        logs = []
+        for path in (self.log_file, self.work_dir / "maya_process.log"):
+            if path.exists():
+                text = path.read_text(encoding="utf8", errors="replace")
+                logs.append(f"--- {path.name} (tail) ---\n{text[-max_chars:]}")
+        return "\n".join(logs) or "(no Maya logs)"
 
     def close(self) -> None:
         """Stop Maya and anything it started."""
@@ -190,14 +192,17 @@ def launch_maya_with_submitter(
     opener = OPENER.as_posix()  # forward slashes need no escaping inside MEL
     command = f"python(\"exec(compile(open(r'{opener}').read(), r'{opener}', 'exec'))\")"
     log_file = work_dir / "maya.log"
-    process = subprocess.Popen(
-        [str(maya_exe), "-noAutoloadPlugins", "-log", str(log_file), "-command", command],
-        env=dict(env),
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=(sys.platform != "win32"),
-    )
+    # Dynamic linker and Qt/X11 startup failures happen before Maya can write
+    # its own log. Keep the process output as a separate diagnostic artifact.
+    with (work_dir / "maya_process.log").open("wb") as process_log:
+        process = subprocess.Popen(
+            [str(maya_exe), "-noAutoloadPlugins", "-log", str(log_file), "-command", command],
+            env=dict(env),
+            stdin=subprocess.DEVNULL,
+            stdout=process_log,
+            stderr=subprocess.STDOUT,
+            start_new_session=(sys.platform != "win32"),
+        )
     session = MayaSession(process=process, work_dir=work_dir, opener_status="")
     try:
         status_file = Path(env[ENV_STATUS_FILE])
@@ -221,6 +226,7 @@ def launch_maya_with_submitter(
             raise RuntimeError(f"Opener failed inside Maya:\n{session.opener_status}")
         return session
     except BaseException:
+        screenshot(work_dir / "startup_failure.png")
         session.close()
         raise
 
@@ -262,7 +268,7 @@ def _dismiss_privacy_dialog(pid: int, work_dir: Path) -> None:
         return
 
 
-def _dump_accessibility_tree(pid: int, work_dir: Path) -> Optional[Path]:
+def _dump_accessibility_tree(pid: int, work_dir: Path) -> Path | None:
     """Save Maya's accessibility tree, to show what is blocking it; best effort."""
     try:
         dumps = [app.dump(max_depth=6) for app in _maya_apps(pid)]
@@ -273,12 +279,12 @@ def _dump_accessibility_tree(pid: int, work_dir: Path) -> Optional[Path]:
     return path
 
 
-def screenshot(path: Path) -> Optional[Path]:
+def screenshot(path: Path) -> Path | None:
     """Save a screenshot of the desktop for diagnosing a failure; best effort."""
     try:
         import xa11y
 
         xa11y.screenshot().save_png(str(path))
         return path
-    except Exception:
+    except Exception:  # noqa: BLE001
         return None
