@@ -1,4 +1,4 @@
-name: Maya Submitter GUI Tests - Linux
+name: Maya Linux GUI CI Prerequisites
 
 on:
   push:
@@ -62,8 +62,7 @@ jobs:
           aws s3api list-objects-v2 \
             --bucket "$INSTALLER_BUCKET" \
             --expected-bucket-owner "$INSTALLER_BUCKET_EXPECTED_OWNER" \
-            --prefix maya/ \
-            --query 'Contents[].{Key:Key,Size:Size}' \
+            --query 'Contents[?contains(Key, `Maya`) || contains(Key, `maya`)].{Key:Key,Size:Size}' \
             --output json > "$RUNNER_TEMP/maya-installers.json"
           python - "$RUNNER_TEMP/maya-installers.json" <<'PY'
           import json

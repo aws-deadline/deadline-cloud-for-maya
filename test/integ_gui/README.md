@@ -55,5 +55,8 @@ first-launch prompts. Keep `--basetemp` outside the repository and retain the
 directory after a failed run.
 
 The Linux runner can be used on a CI machine with full GUI Maya and a configured
-license. Automatic Linux installer provisioning and a Linux CI workflow still
-need a verified full Maya installer and a supported runner image.
+license. `.github/workflows/integ_gui_linux.yml` checks the runner's unit tests on
+GitHub-hosted Ubuntu 22.04 and inventories Maya installers using the existing
+CI role on `feat/integ-test-cicd-v2`. These prerequisite checks do not launch Maya.
+Running the six GUI cases in CI still needs a full Linux Maya installer and its
+installation and licensing setup.
