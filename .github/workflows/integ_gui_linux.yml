@@ -64,7 +64,6 @@ jobs:
       MAYA_EXECUTABLE: /usr/autodesk/maya2027/bin/maya
       ADSKFLEX_LICENSE_FILE: "27002@127.0.0.1"
       FLEXLM_TIMEOUT: "3000000"
-      MAYA_SETUP_DIAGNOSTICS_DIR: ${{ runner.temp }}/integ_gui/maya-install
     defaults:
       run:
         shell: bash
@@ -87,6 +86,7 @@ jobs:
           mask-aws-account-id: true
       - name: Install desktop Maya and the submitter
         env:
+          MAYA_SETUP_DIAGNOSTICS_DIR: ${{ runner.temp }}/integ_gui/maya-install
           INSTALLER_BUCKET: ${{ secrets.INSTALLER_BUCKET }}
           INSTALLER_BUCKET_EXPECTED_OWNER: ${{ secrets.INSTALLER_BUCKET_EXPECTED_OWNER }}
         run: |
