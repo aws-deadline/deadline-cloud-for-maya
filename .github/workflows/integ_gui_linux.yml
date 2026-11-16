@@ -1,4 +1,4 @@
-name: Maya Linux GUI CI Prerequisites
+name: "Maya Submitter GUI Tests - Linux"
 
 on:
   push:
@@ -7,10 +7,15 @@ on:
     paths:
       - .github/workflows/integ_gui_linux.yml
       - pipeline/run-integ-gui-linux.py
+      - pipeline/setup-maya-gui-linux.sh
+      - pipeline/run-maya-gui-license-tunnel-linux.sh
+      - pipeline/configure-maya-license.py
+      - scripts/install_dev_submitter.py
       - test/integ_gui/**
       - test/unit/test_gui_maya_launcher.py
       - test/unit/test_run_integ_gui_linux.py
       - hatch.toml
+      - requirements-integ-gui-testing.txt
   workflow_dispatch:
 
 permissions: {}
@@ -37,39 +42,107 @@ jobs:
           python -m pytest -o addopts= -p no:cacheprovider \
             test/unit/test_run_integ_gui_linux.py test/unit/test_gui_maya_launcher.py -vv
 
-  InstallerInventory:
-    name: Discover full Linux Maya installer
+  GuiTestsLinux:
+    name: Submitter GUI Tests (Linux, Maya 2027)
+    needs: LinuxRunner
     if: >-
       github.repository == 'aws-deadline/deadline-cloud-for-maya' &&
       github.ref == 'refs/heads/feat/integ-test-cicd-v2'
     runs-on: ubuntu-22.04
-    timeout-minutes: 10
+    timeout-minutes: 90
+    # Autodesk supports Rocky Linux. The host remains a GitHub Ubuntu runner.
+    container:
+      image: rockylinux/rockylinux:9.5@sha256:149fd31d916038eb1084d0e051537e279d7afcd5de0b365254e8fa3c3ef12bad
+    # Share the developer-license seats with the Windows GUI workflow.
+    concurrency:
+      group: maya-gui-tests
     permissions:
       id-token: write
       contents: read
+    env:
+      MAYA_VERSION: "2027"
+      MAYA_EXECUTABLE: /usr/autodesk/maya2027/bin/maya
+      ADSKFLEX_LICENSE_FILE: "27002@127.0.0.1"
+      FLEXLM_TIMEOUT: "3000000"
+      MAYA_SETUP_DIAGNOSTICS_DIR: ${{ runner.temp }}/integ_gui/maya-install
+    defaults:
+      run:
+        shell: bash
     steps:
-      - name: Configure AWS credentials
+      - name: Install CI tools
+        run: |
+          dnf install -y git python3.11 python3.11-pip unzip xz
+          python3.11 -m venv /opt/ci-tools
+          /opt/ci-tools/bin/pip install "hatch==1.18.0" "awscli==1.*"
+          echo /opt/ci-tools/bin >> "$GITHUB_PATH"
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION }}
           mask-aws-account-id: true
-      - name: List available Maya installers
+      - name: Install desktop Maya and the submitter
         env:
           INSTALLER_BUCKET: ${{ secrets.INSTALLER_BUCKET }}
           INSTALLER_BUCKET_EXPECTED_OWNER: ${{ secrets.INSTALLER_BUCKET_EXPECTED_OWNER }}
         run: |
-          aws s3api list-objects-v2 \
-            --bucket "$INSTALLER_BUCKET" \
+          archive="$RUNNER_TEMP/Autodesk_Maya_2027_Linux_64bit.tgz"
+          aws s3api head-object --bucket "$INSTALLER_BUCKET" \
             --expected-bucket-owner "$INSTALLER_BUCKET_EXPECTED_OWNER" \
-            --query 'Contents[?contains(Key, `Maya`) || contains(Key, `maya`)].{Key:Key,Size:Size}' \
-            --output json > "$RUNNER_TEMP/maya-installers.json"
-          python - "$RUNNER_TEMP/maya-installers.json" <<'PY'
-          import json
-          import sys
-          from pathlib import Path
-
-          installers = json.loads(Path(sys.argv[1]).read_text()) or []
-          for installer in installers:
-              print(f"{installer['Key']} ({installer['Size']} bytes)")
-          PY
+            --key maya/2027/Autodesk_Maya_2027_Linux_64bit.tgz > /dev/null
+          aws s3 cp "s3://$INSTALLER_BUCKET/maya/2027/Autodesk_Maya_2027_Linux_64bit.tgz" \
+            "$archive" --only-show-errors
+          bash pipeline/setup-maya-gui-linux.sh "$archive"
+          rm "$archive"
+          hatch run install --maya-version "$MAYA_VERSION"
+          python3.11 pipeline/configure-maya-license.py \
+            --version "$MAYA_VERSION" --server "$ADSKFLEX_LICENSE_FILE"
+      - name: Install Session Manager plugin
+        run: |
+          plugin="$RUNNER_TEMP/session-manager-plugin.rpm"
+          curl --fail --location --output "$plugin" \
+            https://s3.amazonaws.com/session-manager-downloads/plugin/1.2.835.0/linux_64bit/session-manager-plugin.rpm
+          echo "1dcade7435709cce65a05eba87f2a96e8aaf7318c78a21d7a2ae648ce2f2ad81  $plugin" | sha256sum --check
+          rpm -Uvh "$plugin"
+          rm "$plugin"
+      - name: Refresh AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          mask-aws-account-id: true
+      - name: Bring up license tunnel and run GUI tests
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          LICENSE_ROLE_ARN: ${{ secrets.LICENSE_ROLE_ARN }}
+          BASTION_INSTANCE_TAG: ${{ secrets.BASTION_INSTANCE_TAG }}
+        run: bash pipeline/run-maya-gui-license-tunnel-linux.sh
+      - name: Tear down remaining license sessions
+        if: always()
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          for log in "$RUNNER_TEMP"/integ_gui/ssm_*.log; do
+            [[ -f "$log" ]] || continue
+            while read -r session; do
+              aws ssm terminate-session --session-id "$session" \
+                --profile license --region "$AWS_REGION" || true
+            done < <(sed -nE 's/.*SessionId: ([A-Za-z0-9._-]+).*/\1/p' "$log")
+          done
+      - name: Upload test logs
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maya-2027-linux-gui-test-logs
+          path: |
+            ${{ runner.temp }}/integ_gui/**/*.log
+            ${{ runner.temp }}/integ_gui/**/*.txt
+            ${{ runner.temp }}/integ_gui/**/*.json
+            ${{ runner.temp }}/integ_gui/**/*.png
+            ${{ runner.temp }}/integ_gui/**/*.yaml
+          if-no-files-found: ignore
+          retention-days: 7

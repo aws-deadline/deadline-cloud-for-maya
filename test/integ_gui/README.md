@@ -54,9 +54,17 @@ startup timeouts include an accessibility tree to help identify licensing or
 first-launch prompts. Keep `--basetemp` outside the repository and retain the
 directory after a failed run.
 
-The Linux runner can be used on a CI machine with full GUI Maya and a configured
-license. `.github/workflows/integ_gui_linux.yml` checks the runner's unit tests on
-GitHub-hosted Ubuntu 22.04 and inventories Maya installers using the existing
-CI role on `feat/integ-test-cicd-v2`. These prerequisite checks do not launch Maya.
-Running the six GUI cases in CI still needs a full Linux Maya installer and its
-installation and licensing setup.
+The Linux workflow is `.github/workflows/integ_gui_linux.yml`. On
+`feat/integ-test-cicd-v2`, it runs the runner's unit tests on GitHub-hosted Ubuntu
+22.04, then runs the six GUI cases inside a pinned Rocky Linux 9.5 container on
+another GitHub-hosted Ubuntu runner. Rocky matches Autodesk's Linux licensing
+packages; the container publishes no ports.
+
+The workflow installs full desktop Maya 2027.0 from the private installer bucket,
+verifies the archive's SHA-256, starts Autodesk Licensing as its service account,
+and configures Maya for network licensing. It uses the same OIDC and developer
+licensing secrets as Windows, forwarding ports 27002 and 2702 through the SSM
+bastion. Both GUI workflows share a concurrency group to serialize license use.
+Tunnel sessions are terminated after tests and on failure; a final workflow
+cleanup also handles cancellation. Failed runs upload installer, licensing,
+Maya, and accessibility diagnostics.
