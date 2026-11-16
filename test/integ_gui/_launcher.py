@@ -10,6 +10,7 @@ developer install made by ``hatch run install`` (``plugin_env``, found through
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import signal
@@ -190,7 +191,15 @@ def launch_maya_with_submitter(
     Raises with the opener's report and Maya's log tail on any failure.
     """
     opener = OPENER.as_posix()  # forward slashes need no escaping inside MEL
-    command = f"python(\"exec(compile(open(r'{opener}').read(), r'{opener}', 'exec'))\")"
+    if sys.platform == "linux":
+        # Autodesk's shell launcher wraps each argument in single quotes before
+        # eval. Use double-quoted Python strings, with any path apostrophes
+        # encoded, so its shell does not strip our Python string delimiters.
+        path_literal = json.dumps(opener).replace("'", r"\u0027")
+        startup = f'exec(compile(open({path_literal}).read(), {path_literal}, "exec"))'
+        command = f"python({json.dumps(startup)})"
+    else:
+        command = f"python(\"exec(compile(open(r'{opener}').read(), r'{opener}', 'exec'))\")"
     log_file = work_dir / "maya.log"
     # Dynamic linker and Qt/X11 startup failures happen before Maya can write
     # its own log. Keep the process output as a separate diagnostic artifact.

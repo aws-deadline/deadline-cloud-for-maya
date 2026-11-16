@@ -1,6 +1,8 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 """Verify diagnostics for failures before GUI Maya's startup command runs."""
 
+import ast
+import json
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -58,3 +60,27 @@ def test_accessibility_matches_linux_launcher_children(monkeypatch, platform):
 
     monkeypatch.setattr(launcher.os, "getpgid", process_group, raising=False)
     assert launcher._maya_apps(100) == ([parent, child] if platform == "linux" else [parent])
+
+
+def test_linux_startup_command_survives_vendor_shell_quoting(monkeypatch, tmp_path):
+    opener = tmp_path / "Maya user's tests" / "_opener.py"
+    monkeypatch.setattr(launcher, "OPENER", opener)
+    monkeypatch.setattr(launcher.sys, "platform", "linux")
+    process = Mock(returncode=7)
+    process.poll.return_value = 7
+    start = Mock(return_value=process)
+    monkeypatch.setattr(launcher.subprocess, "Popen", start)
+    monkeypatch.setattr(launcher, "screenshot", Mock())
+    env = {launcher.ENV_STATUS_FILE: str(tmp_path / "opener_status.txt")}
+
+    with pytest.raises(RuntimeError, match="Maya exited early"):
+        launcher.launch_maya_with_submitter(tmp_path / "maya", env, tmp_path)
+
+    command = start.call_args.args[0][-1]
+    # The vendor wraps this whole command in single quotes, then evaluates it.
+    assert "'" not in command
+    python_code = json.loads(command.removeprefix("python(").removesuffix(")"))
+    tree = ast.parse(python_code)
+    strings = [node.value for node in ast.walk(tree) if isinstance(node, ast.Constant)]
+    assert strings.count(opener.as_posix()) == 2
+    assert "exec" in strings
