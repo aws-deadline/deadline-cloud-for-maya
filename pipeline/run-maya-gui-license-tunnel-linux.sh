@@ -31,6 +31,16 @@ PY
 
 pids=()
 cleanup() {
+    # Autodesk writes its diagnostics to files rather than service stdout.
+    if [[ -d /var/opt/Autodesk/AdskLicensingService/Log ]]; then
+        mkdir -p "$logs/licensing"
+        for log in /var/opt/Autodesk/AdskLicensingService/Log/*.log; do
+            [[ -f "$log" ]] || continue
+            sed -E 's/ENCODED\{[^}]*\}/<encoded licensing message omitted>/g' "$log" \
+                > "$logs/licensing/$(basename "$log")" || true
+        done
+    fi
+    ps -eo pid,ppid,pgid,args > "$logs/processes.txt" || true
     # Read every session log, including a session whose port never became ready.
     for log in "$logs"/ssm_*.log; do
         [[ -f "$log" ]] || continue
@@ -80,4 +90,4 @@ PY
     fi
 done
 
-hatch run integ-gui:test-linux -- --basetemp "$logs/tests" -rA
+hatch run integ-gui:test-linux -- --basetemp "$logs/tests" -rA -x

@@ -29,7 +29,16 @@ trap 'rm -rf "$packages"' EXIT
 tar -xzf "$archive" -C "$packages" \
     ./Packages/Maya2027_64-2027.0-16168.x86_64.rpm \
     ./Packages/Licensing/adsklicensing16.0.3.14414-0-0.x86_64.rpm \
-    ./Packages/AdskIdentityManager/adskidentitymanager1.16.3.1-1.x86_64.rpm
+    ./Packages/AdskIdentityManager/adskidentitymanager1.16.3.1-1.x86_64.rpm \
+    ./Packages/AdpSdk
+
+# This shared SDK is a ZIP component rather than an RPM. Maya loads it before
+# licensing and otherwise blocks on an "ADP Failed to initialize" error.
+# Follow pkg.adp-desktop-sdk.xml's destination and pre/post install actions.
+"$packages/Packages/AdpSdk/InstallCustomAction" action=pre
+mkdir -p /opt/Autodesk/AdpDesktopSDK/bin
+unzip -q "$packages/Packages/AdpSdk/adp-desktop-sdk.zip" -d /opt/Autodesk/AdpDesktopSDK/bin
+"$packages/Packages/AdpSdk/InstallCustomAction" action=post
 
 # Install the licensing dependencies first. The RPM creates the service account,
 # data directories and Current symlink. A job container has no systemd init, so

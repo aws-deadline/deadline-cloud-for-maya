@@ -25,7 +25,7 @@ PLUGIN_ENV_DIR = REPO_ROOT / "plugin_env"
 OPENER = Path(__file__).resolve().parent / "_opener.py"
 
 # A cold GUI Maya start on a fresh runner, including the license checkout.
-OPENER_TIMEOUT = 600.0
+OPENER_TIMEOUT = float(os.environ.get("MAYA_GUI_STARTUP_TIMEOUT", "600"))
 
 ENV_STATUS_FILE = "MAYA_SUBMITTER_UI_STATUS_FILE"
 ENV_SCENE_FILE = "MAYA_SUBMITTER_UI_SCENE_FILE"

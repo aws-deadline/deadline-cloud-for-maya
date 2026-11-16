@@ -53,6 +53,7 @@ stderr), and `opener_status.txt`. Failures also attempt a desktop screenshot;
 startup timeouts include an accessibility tree to help identify licensing or
 first-launch prompts. Keep `--basetemp` outside the repository and retain the
 directory after a failed run.
+`MAYA_GUI_STARTUP_TIMEOUT` sets the startup timeout in seconds (default: 600).
 
 The Linux workflow is `.github/workflows/integ_gui_linux.yml`. On
 `feat/integ-test-cicd-v2`, it runs the runner's unit tests on GitHub-hosted Ubuntu
@@ -61,10 +62,12 @@ another GitHub-hosted Ubuntu runner. Rocky matches Autodesk's Linux licensing
 packages; the container publishes no ports.
 
 The workflow installs full desktop Maya 2027.0 from the private installer bucket,
-verifies the archive's SHA-256, starts Autodesk Licensing as its service account,
+verifies the archive's SHA-256, installs Autodesk's shared analytics SDK, starts
+Autodesk Licensing as its service account,
 and configures Maya for network licensing. It uses the same OIDC and developer
 licensing secrets as Windows, forwarding ports 27002 and 2702 through the SSM
 bastion. Both GUI workflows share a concurrency group to serialize license use.
 Tunnel sessions are terminated after tests and on failure; a final workflow
 cleanup also handles cancellation. Failed runs upload installer, licensing,
 Maya, and accessibility diagnostics.
+CI allows 180 seconds for each Maya startup and stops at the first failure.

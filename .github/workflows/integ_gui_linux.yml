@@ -4,18 +4,8 @@ on:
   push:
     branches:
       - feat/integ-test-cicd-v2
-    paths:
-      - .github/workflows/integ_gui_linux.yml
-      - pipeline/run-integ-gui-linux.py
-      - pipeline/setup-maya-gui-linux.sh
-      - pipeline/run-maya-gui-license-tunnel-linux.sh
-      - pipeline/configure-maya-license.py
-      - scripts/install_dev_submitter.py
-      - test/integ_gui/**
-      - test/unit/test_gui_maya_launcher.py
-      - test/unit/test_run_integ_gui_linux.py
-      - hatch.toml
-      - requirements-integ-gui-testing.txt
+    paths-ignore:
+      - CHANGELOG.md
   workflow_dispatch:
 
 permissions: {}
@@ -65,6 +55,7 @@ jobs:
       MAYA_EXECUTABLE: /usr/autodesk/maya2027/bin/maya
       ADSKFLEX_LICENSE_FILE: "27002@127.0.0.1"
       FLEXLM_TIMEOUT: "3000000"
+      MAYA_GUI_STARTUP_TIMEOUT: "180"
     defaults:
       run:
         shell: bash
@@ -86,10 +77,10 @@ jobs:
           mask-aws-account-id: true
       - name: Install desktop Maya and the submitter
         env:
-          MAYA_SETUP_DIAGNOSTICS_DIR: ${{ runner.temp }}/integ_gui/maya-install
           INSTALLER_BUCKET: ${{ secrets.INSTALLER_BUCKET }}
           INSTALLER_BUCKET_EXPECTED_OWNER: ${{ secrets.INSTALLER_BUCKET_EXPECTED_OWNER }}
         run: |
+          export MAYA_SETUP_DIAGNOSTICS_DIR="$RUNNER_TEMP/integ_gui/maya-install"
           archive="$RUNNER_TEMP/Autodesk_Maya_2027_Linux_64bit.tgz"
           aws s3api head-object --bucket "$INSTALLER_BUCKET" \
             --expected-bucket-owner "$INSTALLER_BUCKET_EXPECTED_OWNER" \
@@ -138,11 +129,6 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: maya-2027-linux-gui-test-logs
-          path: |
-            ${{ runner.temp }}/integ_gui/**/*.log
-            ${{ runner.temp }}/integ_gui/**/*.txt
-            ${{ runner.temp }}/integ_gui/**/*.json
-            ${{ runner.temp }}/integ_gui/**/*.png
-            ${{ runner.temp }}/integ_gui/**/*.yaml
+          path: ${{ runner.temp }}/integ_gui
           if-no-files-found: ignore
           retention-days: 7
