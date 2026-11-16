@@ -42,9 +42,11 @@ def test_environment(base: Mapping[str, str], maya_executable: Path) -> dict[str
         ATSPI_DBUS_IMPLEMENTATION="dbus-daemon",
         LIBGL_ALWAYS_SOFTWARE="1",
         QT_QPA_PLATFORM="xcb",
-        # Maya's viewport shares native GLX contexts with Qt. Mesa also exposes
-        # EGL, but Qt selecting that backend makes Maya's glXCreateContext fail.
+        # Keep Qt and Maya on the same native X11 graphics backend.
         QT_XCB_GL_INTEGRATION="xcb_glx",
+        # The compatibility viewport uses legacy GLX context creation, which
+        # crashes with software Mesa; use Maya's supported Core renderer.
+        MAYA_VP2_DEVICE_OVERRIDE="VirtualDeviceGLCore",
     )
     return env
 

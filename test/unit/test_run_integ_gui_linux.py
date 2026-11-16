@@ -52,6 +52,7 @@ def test_desktop_environment_drops_stale_bus_addresses(runner):
     assert "PYTEST_ADDOPTS" not in env
     assert env["QT_QPA_PLATFORM"] == "xcb"
     assert env["QT_XCB_GL_INTEGRATION"] == "xcb_glx"
+    assert env["MAYA_VP2_DEVICE_OVERRIDE"] == "VirtualDeviceGLCore"
     assert env["QT_ACCESSIBILITY"] == env["QT_LINUX_ACCESSIBILITY_ALWAYS_ON"] == "1"
     assert env["NO_AT_BRIDGE"] == "0"
     assert env["ATSPI_DBUS_IMPLEMENTATION"] == "dbus-daemon"
