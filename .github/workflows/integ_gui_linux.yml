@@ -60,6 +60,7 @@ jobs:
       id-token: write
       contents: read
     env:
+      PATH: /opt/ci-tools/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       MAYA_VERSION: "2027"
       MAYA_EXECUTABLE: /usr/autodesk/maya2027/bin/maya
       ADSKFLEX_LICENSE_FILE: "27002@127.0.0.1"
@@ -70,10 +71,9 @@ jobs:
     steps:
       - name: Install CI tools
         run: |
-          dnf install -y git python3.11 python3.11-pip unzip xz
+          dnf install -y git tar gzip python3.11 python3.11-pip unzip xz
           python3.11 -m venv /opt/ci-tools
           /opt/ci-tools/bin/pip install "hatch==1.18.0" "awscli==1.*"
-          echo /opt/ci-tools/bin >> "$GITHUB_PATH"
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
