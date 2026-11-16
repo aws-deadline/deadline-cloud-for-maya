@@ -773,6 +773,12 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
         )
 
         # Use system pip with --target to install into Maya's site-packages.
+        # --upgrade makes pip replace what is already there. Without it, pip
+        # keeps any existing package folder and only adds the new version's
+        # metadata beside it. The Linux CodeBuild fleet reuses its hosts, so
+        # every package stayed at the version of the host's first build while
+        # its metadata moved on. That broke pytest once platformdirs 4.12 added
+        # a pytest11 entry point the old platformdirs code lacks.
         maya_site_packages = (
             mayapy_exe.parent.parent
             / "lib"
@@ -792,6 +798,7 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
                 "--python-version",
                 python_version,
                 "--only-binary=:all:",
+                "--upgrade",
                 "-r",
                 "requirements-integ-testing.txt",
                 "-r",
@@ -811,6 +818,7 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
                 "--python-version",
                 python_version,
                 "--only-binary=:all:",
+                "--upgrade",
                 ".",
             ],
             timeout=DEFAULT_CMD_TIMEOUT,
