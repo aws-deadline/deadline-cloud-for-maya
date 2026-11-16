@@ -59,11 +59,12 @@ def test_desktop_environment_drops_stale_bus_addresses(runner):
     assert env["HOME"] == "/real/profile"
 
 
-def test_runs_pytest_in_isolated_desktop_and_propagates_failure(runner, monkeypatch):
+@pytest.mark.parametrize("separator", [[], ["--"]])
+def test_runs_pytest_in_isolated_desktop_and_propagates_failure(runner, monkeypatch, separator):
     run = Mock(return_value=Mock(returncode=5))
     monkeypatch.setattr(runner.subprocess, "run", run)
 
-    assert runner.main(["--", "-k", "frame_range", "--basetemp", "/tmp/gui artifacts"]) == 5
+    assert runner.main([*separator, "-k", "frame_range", "--basetemp", "/tmp/gui artifacts"]) == 5
 
     command = run.call_args.args[0]
     assert command[:4] == ["dbus-run-session", "--", "xvfb-run", "--auto-servernum"]

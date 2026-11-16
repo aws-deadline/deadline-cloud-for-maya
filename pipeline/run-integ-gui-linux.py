@@ -68,16 +68,17 @@ def test_command(pytest_args: Sequence[str]) -> list[str]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__, epilog="Additional options are forwarded to pytest."
+    )
     parser.add_argument(
         "--maya-executable",
         default=os.environ.get("MAYA_EXECUTABLE"),
         help="Full GUI Maya executable; defaults to MAYA_EXECUTABLE.",
     )
-    parser.add_argument(
-        "pytest_args", nargs=argparse.REMAINDER, help="Additional pytest options after --."
-    )
-    args = parser.parse_args(argv)
+    # Hatch consumes the first -- itself, so accept pytest flags both with and
+    # without a separator when this script receives them.
+    args, pytest_args = parser.parse_known_args(argv)
     if sys.platform != "linux":
         parser.error("This runner requires Linux.")
     if not args.maya_executable:
@@ -90,7 +91,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     missing = [name for name in DESKTOP_TOOLS if shutil.which(name) is None]
     if missing:
         parser.error(f"Install the Linux desktop tools: {', '.join(missing)}")
-    pytest_args = args.pytest_args
     if pytest_args[:1] == ["--"]:
         pytest_args = pytest_args[1:]
     # xvfb-run and dbus-run-session tear down their services when pytest exits,
