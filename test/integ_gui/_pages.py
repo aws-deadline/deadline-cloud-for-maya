@@ -28,6 +28,8 @@ from deadline_test_fixtures.xa11y.controls import (
     switch_to_tab,
 )
 
+from ._launcher import _maya_apps
+
 # The shared dialog's title; Maya passes no submitter info, so there's no version suffix.
 DIALOG_TITLE_PREFIXES = ("Submit to AWS Deadline Cloud", "Deadline Cloud Maya Submitter")
 WIDGET_TIMEOUT = 60.0
@@ -55,19 +57,19 @@ class MayaSubmitterDialog(SharedSubmitterDialog):
         self.pid = pid
 
     @classmethod
-    def wait_for(cls, pid: int, timeout: float = DIALOG_TIMEOUT) -> "MayaSubmitterDialog":
+    def wait_for(cls, pid: int, timeout: float = DIALOG_TIMEOUT) -> MayaSubmitterDialog:
         selector = _window_selector()
         deadline = time.monotonic() + timeout
         seen: list[tuple[str, int]] = []
         while time.monotonic() < deadline:
             try:
-                apps = [app for app in xa11y.App.list() if app.pid == pid]
+                apps = _maya_apps(pid)
                 seen = [(app.name, app.pid) for app in apps]
                 for app in apps:
                     window = app.locator(selector)
                     if window.exists():
-                        return cls(app, window, pid)
-            except Exception:  # noqa: BLE001
+                        return cls(app, window, app.pid)
+            except Exception:  # noqa: BLE001, S110
                 # Accessibility providers can be briefly unavailable while Maya
                 # creates windows.
                 pass

@@ -234,7 +234,19 @@ def launch_maya_with_submitter(
 def _maya_apps(pid: int) -> list:
     import xa11y
 
-    return [app for app in xa11y.App.list() if app.pid == pid]
+    apps = []
+    for app in xa11y.App.list():
+        if app.pid == pid:
+            apps.append(app)
+        elif sys.platform == "linux":
+            # Autodesk's Linux shell launcher starts maya.bin as a child.
+            # start_new_session gives that whole process tree a unique group.
+            try:
+                if os.getpgid(app.pid) == pid:
+                    apps.append(app)
+            except ProcessLookupError:
+                pass  # The app can exit while accessibility is enumerated.
+    return apps
 
 
 def _dismiss_privacy_dialog(pid: int, work_dir: Path) -> None:

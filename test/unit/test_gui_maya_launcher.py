@@ -1,6 +1,7 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 """Verify diagnostics for failures before GUI Maya's startup command runs."""
 
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -41,3 +42,19 @@ def test_log_tail_includes_both_maya_and_process_output(tmp_path):
 
     assert "Maya startup" in diagnostic
     assert "X11 connection error" in diagnostic
+
+
+@pytest.mark.parametrize("platform", ["linux", "win32"])
+def test_accessibility_matches_linux_launcher_children(monkeypatch, platform):
+    parent, child, unrelated, exited = [Mock(pid=pid) for pid in (100, 101, 200, 300)]
+    xa11y = SimpleNamespace(App=SimpleNamespace(list=lambda: [parent, child, unrelated, exited]))
+    monkeypatch.setitem(launcher.sys.modules, "xa11y", xa11y)
+    monkeypatch.setattr(launcher.sys, "platform", platform)
+
+    def process_group(pid):
+        if pid == 300:
+            raise ProcessLookupError
+        return 100 if pid == 101 else 200
+
+    monkeypatch.setattr(launcher.os, "getpgid", process_group, raising=False)
+    assert launcher._maya_apps(100) == ([parent, child] if platform == "linux" else [parent])
