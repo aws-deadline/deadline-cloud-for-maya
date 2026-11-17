@@ -31,7 +31,9 @@ hatch run integ-gui:test-linux -- --basetemp /tmp/maya-gui-tests -rA
 
 `test-linux` starts a separate X11 display and D-Bus session for pytest and Maya,
 enables Qt accessibility, and uses software OpenGL. AT-SPI uses `dbus-daemon`
-rather than a bus broker that requires a systemd user session. It preserves the user profile
+rather than a bus broker that requires a systemd user session. A per-test
+`userSetup.py` disables Qt multisampling before Maya builds its viewports:
+Xvfb has no multisampled GLX visuals. It preserves the user profile
 and license environment. It requires an explicit executable and developer
 submitter install, so missing prerequisites fail instead of silently skipping
 the suite. Extra pytest options go after `--`, for example `-- -k frame_range`.
@@ -63,7 +65,8 @@ packages; the container publishes no ports.
 
 The workflow installs full desktop Maya 2027.0 from the private installer bucket,
 verifies the archive's SHA-256, installs Autodesk's shared analytics SDK, starts
-Autodesk Licensing as its service account,
+Autodesk Licensing as its service account, installs the bundled Arnold plug-in
+required by the fixture scenes,
 and configures Maya for network licensing. It uses the same OIDC and developer
 licensing secrets as Windows, forwarding ports 27002 and 2702 through the SSM
 bastion. Both GUI workflows share a concurrency group to serialize license use.

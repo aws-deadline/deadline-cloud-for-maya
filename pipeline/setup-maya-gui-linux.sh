@@ -30,7 +30,8 @@ tar -xzf "$archive" -C "$packages" \
     ./Packages/Maya2027_64-2027.0-16168.x86_64.rpm \
     ./Packages/Licensing/adsklicensing16.0.3.14414-0-0.x86_64.rpm \
     ./Packages/AdskIdentityManager/adskidentitymanager1.16.3.1-1.x86_64.rpm \
-    ./Packages/AdpSdk
+    ./Packages/AdpSdk \
+    ./Packages/package.tgz
 
 # This shared SDK is a ZIP component rather than an RPM. Maya loads it before
 # licensing and otherwise blocks on an "ADP Failed to initialize" error.
@@ -64,8 +65,17 @@ if [[ "$ready" != true ]]; then
 fi
 
 # Maya's RPM registers its product with the running licensing service and
-# creates bin/maya -> maya2027. No rendering plug-ins are needed for GUI tests.
+# creates bin/maya -> maya2027.
 rpm -Uvh "$packages/Packages/Maya2027_64-2027.0-16168.x86_64.rpm"
+# The scenes contain Arnold nodes, even though the tests never render. Install
+# the bundled MtoA payload and register its module at the vendor's Linux path.
+# Use the same extraction approach as setup-runner.py's headless MtoA install.
+mtoa=/usr/autodesk/arnold/maya2027
+mkdir -p "$mtoa" /usr/autodesk/modules/maya/2027
+tar -xzf "$packages/Packages/package.tgz" -C "$mtoa"
+sed "s|^+ mtoa any ./|+ mtoa any $mtoa|" "$mtoa/mtoa.mod" \
+    > /usr/autodesk/modules/maya/2027/mtoa.mod
+test -f "$mtoa/plug-ins/mtoa.so"
 test -x /usr/autodesk/maya2027/bin/maya
 "$helper" list > "$diagnostics/licensed-products.json"
 python3.11 - <<'PY'
