@@ -14,7 +14,8 @@ echo "c713ce176972268284a740bff6d346e01e03511c9bf0f090128f63f001ac8cf6  $archive
 dnf install -y epel-release
 dnf config-manager --set-enabled crb
 dnf install -y \
-    xorg-x11-server-Xvfb xorg-x11-xauth dbus-x11 at-spi2-core \
+    xorg-x11-server-Xvfb xorg-x11-xauth dbus-x11 at-spi2-core gsettings-desktop-schemas \
+    xorg-x11-fonts-Type1 xorg-x11-fonts-ISO8859-1-100dpi xorg-x11-fonts-ISO8859-1-75dpi \
     mesa-dri-drivers mesa-libGL mesa-libGLU mesa-libEGL libglvnd-opengl \
     libxcb xcb-util-cursor xcb-util-image xcb-util-keysyms xcb-util-renderutil xcb-util-wm \
     libxkbcommon-x11 libX11 libXrender libXi libXrandr libXfixes libXcursor libXinerama \

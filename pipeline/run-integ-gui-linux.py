@@ -40,6 +40,9 @@ def test_environment(base: Mapping[str, str], maya_executable: Path) -> dict[str
         NO_AT_BRIDGE="0",
         # dbus-broker needs a systemd user session, which this desktop lacks.
         ATSPI_DBUS_IMPLEMENTATION="dbus-daemon",
+        # Maya exposes a much larger tree than a standalone submitter dialog.
+        # Match the page object's wait budget for auto-waiting actions too.
+        XA11Y_DEFAULT_TIMEOUT="60",
         LIBGL_ALWAYS_SOFTWARE="1",
         QT_QPA_PLATFORM="xcb",
         # Keep Qt and Maya on the same native X11 graphics backend.

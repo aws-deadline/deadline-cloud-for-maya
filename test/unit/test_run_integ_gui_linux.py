@@ -55,6 +55,7 @@ def test_desktop_environment_drops_stale_bus_addresses(runner):
     assert env["QT_ACCESSIBILITY"] == env["QT_LINUX_ACCESSIBILITY_ALWAYS_ON"] == "1"
     assert env["NO_AT_BRIDGE"] == "0"
     assert env["ATSPI_DBUS_IMPLEMENTATION"] == "dbus-daemon"
+    assert env["XA11Y_DEFAULT_TIMEOUT"] == "60"
     assert env["LIBGL_ALWAYS_SOFTWARE"] == "1"
     assert env["ADSKFLEX_LICENSE_FILE"] == "27002@localhost"
     assert env["HOME"] == "/real/profile"
