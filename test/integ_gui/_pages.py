@@ -18,6 +18,7 @@ Selector notes:
 
 from __future__ import annotations
 
+import sys
 import time
 
 import xa11y
@@ -97,7 +98,18 @@ class MayaSubmitterDialog(SharedSubmitterDialog):
     def export_bundle(self) -> None:
         """Save the job bundle locally and dismiss the confirmation."""
         self.save_bundle_locally()
-        if not dismiss_bundle_saved_popup(self.pid, timeout=WIDGET_TIMEOUT):
+        if sys.platform == "linux":
+            # Qt exposes QMessageBox as an AT-SPI alert on Linux. The shared
+            # helper currently searches dialog/window/sheet roles only.
+            confirmation = self.app.locator("alert[name='Save bundle as']")
+            confirmation.descendant("static_text[name^='Bundle saved to:']").wait_visible(
+                timeout=WIDGET_TIMEOUT
+            )
+            confirmation.descendant("button[name='OK']").wait_enabled(
+                timeout=WIDGET_TIMEOUT
+            ).press()
+            confirmation.wait_hidden(timeout=WIDGET_TIMEOUT)
+        elif not dismiss_bundle_saved_popup(self.pid, timeout=WIDGET_TIMEOUT):
             raise AssertionError("The 'Bundle saved to' confirmation never appeared")
 
     def submit(self) -> None:
