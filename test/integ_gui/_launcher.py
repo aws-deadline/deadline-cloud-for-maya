@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -127,6 +128,10 @@ def build_maya_environment(
     env["AWS_DISABLE_HOST_PREFIX_INJECTION"] = "true"
     env["MAYA_ENV_DIR"] = str(PLUGIN_ENV_DIR)
     env["MAYA_APP_DIR"] = str(work_dir / "maya_app_dir")  # fresh prefs for every test
+    if sys.platform == "linux" and env.get("LIBGL_ALWAYS_SOFTWARE") == "1":
+        scripts = Path(env["MAYA_APP_DIR"]) / "scripts"
+        scripts.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(Path(__file__).with_name("_linux_user_setup.py"), scripts / "userSetup.py")
     env[ENV_STATUS_FILE] = str(work_dir / "opener_status.txt")
     env[ENV_SCENE_FILE] = str(scene_file)
     # Expose Qt widgets to the platform accessibility API (needed on Linux).

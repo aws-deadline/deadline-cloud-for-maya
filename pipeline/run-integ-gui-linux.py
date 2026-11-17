@@ -44,9 +44,6 @@ def test_environment(base: Mapping[str, str], maya_executable: Path) -> dict[str
         QT_QPA_PLATFORM="xcb",
         # Keep Qt and Maya on the same native X11 graphics backend.
         QT_XCB_GL_INTEGRATION="xcb_glx",
-        # The compatibility viewport uses legacy GLX context creation, which
-        # crashes with software Mesa; use Maya's supported Core renderer.
-        MAYA_VP2_DEVICE_OVERRIDE="VirtualDeviceGLCore",
     )
     return env
 
