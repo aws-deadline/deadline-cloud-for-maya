@@ -106,8 +106,15 @@ jobs:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION }}
           mask-aws-account-id: true
+      - name: Compile native graphics diagnostics
+        run: |
+          dnf install -y gcc mesa-libGL-devel libX11-devel
+          gcc -shared -fPIC pipeline/maya-glx-diagnostics.c -ldl \
+            -o /tmp/maya-glx-diagnostics.so
       - name: Bring up license tunnel and run GUI tests
         env:
+          LD_PRELOAD: /tmp/maya-glx-diagnostics.so
+          MAYA_DEBUG_Q3DPORTS: "1"
           AWS_REGION: ${{ secrets.AWS_REGION }}
           LICENSE_ROLE_ARN: ${{ secrets.LICENSE_ROLE_ARN }}
           BASTION_INSTANCE_TAG: ${{ secrets.BASTION_INSTANCE_TAG }}
