@@ -44,6 +44,11 @@ def test_environment(base: Mapping[str, str], maya_executable: Path) -> dict[str
         # Match the page object's wait budget for auto-waiting actions too.
         XA11Y_DEFAULT_TIMEOUT="60",
         LIBGL_ALWAYS_SOFTWARE="1",
+        # Limit worker pools in the software renderer and numerical libraries.
+        # Otherwise their combined pools can exhaust the runner's thread limit.
+        LP_NUM_THREADS="2",
+        OMP_NUM_THREADS="2",
+        OPENBLAS_NUM_THREADS="2",
         QT_QPA_PLATFORM="xcb",
         # Keep Qt and Maya on the same native X11 graphics backend.
         QT_XCB_GL_INTEGRATION="xcb_glx",

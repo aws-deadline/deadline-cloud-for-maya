@@ -80,6 +80,7 @@ jobs:
           INSTALLER_BUCKET: ${{ secrets.INSTALLER_BUCKET }}
           INSTALLER_BUCKET_EXPECTED_OWNER: ${{ secrets.INSTALLER_BUCKET_EXPECTED_OWNER }}
         run: |
+          echo "MAYA_GUI_TEST_LOGS=$RUNNER_TEMP/integ_gui" >> "$GITHUB_ENV"
           export MAYA_SETUP_DIAGNOSTICS_DIR="$RUNNER_TEMP/integ_gui/maya-install"
           archive="$RUNNER_TEMP/Autodesk_Maya_2027_Linux_64bit.tgz"
           aws s3api head-object --bucket "$INSTALLER_BUCKET" \
@@ -129,6 +130,6 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: maya-2027-linux-gui-test-logs
-          path: ${{ runner.temp }}/integ_gui
+          path: ${{ env.MAYA_GUI_TEST_LOGS }}
           if-no-files-found: ignore
           retention-days: 7

@@ -12,3 +12,10 @@ surface_format = QSurfaceFormat.defaultFormat()
 surface_format.setSamples(0)
 QSurfaceFormat.setDefaultFormat(surface_format)
 print("Linux GUI test desktop: Qt multisampling disabled")
+
+from maya import cmds
+
+# These tests inspect and export small scenes, without rendering. Keep Maya's
+# worker pool within the same budget as Mesa on the shared CI desktop.
+cmds.threadCount(numberOfThreads=2)
+print("Linux GUI test desktop: Maya worker threads limited to 2")

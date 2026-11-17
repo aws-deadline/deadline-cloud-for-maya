@@ -40,7 +40,7 @@ cleanup() {
                 > "$logs/licensing/$(basename "$log")" || true
         done
     fi
-    ps -eo pid,ppid,pgid,args > "$logs/processes.txt" || true
+    ps -eo pid,ppid,pgid,nlwp,args > "$logs/processes.txt" || true
     # Read every session log, including a session whose port never became ready.
     for log in "$logs"/ssm_*.log; do
         [[ -f "$log" ]] || continue

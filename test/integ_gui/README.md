@@ -38,6 +38,8 @@ and license environment. It requires an explicit executable and developer
 submitter install, so missing prerequisites fail instead of silently skipping
 the suite. Extra pytest options go after `--`, for example `-- -k frame_range`.
 Accessibility actions use a 60-second budget for Maya's large widget tree.
+Maya, Mesa, OpenMP, and OpenBLAS worker pools are limited to two threads each
+to leave capacity for accessibility and CI services.
 
 For an existing accessible Linux desktop, use `hatch run integ-gui:test` instead.
 Set `QT_ACCESSIBILITY=1` and `QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1` before launching.

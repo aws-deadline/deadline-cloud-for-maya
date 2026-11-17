@@ -57,6 +57,7 @@ def test_desktop_environment_drops_stale_bus_addresses(runner):
     assert env["ATSPI_DBUS_IMPLEMENTATION"] == "dbus-daemon"
     assert env["XA11Y_DEFAULT_TIMEOUT"] == "60"
     assert env["LIBGL_ALWAYS_SOFTWARE"] == "1"
+    assert env["LP_NUM_THREADS"] == env["OMP_NUM_THREADS"] == env["OPENBLAS_NUM_THREADS"] == "2"
     assert env["ADSKFLEX_LICENSE_FILE"] == "27002@localhost"
     assert env["HOME"] == "/real/profile"
 
