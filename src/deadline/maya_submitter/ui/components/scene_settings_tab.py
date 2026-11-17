@@ -127,6 +127,7 @@ class SceneSettingsWidget(QWidget):
 
         self.frame_override_chck = QCheckBox("Override Frame Range", self)
         self.frame_override_txt = QLineEdit(self)
+        self.frame_override_txt.setAccessibleName("Frame Range")
         # Only allow numbers, colons, dashes, commas, and whitespace for frame ranges
         frame_pattern = QRegularExpression(r"^[0-9:\-,\s]*$")
         self.frame_override_txt.setValidator(QRegularExpressionValidator(frame_pattern))

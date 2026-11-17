@@ -10,10 +10,8 @@ Selector notes:
 * The dialog is a ``Qt.Tool`` window parented to Maya's main window. On Windows a
   Qt dialog can show up as its own accessibility app with the same process ID, so
   the window is looked up across every app owned by Maya's process.
-* The Scene Settings line edits have no accessible names, so they are addressed by
-  position on the active tab, in the layout order of scene_settings_tab.py:
-  Project Path, Output Path, then the frame range. Inactive tab pages drop out of
-  the tree, so switch tabs first.
+* The frame-range edit has an explicit accessible name, so providers that include
+  hidden tab pages or return fields in a different order still target it reliably.
 """
 
 from __future__ import annotations
@@ -37,7 +35,6 @@ WIDGET_TIMEOUT = 60.0
 DIALOG_TIMEOUT = 120.0
 
 CHECKBOX_OVERRIDE_FRAME_RANGE = "Override Frame Range"
-_TEXT_FIELD_FRAME_RANGE = 3  # 1-based, see module notes
 
 
 def _window_selector() -> str:
@@ -91,7 +88,7 @@ class MayaSubmitterDialog(SharedSubmitterDialog):
     def override_frame_range(self, frames: str) -> None:
         switch_to_tab(self.window, TAB_JOB_SPECIFIC)
         set_checkbox(self.window, CHECKBOX_OVERRIDE_FRAME_RANGE, True)
-        field = self.window.descendant("text_field").nth(_TEXT_FIELD_FRAME_RANGE)
+        field = self.window.descendant("text_field[name='Frame Range']")
         field.wait_enabled(timeout=WIDGET_TIMEOUT)
         field.set_value(frames)
 
