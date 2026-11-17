@@ -64,7 +64,8 @@ The Linux workflow is `.github/workflows/integ_gui_linux.yml`. On
 `feat/integ-test-cicd-v2`, it runs the runner's unit tests on GitHub-hosted Ubuntu
 22.04, then runs the six GUI cases inside a pinned Rocky Linux 9.5 container on
 another GitHub-hosted Ubuntu runner. Rocky matches Autodesk's Linux licensing
-packages; the container publishes no ports.
+packages; the container publishes no ports and uses Docker's init process to
+reap Autodesk's background helper processes.
 
 The workflow installs full desktop Maya 2027.0 from the private installer bucket,
 verifies the archive's SHA-256, installs Autodesk's shared analytics SDK, starts

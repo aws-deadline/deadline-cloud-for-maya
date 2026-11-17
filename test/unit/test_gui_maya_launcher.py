@@ -3,8 +3,9 @@
 
 import ast
 import json
+import signal
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import pytest
 
@@ -24,6 +25,7 @@ def test_early_startup_failure_reports_process_stderr(monkeypatch, tmp_path):
 
     monkeypatch.setattr(launcher.sys, "platform", "linux")
     monkeypatch.setattr(launcher.subprocess, "Popen", start)
+    monkeypatch.setattr(launcher, "_stop_process_tree", Mock())
     capture = Mock()
     monkeypatch.setattr(launcher, "screenshot", capture)
     env = {launcher.ENV_STATUS_FILE: str(tmp_path / "opener_status.txt")}
@@ -70,6 +72,7 @@ def test_linux_startup_command_survives_vendor_shell_quoting(monkeypatch, tmp_pa
     process.poll.return_value = 7
     start = Mock(return_value=process)
     monkeypatch.setattr(launcher.subprocess, "Popen", start)
+    monkeypatch.setattr(launcher, "_stop_process_tree", Mock())
     monkeypatch.setattr(launcher, "screenshot", Mock())
     env = {launcher.ENV_STATUS_FILE: str(tmp_path / "opener_status.txt")}
 
@@ -84,3 +87,20 @@ def test_linux_startup_command_survives_vendor_shell_quoting(monkeypatch, tmp_pa
     strings = [node.value for node in ast.walk(tree) if isinstance(node, ast.Constant)]
     assert strings.count(opener.as_posix()) == 2
     assert "exec" in strings
+
+
+@pytest.mark.parametrize("returncode", [None, 0])
+def test_linux_cleanup_finishes_children_after_launcher_exits(monkeypatch, returncode):
+    process = Mock(pid=100, returncode=returncode)
+    process.poll.return_value = returncode
+    kill_group = Mock()
+    monkeypatch.setattr(launcher.sys, "platform", "linux")
+    monkeypatch.setattr(launcher.os, "killpg", kill_group, raising=False)
+
+    launcher._stop_process_tree(process)
+
+    assert kill_group.call_args_list == [
+        call(100, signal.SIGTERM),
+        call(100, signal.SIGKILL),
+    ]
+    process.wait.assert_called_once_with(timeout=30)

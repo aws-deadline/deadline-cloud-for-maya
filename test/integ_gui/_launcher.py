@@ -166,9 +166,9 @@ class MayaSession:
 
 
 def _stop_process_tree(process: subprocess.Popen) -> None:
-    if process.poll() is not None:
-        return
     if sys.platform == "win32":
+        if process.poll() is not None:
+            return
         subprocess.run(
             ["taskkill", "/PID", str(process.pid), "/T", "/F"],
             capture_output=True,
@@ -186,6 +186,14 @@ def _stop_process_tree(process: subprocess.Popen) -> None:
             os.killpg(process.pid, signal.SIGKILL)
         process.kill()
         process.wait(timeout=30)
+    finally:
+        if sys.platform != "win32":
+            # The shell launcher can exit while maya.bin or helper children
+            # still run. Finish the owned group even when that shell is reaped.
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
 
 
 def launch_maya_with_submitter(

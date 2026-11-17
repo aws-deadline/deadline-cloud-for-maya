@@ -43,6 +43,9 @@ jobs:
     # Autodesk supports Rocky Linux. The host remains a GitHub Ubuntu runner.
     container:
       image: rockylinux/rockylinux:9.5@sha256:149fd31d916038eb1084d0e051537e279d7afcd5de0b365254e8fa3c3ef12bad
+      # Autodesk helpers fork background children. Reap them as they exit,
+      # rather than leaving zombies under the runner's default tail PID 1.
+      options: --init
     # Share the developer-license seats with the Windows GUI workflow.
     concurrency:
       group: maya-gui-tests
