@@ -18,9 +18,9 @@ import signal
 import subprocess
 import sys
 import time
-from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Mapping, Optional
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PLUGIN_ENV_DIR = REPO_ROOT / "plugin_env"
@@ -302,7 +302,7 @@ def _dismiss_privacy_dialog(pid: int, work_dir: Path) -> None:
         return
 
 
-def _dump_accessibility_tree(pid: int, work_dir: Path) -> Path | None:
+def _dump_accessibility_tree(pid: int, work_dir: Path) -> Optional[Path]:
     """Save Maya's accessibility tree, to show what is blocking it; best effort."""
     try:
         dumps = [app.dump(max_depth=6) for app in _maya_apps(pid)]
@@ -313,7 +313,7 @@ def _dump_accessibility_tree(pid: int, work_dir: Path) -> Path | None:
     return path
 
 
-def screenshot(path: Path) -> Path | None:
+def screenshot(path: Path) -> Optional[Path]:
     """Save a screenshot of the desktop for diagnosing a failure; best effort."""
     try:
         import xa11y
