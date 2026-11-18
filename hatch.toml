@@ -42,6 +42,7 @@ test_adaptors_maya = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numproc
 test_adaptors_mtoa = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "adaptor and mtoa_renderer"'
 test_adaptors_vray = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "adaptor and vray_renderer"'
 test_adaptors_redshift = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "adaptor and redshift_renderer"'
+test_adaptors_octane = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "adaptor and octane_renderer"'
 
 [envs.integ-ci]
 pre-install-commands = [
@@ -68,7 +69,7 @@ setup-vray = "python ./pipeline/setup-runner.py --versions {matrix:maya} --rende
 setup-redshift = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers redshift {args}"
 setup-all-renderers = "python ./pipeline/setup-runner.py --versions {matrix:maya} --renderers mtoa vray redshift {args}"
 test = "python ./pipeline/run-integ-tests.py"
-test-submitters = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "not adaptor"'
+test-submitters = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "not adaptor and not octane_renderer"'
 test-mtoa = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "adaptor and mtoa_renderer"'
 test-vray = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "adaptor and vray_renderer"'
 test-redshift = 'mayapy -m pytest --no-cov {args:test/integ} -vvv --numprocesses=1 -m "adaptor and redshift_renderer"'

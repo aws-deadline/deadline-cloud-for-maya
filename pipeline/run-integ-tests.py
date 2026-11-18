@@ -160,7 +160,17 @@ def main():
     if system != "Windows":
         os.environ["PATH"] = ADAPTOR_DISPATCH_DIR + ":" + os.environ.get("PATH", "")
 
-    pytest_args = ["mayapy", "-m", "pytest", "--no-cov", "test/integ", "-vvv", "--numprocesses=1"]
+    pytest_args = [
+        "mayapy",
+        "-m",
+        "pytest",
+        "--no-cov",
+        "test/integ",
+        "-vvv",
+        "--numprocesses=1",
+        "-m",
+        "not octane_renderer",
+    ]
     if system == "Windows":
         # Maya 2027 raises an SEH exception importing OpenMaya as SYSTEM (0x800703f0,
         # ERROR_NO_TOKEN). Maya handles it and the tests pass, but faulthandler dumps

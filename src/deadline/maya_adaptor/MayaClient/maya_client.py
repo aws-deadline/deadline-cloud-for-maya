@@ -32,10 +32,15 @@ class MayaClient(ClientInterface):
                 "renderer": self.set_renderer,
             }
         )
-        import maya.standalone
+        # The adaptor sets this variable when it runs the client inside `maya -batch`,
+        # where Maya is already initialized.
+        self.standalone = "MAYA_ADAPTOR_BATCH_MODE" not in os.environ
         import maya.cmds
 
-        maya.standalone.initialize()
+        if self.standalone:
+            import maya.standalone
+
+            maya.standalone.initialize()
         print(f"MayaClient: Maya Version {maya.cmds.about(version=True)}")
 
     def set_renderer(self, renderer: dict):
@@ -43,14 +48,20 @@ class MayaClient(ClientInterface):
         self.actions.update(render_handler.action_dict)
 
     def close(self, args: Optional[dict] = None) -> None:
-        import maya.standalone
+        if self.standalone:
+            import maya.standalone
 
-        maya.standalone.uninitialize()
+            maya.standalone.uninitialize()
 
     def graceful_shutdown(self, signum: int, frame: FrameType | None):
-        import maya.standalone
+        if self.standalone:
+            import maya.standalone
 
-        maya.standalone.uninitialize()
+            maya.standalone.uninitialize()
+        else:
+            import maya.cmds
+
+            maya.cmds.quit(force=True)
 
 
 def main():

@@ -300,6 +300,8 @@ def show_maya_render_submitter(
         conda_packages += " maya-vray"
     if "redshift" in all_renderers:
         conda_packages += " maya-redshift"
+    if "OctaneRender" in all_renderers:
+        conda_packages += " maya-octane"
 
     # Close the progress dialog before creating the submission dialog
     progress_dialog.close()
