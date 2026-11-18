@@ -1,4 +1,5 @@
 # AWS Deadline Cloud for Maya
+<!-- Temporary CODEOWNERS test: this owned file should require developer-team review. -->
 
 ### [User guide](https://docs.aws.amazon.com/deadline-cloud/latest/userguide/autodesk-maya.html) | [Service documentation](https://docs.aws.amazon.com/deadline-cloud/) | [Deadline Cloud on GitHub](https://github.com/aws-deadline/) 
 
