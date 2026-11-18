@@ -193,6 +193,7 @@ def _stop_process_tree(process: subprocess.Popen) -> None:
             try:
                 os.killpg(process.pid, signal.SIGKILL)
             except ProcessLookupError:
+                # The owned group has already exited; no children remain to stop.
                 pass
 
 

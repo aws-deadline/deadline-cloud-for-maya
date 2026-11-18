@@ -1,6 +1,8 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 """Maya startup preference for the software-rendered Linux test desktop."""
 
+from maya import cmds
+
 try:
     from PySide6.QtGui import QSurfaceFormat
 except ImportError:
@@ -12,8 +14,6 @@ surface_format = QSurfaceFormat.defaultFormat()
 surface_format.setSamples(0)
 QSurfaceFormat.setDefaultFormat(surface_format)
 print("Linux GUI test desktop: Qt multisampling disabled")
-
-from maya import cmds
 
 # These tests inspect and export small scenes, without rendering. Keep Maya's
 # worker pool within the same budget as Mesa on the shared CI desktop.
