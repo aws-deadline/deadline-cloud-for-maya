@@ -42,19 +42,6 @@ def _exported_bundle(export_dir: Path) -> Path:
     return bundle
 
 
-@pytest.mark.parametrize("case", EXPORT_CASES)
-def test_export_bundle_matches_expected(open_submitter, tmp_path, case):
-    scene_dir = tmp_path / "scene"
-    scene_file = copy_case_scene(case, scene_dir)
-
-    submitter = open_submitter(scene_file)
-    submitter.dialog.export_bundle()
-
-    actual = normalize_bundle(_exported_bundle(submitter.export_dir), scene_dir)
-    assert_bundles_equal(expected_bundle(case), actual)
-    _assert_no_unmatched_requests(submitter.backend)
-
-
 def test_frame_range_override_reaches_bundle(open_submitter, tmp_path):
     scene_dir = tmp_path / "scene"
     scene_file = copy_case_scene("cube", scene_dir)
@@ -91,4 +78,17 @@ def test_submit_creates_job(open_submitter, tmp_path):
     assert job["lifecycleStatus"] == "CREATE_COMPLETE"
     expected_template = yaml.safe_load(expected_bundle("cube")["template.yaml"])
     assert yaml.safe_load(job["template"]) == expected_template
+    _assert_no_unmatched_requests(submitter.backend)
+
+
+@pytest.mark.parametrize("case", EXPORT_CASES)
+def test_export_bundle_matches_expected(open_submitter, tmp_path, case):
+    scene_dir = tmp_path / "scene"
+    scene_file = copy_case_scene(case, scene_dir)
+
+    submitter = open_submitter(scene_file)
+    submitter.dialog.export_bundle()
+
+    actual = normalize_bundle(_exported_bundle(submitter.export_dir), scene_dir)
+    assert_bundles_equal(expected_bundle(case), actual)
     _assert_no_unmatched_requests(submitter.backend)

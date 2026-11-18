@@ -85,6 +85,8 @@ pre-install-commands = [
 # Clears the repo-wide pytest addopts (coverage, xdist): GUI tests share one
 # desktop and license, so they must run serially.
 test = 'pytest -o addopts="" -p no:cacheprovider {args:test/integ_gui} -vv'
+# Full GUI Maya must already be installed and licensed on the Linux host.
+test-linux = "python {root}/pipeline/run-integ-gui-linux.py {args}"
 
 [envs.e2e.scripts]
 test = "pytest --no-cov {args:test/*/e2e}"

@@ -18,6 +18,7 @@ from deadline_test_fixtures.deadline_mock import (
 
 from ._launcher import (
     MayaSession,
+    _dump_accessibility_tree,
     build_maya_environment,
     find_maya_executable,
     launch_maya_with_submitter,
@@ -99,6 +100,10 @@ def open_submitter(maya_executable, mock_deadline_server, tmp_path, request):
     failed = getattr(request.node, "rep_call", None) is not None and request.node.rep_call.failed
     if failed:
         screenshot(tmp_path / "failure.png")
+        for session in sessions:
+            tree = _dump_accessibility_tree(session.process.pid, tmp_path)
+            if tree:
+                print(tree.read_text(encoding="utf8")[:16000])
     for session in sessions:
         session.close()
 
