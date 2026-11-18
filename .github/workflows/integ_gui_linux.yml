@@ -1,0 +1,138 @@
+name: "Maya Submitter GUI Tests - Linux"
+
+on:
+  push:
+    branches:
+      - feat/integ-test-cicd-v2
+    paths-ignore:
+      - CHANGELOG.md
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  LinuxRunner:
+    name: Verify Linux GUI runner
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+      - name: Verify runner and startup diagnostics
+        run: |
+          python -m pip install "pytest==9.*"
+          python -m pytest -o addopts= -p no:cacheprovider \
+            test/unit/test_run_integ_gui_linux.py test/unit/test_gui_maya_launcher.py -vv
+
+  GuiTestsLinux:
+    name: Submitter GUI Tests (Linux, Maya 2027)
+    needs: LinuxRunner
+    if: >-
+      github.repository == 'aws-deadline/deadline-cloud-for-maya' &&
+      github.ref == 'refs/heads/feat/integ-test-cicd-v2'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    # Autodesk supports Rocky Linux. The host remains a GitHub Ubuntu runner.
+    container:
+      image: rockylinux/rockylinux:9.5@sha256:149fd31d916038eb1084d0e051537e279d7afcd5de0b365254e8fa3c3ef12bad
+      # Autodesk helpers fork background children. Reap them as they exit,
+      # rather than leaving zombies under the runner's default tail PID 1.
+      options: --init
+    # Share the developer-license seats with the Windows GUI workflow.
+    concurrency:
+      group: maya-gui-tests
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      PATH: /opt/ci-tools/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      MAYA_VERSION: "2027"
+      MAYA_EXECUTABLE: /usr/autodesk/maya2027/bin/maya
+      ADSKFLEX_LICENSE_FILE: "27002@127.0.0.1"
+      FLEXLM_TIMEOUT: "3000000"
+      MAYA_GUI_STARTUP_TIMEOUT: "180"
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install CI tools
+        run: |
+          dnf install -y git tar gzip python3.11 python3.11-pip unzip xz
+          python3.11 -m venv /opt/ci-tools
+          /opt/ci-tools/bin/pip install "hatch==1.18.0" "awscli==1.*"
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          mask-aws-account-id: true
+      - name: Install desktop Maya and the submitter
+        env:
+          INSTALLER_BUCKET: ${{ secrets.INSTALLER_BUCKET }}
+          INSTALLER_BUCKET_EXPECTED_OWNER: ${{ secrets.INSTALLER_BUCKET_EXPECTED_OWNER }}
+        run: |
+          echo "MAYA_GUI_TEST_LOGS=$RUNNER_TEMP/integ_gui" >> "$GITHUB_ENV"
+          export MAYA_SETUP_DIAGNOSTICS_DIR="$RUNNER_TEMP/integ_gui/maya-install"
+          archive="$RUNNER_TEMP/Autodesk_Maya_2027_Linux_64bit.tgz"
+          aws s3api head-object --bucket "$INSTALLER_BUCKET" \
+            --expected-bucket-owner "$INSTALLER_BUCKET_EXPECTED_OWNER" \
+            --key maya/2027/Autodesk_Maya_2027_Linux_64bit.tgz > /dev/null
+          aws s3 cp "s3://$INSTALLER_BUCKET/maya/2027/Autodesk_Maya_2027_Linux_64bit.tgz" \
+            "$archive" --only-show-errors
+          bash pipeline/setup-maya-gui-linux.sh "$archive"
+          rm "$archive"
+          hatch run install --maya-version "$MAYA_VERSION"
+          python3.11 pipeline/configure-maya-license.py \
+            --version "$MAYA_VERSION" --server "$ADSKFLEX_LICENSE_FILE"
+      - name: Install Session Manager plugin
+        run: |
+          plugin="$RUNNER_TEMP/session-manager-plugin.rpm"
+          curl --fail --location --output "$plugin" \
+            https://s3.amazonaws.com/session-manager-downloads/plugin/1.2.835.0/linux_64bit/session-manager-plugin.rpm
+          echo "1dcade7435709cce65a05eba87f2a96e8aaf7318c78a21d7a2ae648ce2f2ad81  $plugin" | sha256sum --check
+          rpm -Uvh "$plugin"
+          rm "$plugin"
+      - name: Refresh AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          mask-aws-account-id: true
+      - name: Bring up license tunnel and run GUI tests
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          LICENSE_ROLE_ARN: ${{ secrets.LICENSE_ROLE_ARN }}
+          BASTION_INSTANCE_TAG: ${{ secrets.BASTION_INSTANCE_TAG }}
+        run: bash pipeline/run-maya-gui-license-tunnel-linux.sh
+      - name: Tear down remaining license sessions
+        if: always()
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          for log in "$RUNNER_TEMP"/integ_gui/ssm_*.log; do
+            [[ -f "$log" ]] || continue
+            while read -r session; do
+              aws ssm terminate-session --session-id "$session" \
+                --profile license --region "$AWS_REGION" || true
+            done < <(sed -nE 's/.*SessionId: ([A-Za-z0-9._-]+).*/\1/p' "$log")
+          done
+      - name: Upload test logs
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maya-2027-linux-gui-test-logs
+          path: ${{ env.MAYA_GUI_TEST_LOGS }}
+          if-no-files-found: ignore
+          retention-days: 7
