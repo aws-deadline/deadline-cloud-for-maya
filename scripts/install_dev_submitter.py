@@ -120,8 +120,8 @@ def _console_extra_requirements(
     PyPI on top of the local checkout. local_dep_names must already be canonical.
 
     A deadline checkout with no console extra at all is a broken dev setup rather
-    than a no-op -- the extra exists in every release from 0.60.4, the floor
-    pyproject.toml requires -- so it raises instead of silently building a
+    than a no-op -- the extra exists in every release from 0.60.4, below the 0.60.12
+    floor pyproject.toml requires -- so it raises instead of silently building a
     submitter that cannot sign in.
     """
     requirements = []
@@ -132,7 +132,7 @@ def _console_extra_requirements(
         if "console" not in optional:
             raise Exception(
                 "the --local-dep deadline checkout declares no console extra; every "
-                "deadline release from 0.60.4 (the floor pyproject.toml requires) has "
+                "deadline release from 0.60.4 (below the 0.60.12 floor pyproject.toml requires) has "
                 "one, so the checkout is older than the floor or on a broken branch -- "
                 "update it, or drop --local-dep for deadline"
             )
