@@ -773,6 +773,15 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
         )
 
         # Use system pip with --target to install into Maya's site-packages.
+        # --upgrade makes pip replace what is already there. Without it, pip
+        # keeps any existing package folder and only adds the new version's
+        # metadata beside it. The Linux CodeBuild fleet reuses its hosts, so
+        # every package stayed at the version of the host's first build while
+        # its metadata moved on. That broke pytest once platformdirs 4.12 added
+        # a pytest11 entry point the old platformdirs code lacks.
+        # Resolve the requirements and project together: separate --upgrade
+        # installs replace shared namespace directories such as openjd/ and
+        # can remove the CLI installed by the requirements.
         maya_site_packages = (
             mayapy_exe.parent.parent
             / "lib"
@@ -782,7 +791,7 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
         maya_site_packages.mkdir(parents=True, exist_ok=True)
         python_version = MAYA_YEAR_TO_CONFIG[version]["python"]
 
-        print(f"Installing integ test dependencies for Maya {version}...")
+        print(f"Installing integ test dependencies and project for Maya {version}...")
         run_with_timeout(
             [
                 "pip",
@@ -792,29 +801,15 @@ def setup_linux(maya_versions: Sequence[str], renderers: Sequence[str]) -> None:
                 "--python-version",
                 python_version,
                 "--only-binary=:all:",
+                "--upgrade",
                 "-r",
                 "requirements-integ-testing.txt",
                 "-r",
                 "requirements-testing.txt",
-            ],
-            timeout=DEFAULT_CMD_TIMEOUT,
-            label=f"pip install requirements (Maya {version})",
-        )
-
-        # Install the package itself
-        run_with_timeout(
-            [
-                "pip",
-                "install",
-                "--target",
-                str(maya_site_packages),
-                "--python-version",
-                python_version,
-                "--only-binary=:all:",
                 ".",
             ],
             timeout=DEFAULT_CMD_TIMEOUT,
-            label=f"pip install project (Maya {version})",
+            label=f"pip install requirements and project (Maya {version})",
         )
 
         # Per-version wrapper setting MAYA_LOCATION and renderer plugin paths. The
