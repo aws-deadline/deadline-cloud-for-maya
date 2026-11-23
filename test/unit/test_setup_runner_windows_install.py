@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib.util
+import zipfile
 from pathlib import Path
 from types import ModuleType
 from typing import Callable, Optional
@@ -171,3 +172,13 @@ def test_diagnostics_survive_unreadable_logs(setup_runner, tmp_path, monkeypatch
     assert "Installation is cancelled" in out
     assert "Disk space parameters" in out
     assert "unrelated" not in out
+
+
+def test_windows_installer_zip_uses_python_extraction(setup_runner, tmp_path):
+    installer_zip = tmp_path / "Maya2027_Windows.zip"
+    with zipfile.ZipFile(installer_zip, "w") as archive:
+        archive.writestr("payload/Setup.exe", "installer")
+
+    setup_runner._extract_zip_archive(installer_zip, tmp_path / "setup")
+
+    assert (tmp_path / "setup" / "payload" / "Setup.exe").read_text() == "installer"

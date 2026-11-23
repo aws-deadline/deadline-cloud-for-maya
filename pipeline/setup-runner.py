@@ -25,6 +25,7 @@ import subprocess
 import sys
 import textwrap
 import time
+import zipfile
 from pathlib import Path
 from typing import Callable, Sequence, TypedDict
 
@@ -1117,6 +1118,12 @@ def _dump_maya_setup_diagnostics(since: float) -> None:
         print(f"WARNING: could not read the ODIS logs: {e}")
 
 
+def _extract_zip_archive(archive_path: Path, destination: Path) -> None:
+    """Extract a ZIP without depending on the runner's PowerShell/.NET versions."""
+    with zipfile.ZipFile(archive_path) as archive:
+        archive.extractall(destination)
+
+
 def _install_maya_windows(version: str) -> Path:
     config = MAYA_YEAR_TO_CONFIG[version]
     installer_name = config["installer"]["windows"]
@@ -1140,13 +1147,7 @@ def _install_maya_windows(version: str) -> Path:
     verify_checksum(installer_zip, MAYA_YEAR_TO_CHECKSUMS[version]["windows"])
 
     print("Extracting Maya installer...")
-    run(
-        [
-            "powershell",
-            "-Command",
-            f"Expand-Archive -Path '{installer_zip}' -DestinationPath '{setup_dir}' -Force",
-        ]
-    )
+    _extract_zip_archive(installer_zip, setup_dir)
     installer_zip.unlink()
 
     # The zip contains _001_002.exe (GUI, hangs headlessly) + _002_002.7z (payload).
