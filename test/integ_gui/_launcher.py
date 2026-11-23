@@ -10,8 +10,10 @@ developer install made by ``hatch run install`` (``plugin_env``, found through
 
 from __future__ import annotations
 
+import json
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -20,14 +22,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Optional
 
-from deadline_test_fixtures.deadline_mock import build_mock_environment
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PLUGIN_ENV_DIR = REPO_ROOT / "plugin_env"
 OPENER = Path(__file__).resolve().parent / "_opener.py"
 
 # A cold GUI Maya start on a fresh runner, including the license checkout.
-OPENER_TIMEOUT = 600.0
+OPENER_TIMEOUT = float(os.environ.get("MAYA_GUI_STARTUP_TIMEOUT", "600"))
 
 ENV_STATUS_FILE = "MAYA_SUBMITTER_UI_STATUS_FILE"
 ENV_SCENE_FILE = "MAYA_SUBMITTER_UI_SCENE_FILE"
@@ -103,6 +103,8 @@ def build_maya_environment(
     scene_file: Path,
 ) -> dict[str, str]:
     """Environment for the Maya process, pointed at the mock Deadline Cloud service."""
+    from deadline_test_fixtures.deadline_mock import build_mock_environment
+
     if not (PLUGIN_ENV_DIR / "Maya.env").is_file():
         raise FileNotFoundError(
             f"{PLUGIN_ENV_DIR / 'Maya.env'} is missing; run `hatch run install` first"
@@ -126,6 +128,10 @@ def build_maya_environment(
     env["AWS_DISABLE_HOST_PREFIX_INJECTION"] = "true"
     env["MAYA_ENV_DIR"] = str(PLUGIN_ENV_DIR)
     env["MAYA_APP_DIR"] = str(work_dir / "maya_app_dir")  # fresh prefs for every test
+    if sys.platform == "linux" and env.get("LIBGL_ALWAYS_SOFTWARE") == "1":
+        scripts = Path(env["MAYA_APP_DIR"]) / "scripts"
+        scripts.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(Path(__file__).with_name("_linux_user_setup.py"), scripts / "userSetup.py")
     env[ENV_STATUS_FILE] = str(work_dir / "opener_status.txt")
     env[ENV_SCENE_FILE] = str(scene_file)
     # Expose Qt widgets to the platform accessibility API (needed on Linux).
@@ -147,10 +153,12 @@ class MayaSession:
         return self.work_dir / "maya.log"
 
     def tail_log(self, max_chars: int = 4000) -> str:
-        if not self.log_file.exists():
-            return "(no Maya log)"
-        text = self.log_file.read_text(encoding="utf8", errors="replace")
-        return f"--- Maya log (tail) ---\n{text[-max_chars:]}"
+        logs = []
+        for path in (self.log_file, self.work_dir / "maya_process.log"):
+            if path.exists():
+                text = path.read_text(encoding="utf8", errors="replace")
+                logs.append(f"--- {path.name} (tail) ---\n{text[-max_chars:]}")
+        return "\n".join(logs) or "(no Maya logs)"
 
     def close(self) -> None:
         """Stop Maya and anything it started."""
@@ -158,9 +166,9 @@ class MayaSession:
 
 
 def _stop_process_tree(process: subprocess.Popen) -> None:
-    if process.poll() is not None:
-        return
     if sys.platform == "win32":
+        if process.poll() is not None:
+            return
         subprocess.run(
             ["taskkill", "/PID", str(process.pid), "/T", "/F"],
             capture_output=True,
@@ -178,6 +186,15 @@ def _stop_process_tree(process: subprocess.Popen) -> None:
             os.killpg(process.pid, signal.SIGKILL)
         process.kill()
         process.wait(timeout=30)
+    finally:
+        if sys.platform != "win32":
+            # The shell launcher can exit while maya.bin or helper children
+            # still run. Finish the owned group even when that shell is reaped.
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                # The owned group has already exited; no children remain to stop.
+                pass
 
 
 def launch_maya_with_submitter(
@@ -188,16 +205,27 @@ def launch_maya_with_submitter(
     Raises with the opener's report and Maya's log tail on any failure.
     """
     opener = OPENER.as_posix()  # forward slashes need no escaping inside MEL
-    command = f"python(\"exec(compile(open(r'{opener}').read(), r'{opener}', 'exec'))\")"
+    if sys.platform == "linux":
+        # Autodesk's shell launcher wraps each argument in single quotes before
+        # eval. Use double-quoted Python strings, with any path apostrophes
+        # encoded, so its shell does not strip our Python string delimiters.
+        path_literal = json.dumps(opener).replace("'", r"\u0027")
+        startup = f'exec(compile(open({path_literal}).read(), {path_literal}, "exec"))'
+        command = f"python({json.dumps(startup)})"
+    else:
+        command = f"python(\"exec(compile(open(r'{opener}').read(), r'{opener}', 'exec'))\")"
     log_file = work_dir / "maya.log"
-    process = subprocess.Popen(
-        [str(maya_exe), "-noAutoloadPlugins", "-log", str(log_file), "-command", command],
-        env=dict(env),
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=(sys.platform != "win32"),
-    )
+    # Dynamic linker and Qt/X11 startup failures happen before Maya can write
+    # its own log. Keep the process output as a separate diagnostic artifact.
+    with (work_dir / "maya_process.log").open("wb") as process_log:
+        process = subprocess.Popen(
+            [str(maya_exe), "-noAutoloadPlugins", "-log", str(log_file), "-command", command],
+            env=dict(env),
+            stdin=subprocess.DEVNULL,
+            stdout=process_log,
+            stderr=subprocess.STDOUT,
+            start_new_session=(sys.platform != "win32"),
+        )
     session = MayaSession(process=process, work_dir=work_dir, opener_status="")
     try:
         status_file = Path(env[ENV_STATUS_FILE])
@@ -221,6 +249,7 @@ def launch_maya_with_submitter(
             raise RuntimeError(f"Opener failed inside Maya:\n{session.opener_status}")
         return session
     except BaseException:
+        screenshot(work_dir / "startup_failure.png")
         session.close()
         raise
 
@@ -228,7 +257,19 @@ def launch_maya_with_submitter(
 def _maya_apps(pid: int) -> list:
     import xa11y
 
-    return [app for app in xa11y.App.list() if app.pid == pid]
+    apps = []
+    for app in xa11y.App.list():
+        if app.pid == pid:
+            apps.append(app)
+        elif sys.platform == "linux":
+            # Autodesk's Linux shell launcher starts maya.bin as a child.
+            # start_new_session gives that whole process tree a unique group.
+            try:
+                if os.getpgid(app.pid) == pid:
+                    apps.append(app)
+            except ProcessLookupError:
+                pass  # The app can exit while accessibility is enumerated.
+    return apps
 
 
 def _dismiss_privacy_dialog(pid: int, work_dir: Path) -> None:
@@ -280,5 +321,5 @@ def screenshot(path: Path) -> Optional[Path]:
 
         xa11y.screenshot().save_png(str(path))
         return path
-    except Exception:
+    except Exception:  # noqa: BLE001
         return None

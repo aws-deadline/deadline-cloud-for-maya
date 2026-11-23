@@ -138,6 +138,24 @@ hatch run test
 ```
 
 ##### Integration Tests
+###### Submitter GUI Tests
+
+The tests in `test/integ_gui` interact with the real submitter dialog in GUI Maya.
+They export and compare job bundles, override the frame range, and submit to a local
+mock Deadline Cloud service.
+
+On Linux with full GUI Maya installed and licensed, install the developer submitter
+and run the suite on an isolated virtual desktop:
+
+```bash
+hatch run install --maya-version 2027
+export MAYA_EXECUTABLE=/usr/autodesk/maya2027/bin/maya
+hatch run integ-gui:test-linux -- --basetemp /tmp/maya-gui-tests -rA
+```
+
+See [the GUI test README](test/integ_gui/README.md) for Linux desktop dependencies,
+licensing, Windows instructions, and failure artifacts.
+
 ###### Job Bundle Output Tests
 
 Job Bundle Output tests are built in to the plug-in itself. They are available as the `TEST` button in the AWSDeadline
