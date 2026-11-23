@@ -31,7 +31,9 @@ classifiers = [
 ]
 
 dependencies = [
-    # 0.60.4 is the floor because AWS Console sign-in landed there and nowhere earlier:
+    # 0.60.12 is the floor because it lists farms reached only through a queue or fleet
+    # membership (ListMemberships); older releases show those users an empty farm list.
+    # AWS Console sign-in also needs 0.60.4 or later, since it landed there and nowhere earlier:
     # 0.60.1 through 0.60.3 have no AWS_CONSOLE_LOGIN credentials source, and do not
     # declare a `console` extra at all.
     #
@@ -44,7 +46,7 @@ dependencies = [
     # appear installed and silently not work. The adaptor never takes the console
     # path anyway: it runs on a worker with host-provided credentials. The submitter's
     # dependency bundle requests the extra at bundle time in scripts/deps_bundle.py.
-    "deadline >= 0.60.4,< 0.61",
+    "deadline >= 0.60.12,< 0.61",
     "openjd-adaptor-runtime == 0.9.*",
 ]
 
