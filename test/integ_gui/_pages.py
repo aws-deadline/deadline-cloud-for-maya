@@ -55,7 +55,7 @@ class MayaSubmitterDialog(SharedSubmitterDialog):
         self.pid = pid
 
     @classmethod
-    def wait_for(cls, pid: int, timeout: float = DIALOG_TIMEOUT) -> MayaSubmitterDialog:
+    def wait_for(cls, pid: int, timeout: float = DIALOG_TIMEOUT) -> "MayaSubmitterDialog":
         selector = _window_selector()
         deadline = time.monotonic() + timeout
         seen: list[tuple[str, int]] = []
