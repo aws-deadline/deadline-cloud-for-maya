@@ -17,6 +17,28 @@ def mayahandlerbase():
 
 
 class TestDefaultMayaHandler:
+    @pytest.mark.parametrize("disconnected", [None, [], ["otherRenderLayerManager"]])
+    @patch(
+        "deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler."
+        "_get_render_layer_display_name",
+        side_effect=lambda name: name.removeprefix("rs_"),
+    )
+    @patch("deadline.maya_adaptor.MayaClient.render_handlers.default_maya_handler.maya.cmds")
+    def test_layer_lookup_ignores_disconnected_and_referenced_layers(
+        self, mock_cmds, mock_display_name, disconnected, mayahandlerbase
+    ):
+        mock_cmds.ls.side_effect = lambda *args, **kwargs: (
+            ["renderLayerManager"] if args else ["orphan", "referenced", "rs_beauty"]
+        )
+        mock_cmds.referenceQuery.side_effect = lambda name, **kwargs: name == "referenced"
+        mock_cmds.listConnections.side_effect = lambda name, **kwargs: (
+            ["renderLayerManager"] if name == "rs_beauty" else disconnected
+        )
+
+        assert mayahandlerbase.get_render_layer_to_render({"render_layer": "beauty"}) == "rs_beauty"
+        with pytest.raises(RuntimeError, match="Available render layers.*beauty"):
+            mayahandlerbase.get_render_layer_to_render({"render_layer": "orphan"})
+
     @pytest.mark.parametrize("args", [{"image_height": 1500}])
     def test_set_image_height(self, mayahandlerbase: DefaultMayaHandler, args: dict):
         """Tests that setting the image height calls the correct functions"""

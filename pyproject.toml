@@ -157,6 +157,10 @@ pythonpath = [
 markers = [
     "submitter: mark test as test for the submitter",
     "adaptor: mark test as test for the adaptor",
+  "maya_renderer: Maya software renderer integration tests",
+  "mtoa_renderer: Arnold integration tests",
+  "vray_renderer: V-Ray integration tests",
+  "redshift_renderer: Redshift integration tests",
 ]
 
 [tool.coverage.run]
