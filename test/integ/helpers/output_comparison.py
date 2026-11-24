@@ -18,9 +18,10 @@ def are_images_similar(
     """
     Helper function that compare if the render output from the adaptor match what we expected
     """
-    for image in (expected_image_directory).iterdir():
-        if not image.is_file():
-            continue
+    images = [image for image in expected_image_directory.iterdir() if image.is_file()]
+    if not images:
+        return False
+    for image in images:
 
         # Open the two image files with Pillow https://pillow.readthedocs.io/en/stable/index.html
         # and put them in numpy arrays. Pillow doesn't have a good built-in way to do image comparison
@@ -31,7 +32,7 @@ def are_images_similar(
         # Check that the two images are the same within a tolerance.
         # It's normal for there to be noise in an output image, so it is unlikely that two
         # renders will be exactly the same.
-        if not np.allclose(actual, expected, atol=tolerance):
+        if actual.shape != expected.shape or not np.allclose(actual, expected, atol=tolerance):
             return False
     return True
 

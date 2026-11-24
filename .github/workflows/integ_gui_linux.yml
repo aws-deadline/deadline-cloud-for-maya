@@ -3,10 +3,22 @@ name: "Maya Submitter GUI Tests - Linux"
 on:
   push:
     branches:
+      - mainline
       - feat/integ-test-cicd-v2
     paths-ignore:
       - CHANGELOG.md
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to test; omit to test the selected branch
+        required: false
+        type: string
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag to check out and test
+        required: true
+        type: string
 
 permissions: {}
 
@@ -22,6 +34,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.sha }}
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
@@ -37,7 +50,7 @@ jobs:
     needs: LinuxRunner
     if: >-
       github.repository == 'aws-deadline/deadline-cloud-for-maya' &&
-      github.ref == 'refs/heads/feat/integ-test-cicd-v2'
+      (github.ref == 'refs/heads/mainline' || github.ref == 'refs/heads/feat/integ-test-cicd-v2')
     runs-on: ubuntu-22.04
     timeout-minutes: 90
     # Autodesk supports Rocky Linux. The host remains a GitHub Ubuntu runner.
@@ -72,6 +85,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.sha }}
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
