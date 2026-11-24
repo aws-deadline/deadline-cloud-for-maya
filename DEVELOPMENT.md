@@ -138,40 +138,6 @@ hatch run test
 ```
 
 ##### Integration Tests
-###### Automated Releases
-
-`Release: Bump` checks mainline every Monday at 14:00 UTC and opens a version-bump
-PR when releasable changes exist. A manual dispatch can select `auto`, `patch`,
-`minor`, or `major`. The bump PR still follows the normal review and merge process.
-
-After its changelog change merges, `Release: Prepare` tags the release and runs
-code quality, the Linux/Windows CodeBuild integration tests, and both submitter
-GUI suites against that tag. The GUI suites run serially using the existing
-developer-license tunnel. All of these tests must pass before installers are
-staged and the package is published to CodeArtifact, which starts the Conda
-adaptor build. Preparation does not create a GitHub Release or publish to PyPI.
-
-`Release: Publish` polls every six hours for the tag's `maya-openjd` package in
-the public Conda manifest for `linux-64`. A missing package publishes nothing;
-after ten days, the readiness check fails. A successful preparation run for the
-same release must also exist. Once ready, the workflow releases the staged
-installers, creates the GitHub Release, and publishes to PyPI. An already
-published GitHub Release is a no-op; if PyPI fails afterward, rerun that failed
-job. The publish workflow filename and `release` environment remain unchanged
-for the PyPI trusted publisher.
-
-To retry preparation, dispatch `Release: Prepare` from mainline with the tag.
-To check a specific pending release, dispatch `Release: Publish` with the tag.
-The optional `force_publish` path requires successful preparation and
-`release-gate` approval before bypassing Conda availability. There is no routine
-`IsCondaReady` approval.
-
-Before considering a release validated, check the preparation's render results:
-image mismatches, missing output images, and disconnected requested render
-layers now fail the tests rather than silently passing. Validate the first
-prepare/publish cycle after these workflow changes merge. Workflow development
-and ordinary test runs do not exercise the public publication steps.
-
 ###### Submitter GUI Tests
 
 The tests in `test/integ_gui` interact with the real submitter dialog in GUI Maya.
@@ -445,6 +411,43 @@ To run the integ tests, you need to:
    ```bash
    hatch run integ:test
    ```
+
+### Automated Releases
+
+`Release: Bump` checks mainline every Monday at 14:00 UTC and opens a version-bump
+PR when releasable changes exist. A manual dispatch can select `auto`, `patch`,
+`minor`, or `major`. The bump PR still follows the normal review and merge process.
+
+After its changelog change merges, `Release: Prepare` tags the release and runs
+code quality, the Linux/Windows CodeBuild integration tests, and both submitter
+GUI suites against that tag. The GUI suites run serially using the existing
+developer-license tunnel. Both workflows use `queue: max` in the shared
+`maya-gui-tests` concurrency group: up to 100 jobs can wait without a later
+push replacing a queued release test. Only one GUI job runs at a time; arrivals
+beyond the queue limit are cancelled. All of these tests must pass before installers are
+staged and the package is published to CodeArtifact, which starts the Conda
+adaptor build. Preparation does not create a GitHub Release or publish to PyPI.
+
+`Release: Publish` polls every six hours for the tag's `maya-openjd` package in
+the public Conda manifest for `linux-64`. A missing package publishes nothing;
+after ten days, the readiness check fails. A successful preparation run for the
+same release must also exist. Once ready, the workflow releases the staged
+installers, creates the GitHub Release, and publishes to PyPI. An already
+published GitHub Release is a no-op; if PyPI fails afterward, rerun that failed
+job. The publish workflow filename and `release` environment remain unchanged
+for the PyPI trusted publisher.
+
+To retry preparation, dispatch `Release: Prepare` from mainline with the tag.
+To check a specific pending release, dispatch `Release: Publish` with the tag.
+The optional `force_publish` path requires successful preparation and
+`release-gate` approval before bypassing Conda availability. There is no routine
+`IsCondaReady` approval.
+
+Before considering a release validated, check the preparation's render results:
+image mismatches, missing output images, and disconnected requested render
+layers now fail the tests rather than silently passing. Validate the first
+prepare/publish cycle after these workflow changes merge. Workflow development
+and ordinary test runs do not exercise the public publication steps.
 
 ### Submitter Installer Development Workflow
 
