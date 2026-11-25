@@ -40,6 +40,20 @@
                  </distributionDirectory>
              </distributionFileList>
          </folder>
+        <folder>
+            <description>Installer Scripts</description>
+            <destination>${maya_installdir}/installer_scripts</destination>
+            <name>mayainstallerscripts</name>
+            <platforms>linux-x64 osx</platforms>
+            <distributionFileList>
+                <distributionFile>
+                    <origin>../installer/scripts/remove_legacy_maya_module_path.sh</origin>
+                </distributionFile>
+            </distributionFileList>
+            <actionList>
+                <changePermissions permissions="0755" files="${maya_installdir}/installer_scripts/remove_legacy_maya_module_path.sh"/>
+            </actionList>
+        </folder>
     </folderList>
 	<initializationActionList>
 		<setInstallerVariable name="all_components" value="${all_components} deadline_cloud_for_maya"/>
@@ -62,11 +76,12 @@
 			<value>Deadline Cloud for Maya 2024 - 2027
 - Compatible with Maya 2024 - 2027.
 - Plugin support: Arnold for Maya 2024-2027; VRay and Redshift for Maya 2025-2027.
-- Install the integrated Maya submitter files to the installation directory.
-- Register the plug-in with Maya by creating or updating the MAYA_MODULE_PATH environment variable.</value>
+- Install the integrated Maya submitter files to the installation directory.</value>
 		</stringParameter>
 	</parameterList>
     <postInstallationActionList>
+        <!-- Runs first so that upgrading over an installer up to 0.15.15 removes its MAYA_MODULE_PATH line. -->
+        <fnRemoveLegacyMayaModulePath installDir="${maya_installdir}"/>
         <unzip>
             <destinationDirectory>${maya_installdir}/scripts</destinationDirectory>
             <zipFile>${installdir}/tmp/maya_deps/dependency_bundle/deadline_cloud_for_maya_submitter-deps.zip</zipFile>

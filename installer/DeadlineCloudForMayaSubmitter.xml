@@ -37,98 +37,47 @@
                 <stringParameter name="value"/>
             </parameterList>
         </actionDefinition>
-        <actionDefinition name="fnAddLinuxEnvironmentVariable">
+        <actionDefinition name="fnRemoveLegacyMayaModulePath">
+            <!-- Installers up to 0.15.15 registered the plug-in by calling addEnvironmentVariable for
+            MAYA_MODULE_PATH with the value the installer saw at install time plus the install directory.
+            On Linux and macOS that appends `export MAYA_MODULE_PATH="<frozen value>:<install dir>/"` to the
+            user's shell startup files. The frozen value masks the user's own MAYA_MODULE_PATH, and nothing
+            removed it on upgrade or uninstall. This removes exactly those lines, for this install directory
+            only, from the startup files in ${user_home_directory}. It never fails the install. For a
+            system-scope install it runs as root, and keeps each file's owner and mode.
+
+            Windows is deliberately not handled here. Those installers wrote the merged value to the
+            MAYA_MODULE_PATH registry value instead, and on machines upgraded from 0.15.15 or earlier that
+            value is currently the only thing that registers the submitter with Maya, because the Windows
+            installer does not create a .mod file. Removing it, even only on uninstall, would break those
+            machines: the Deadline Cloud submitter installer runs the previous Maya installer's uninstaller
+            before every upgrade. -->
             <parameterList>
-                <stringParameter name="name"/>
-                <stringParameter name="value"/>
-                <stringParameter name="scope" default="user"/>
+                <stringParameter name="installDir"/>
             </parameterList>
             <actionList>
-                <if>
-                    <conditionRuleList>
+                <actionGroup>
+                    <ruleEvaluationLogic>or</ruleEvaluationLogic>
+                    <ruleList>
                         <platformTest type="linux"/>
-                        <compareText logic="equals" text="${scope}" value="system"/>
-                    </conditionRuleList>
+                        <platformTest type="osx"/>
+                    </ruleList>
                     <actionList>
-                        <!-- InstallBuilder's system-wide Linux implementation does not work (it always writes to the user
-                        environment files like ~/.bashrc and ~/.bash_profile, even as root).
-                        Instead, we cache all environment variables in a global variable, and in the post-installation
-                        steps, we generate a file in /etc/profile.d/ that will get sourced on login. -->
-                        <globalVariables names="_fnAddEnvironmentVariable_list"/>
-                        <setInstallerVariable name="_fnAddEnvironmentVariable_list">
-                            <value>${_fnAddEnvironmentVariable_list}export ${name}=${value}&#xA;</value>
-                        </setInstallerVariable>
-                    </actionList>
-                    <elseActionList>
-                        <!-- Pass through to InstallBuilder implementation -->
-                        <addEnvironmentVariable name="${name}" value="${value}" scope="${scope}"/>
-                    </elseActionList>
-                </if>
-            </actionList>
-        </actionDefinition>
-        <actionDefinition name="fnAddPathEnvironmentVariable">
-            <!-- Adds a PATH-like environment variable with options to add to the end or beginning of the PATH -->
-            <parameterList>
-                <stringParameter name="name"/>
-                <stringParameter name="value"/>
-                <stringParameter name="scope" default="user"/>
-                <stringParameter name="insertAt" default="end">
-                    <validationActionList>
-                        <throwError>
+                        <setInstallerVariable name="program_stdout" value=""/>
+                        <setInstallerVariable name="program_stderr" value=""/>
+                        <runProgram>
+                            <progressText>Removing legacy MAYA_MODULE_PATH settings</progressText>
+                            <program>/bin/sh</program>
+                            <programArguments>"${installDir}/installer_scripts/remove_legacy_maya_module_path.sh" "${installDir}" "${user_home_directory}"</programArguments>
+                            <abortOnError>0</abortOnError>
+                            <showMessageOnError>0</showMessageOnError>
                             <ruleList>
-                                <regExMatch text="${insertAt}" logic="does_not_match" pattern="end|beginning"/>
+                                <fileExists path="${installDir}/installer_scripts/remove_legacy_maya_module_path.sh"/>
                             </ruleList>
-                        </throwError>
-                    </validationActionList>
-                </stringParameter>
-            </parameterList>
-            <actionList>
-                <if>
-                    <conditionRuleEvaluationLogic>or</conditionRuleEvaluationLogic>
-                    <conditionRuleList>
-                        <compareTextLength text="${env(${name})}"  logic="equals" length="0"/>
-                        <!-- Don't update the env var if it already has the path -->
-                        <regExMatch text="${env(${name})}" logic="matches" pattern="(?:[;:]|^)${value.escape_backslashes}(?:[;:]|$)"/>
-                    </conditionRuleList>
-                    <actionList>
-                        <setInstallerVariable name="new_value" value="${value}"/>
+                        </runProgram>
+                        <logMessage text="${program_stdout}${program_stderr}"/>
                     </actionList>
-                    <elseActionList>
-                        <setInstallerVariable name="new_value" value="${value}${platform_env_path_sep}${env(${name})}">
-                            <ruleList>
-                                <compareText text="${insertAt}" logic="equals" value="beginning"/>
-                            </ruleList>
-                        </setInstallerVariable>
-                        <setInstallerVariable name="new_value" value="${env(${name})}${platform_env_path_sep}${value}">
-                            <ruleList>
-                                <compareText text="${insertAt}" logic="equals" value="end"/>
-                            </ruleList>
-                        </setInstallerVariable>
-                    </elseActionList>
-                </if>
-                <fnAddLinuxEnvironmentVariable name="${name}" value="${new_value}" scope="${scope}"/>
-            </actionList>
-        </actionDefinition>
-        <actionDefinition name="fnAddDirectoryToLinuxPath">
-            <!-- This just exists to handle the system-wide Linux implementation (see fnAddLinuxEnvironmentVariable) -->
-            <parameterList>
-                <stringParameter name="insertAt" default="end"/>
-                <stringParameter name="path"/>
-                <stringParameter name="scope" default="system"/>
-            </parameterList>
-            <actionList>
-                <if>
-                    <conditionRuleList>
-                        <platformTest type="linux"/>
-                        <compareText logic="equals" text="${scope}" value="system"/>
-                    </conditionRuleList>
-                    <actionList>
-                        <fnAddLinuxEnvironmentVariable name="PATH" value="$PATH:${path}" scope="${scope}"/>
-                    </actionList>
-                    <elseActionList>
-                        <addDirectoryToPath insertAt="${insertAt}" path="${path}" scope="${scope}"/>
-                    </elseActionList>
-                </if>
+                </actionGroup>
             </actionList>
         </actionDefinition>
     </functionDefinitionList>
@@ -193,20 +142,6 @@
         </directoryParameter>
     </parameterList>
 
-    <preInitializationActionList>
-        <setInstallerVariable name="_fnAddEnvironmentVariable_list" value=""/>
-        <if>
-            <conditionRuleList>
-                <platformTest type="windows"/>
-            </conditionRuleList>
-            <actionList>
-                <setInstallerVariable name="platform_env_path_sep" value=";"/>
-            </actionList>
-            <elseActionList>
-                <setInstallerVariable name="platform_env_path_sep" value=":"/>
-            </elseActionList>
-        </if>
-    </preInitializationActionList>
     <preInstallationActionList>
         <componentSelection>
             <select>deadline_cloud_for_maya</select>
@@ -215,6 +150,8 @@
     </preInstallationActionList>
     <postInstallationActionList>
         <setInstallerVariable name="installscope" value="${installscope}" persist="1"/>
+        <!-- The uninstaller needs this to remove the legacy MAYA_MODULE_PATH line. -->
+        <setInstallerVariable name="maya_installdir" value="${maya_installdir}" persist="1"/>
         <writeFile>
             <progressText>Writing version file</progressText>
             <path>${installdir}/installer_version.txt</path>
@@ -238,6 +175,7 @@
                 <isFalse value="${installer_is_root_install}"/>
             </ruleList>
         </actionGroup>
+        <fnRemoveLegacyMayaModulePath installDir="${maya_installdir}"/>
         <deleteFile path="${installdir}/installer_version.txt"/>
         <if>
             <conditionRuleList>
