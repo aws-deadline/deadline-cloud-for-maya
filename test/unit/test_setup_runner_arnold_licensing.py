@@ -80,3 +80,57 @@ def test_registered_arnold_uses_network_licensing_in_ci(setup_runner, monkeypatc
         "--ls",
         "2701@licenses.example",
     ]
+
+
+@pytest.mark.parametrize("maya_version,license_version", [("2025", "2026"), ("2027", "2027")])
+def test_mayaio_pit_preserves_maya_and_adds_matching_arnold(
+    setup_runner, monkeypatch, tmp_path, maya_version, license_version
+):
+    from types import SimpleNamespace
+
+    maya_root = tmp_path / "maya"
+    maya_pit = maya_root / "lib" / "ProductInformation.pit"
+    maya_pit.parent.mkdir(parents=True)
+    maya_pit.write_bytes(b"MAYAIO entry")
+    install_dir = tmp_path / "mtoa"
+    arnold_pit = install_dir / "license" / "pit" / "ArnoldConfig.pit"
+    arnold_pit.parent.mkdir(parents=True)
+    arnold_pit.touch()
+    system_pit = tmp_path / "system" / "ProductInformation.pit"
+    monkeypatch.setattr(
+        setup_runner,
+        "Path",
+        lambda value: (
+            system_pit
+            if str(value).endswith("Adlm/.config/ProductInformation.pit")
+            else Path(value)
+        ),
+    )
+    monkeypatch.setattr(setup_runner, "_find_mayapy", lambda path: maya_root / "bin" / "mayapy")
+    monkeypatch.setattr(
+        setup_runner.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            stdout=f'[{{"feature_id":"ARNOL","def_prod_key":"arnold-key",'
+            f'"def_prod_ver":"{license_version}.0.0.F"}}]'
+        ),
+    )
+
+    def register(command, **kwargs):
+        assert system_pit.read_bytes() == b"MAYAIO entry"
+        assert command[1:] == [
+            "register",
+            "--pk",
+            "arnold-key",
+            "--pv",
+            f"{license_version}.0.0.F",
+            "--lm",
+            "NETWORK",
+            "--cf",
+            str(arnold_pit),
+        ]
+        system_pit.write_bytes(system_pit.read_bytes() + b";ARNOLD entry")
+
+    monkeypatch.setattr(setup_runner, "run_with_timeout", register)
+    setup_runner._register_arnold_for_mayaio(maya_version, install_dir)
+    assert maya_pit.read_bytes() == b"MAYAIO entry;ARNOLD entry"

@@ -32,6 +32,7 @@ def main():
             cmds.setAttr("defaultArnoldRenderOptions.abortOnLicenseFail", True)
             cmds.arnoldRender(batch=True, seq=request["frame"], camera=request["camera"])
         elif renderer == "vray":
+            cmds.setAttr("vraySettings.fileNamePrefix", request["prefix"], type="string")
             cmds.setAttr("vraySettings.width", request["width"])
             cmds.setAttr("vraySettings.height", request["height"])
             cmds.setAttr("vraySettings.animType", 2)
