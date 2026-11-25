@@ -2,6 +2,9 @@
 
 from pathlib import Path
 from typing import Any
+import base64
+import io
+import json
 import yaml
 import re
 
@@ -26,14 +29,40 @@ def are_images_similar(
         # Open the two image files with Pillow https://pillow.readthedocs.io/en/stable/index.html
         # and put them in numpy arrays. Pillow doesn't have a good built-in way to do image comparison
         # with tolerance.
-        actual = np.asarray(PIL.Image.open(actual_image_directory / image.name))
-        expected = np.asarray(PIL.Image.open(image))
+        with PIL.Image.open(actual_image_directory / image.name) as actual_image:
+            actual = np.asarray(actual_image)
+            with PIL.Image.open(image) as expected_image:
+                expected = np.asarray(expected_image)
 
-        # Check that the two images are the same within a tolerance.
-        # It's normal for there to be noise in an output image, so it is unlikely that two
-        # renders will be exactly the same.
-        if actual.shape != expected.shape or not np.allclose(actual, expected, atol=tolerance):
-            return False
+                # Keep the comparison strict, but show what differed in CI's captured logs.
+                if actual.shape != expected.shape or not np.allclose(
+                    actual, expected, atol=tolerance
+                ):
+                    diagnostic: dict[str, Any] = {
+                        "filename": image.name,
+                        "actual_mode": actual_image.mode,
+                        "expected_mode": expected_image.mode,
+                        "actual_shape": actual.shape,
+                        "expected_shape": expected.shape,
+                        "tolerance": tolerance,
+                    }
+                    if actual.shape == expected.shape:
+                        delta = np.abs(actual.astype(float) - expected.astype(float))
+                        diagnostic["max_error"] = float(delta.max())
+                        diagnostic["mean_error"] = float(delta.mean())
+                        diagnostic["error_percentiles"] = np.percentile(
+                            delta, [50, 90, 99, 100]
+                        ).tolist()
+                        diagnostic["outside_tolerance_fraction"] = float(np.mean(delta > tolerance))
+                    preview = actual_image.copy()
+                    preview.thumbnail((320, 180))
+                    encoded = io.BytesIO()
+                    preview.save(encoded, format="PNG")
+                    diagnostic["actual_preview_png"] = base64.b64encode(encoded.getvalue()).decode(
+                        "ascii"
+                    )
+                    print("RENDER_IMAGE_DIAGNOSTIC " + json.dumps(diagnostic), flush=True)
+                    return False
     return True
 
 
