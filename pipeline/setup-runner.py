@@ -435,6 +435,21 @@ def _install_maya_linux(version: str) -> Path:
     return maya_dir
 
 
+def _configure_arnold_licensing_linux(install_dir: Path) -> None:
+    """Run the licensing steps from Autodesk's MtoA unix_installer.py."""
+    license_dir = install_dir / "license"
+    # Older payloads have a separate CLM/PIT installer; newer payloads bundle
+    # installation and product registration into LicensingUpdater.
+    for installer in sorted(license_dir.glob("ArnoldLicensing-*-linux.run")):
+        run(["chmod", "+x", str(installer)])
+        run_with_timeout([str(installer), "--silent"], label="Install Arnold licensing")
+    updater = license_dir / "LicensingUpdater"
+    if not updater.is_file():
+        raise RuntimeError(f"MtoA installer is missing its licensing updater: {updater}")
+    run(["chmod", "+x", str(updater)])
+    run_with_timeout([str(updater)], label="Register Arnold licensing")
+
+
 def _install_mtoa_linux(version: str) -> None:
     """Install MtoA (Arnold for Maya) for the given Maya version."""
     if version not in MTOA_YEAR_TO_CONFIG:
@@ -444,6 +459,7 @@ def _install_mtoa_linux(version: str) -> None:
     mtoa_install_dir = Path(f"/opt/solidangle/mtoa/{version}")
     marker = mtoa_install_dir / ".installed"
     if marker.exists():
+        _configure_arnold_licensing_linux(mtoa_install_dir)
         print(f"MtoA for Maya {version} already installed")
         return
 
@@ -484,6 +500,7 @@ def _install_mtoa_linux(version: str) -> None:
         else:
             run(["tar", "-xzf", str(pkg), "-C", str(mtoa_install_dir)])
         run(["rm", "-rf", str(extract_tmp)], check=False)
+        _configure_arnold_licensing_linux(mtoa_install_dir)
 
         # Verify — installer lays down plugins under $prefix/plug-ins.
         arnold_plugin = mtoa_install_dir / "plug-ins" / "mtoa.so"
