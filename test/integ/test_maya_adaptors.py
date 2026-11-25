@@ -88,7 +88,7 @@ class TestAdaptors:
             "OutputFilePath": str(output_path),
             "ProjectPath": str(test_file_location / "scene") + "/",
             "RenderSetupIncludeLights": "false",
-            "ArnoldErrorOnLicenseFailure": "false",
+            "ArnoldErrorOnLicenseFailure": "true",
         }
 
         run_adaptor_test(test_file_location / EXPECTED_JOB_BUNDLE_FOLDER / TEMPLATE, job_params)
