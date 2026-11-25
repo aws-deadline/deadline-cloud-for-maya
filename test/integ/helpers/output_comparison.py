@@ -16,7 +16,11 @@ from test.integ.test_const import ASSET_REFERENCES, PARAMETER_VALUES
 
 
 def are_images_similar(
-    expected_image_directory: Path, actual_image_directory: Path, tolerance: int
+    expected_image_directory: Path,
+    actual_image_directory: Path,
+    tolerance: int,
+    *,
+    comparison: str = "pixels",
 ) -> bool:
     """
     Helper function that compare if the render output from the adaptor match what we expected
@@ -34,10 +38,36 @@ def are_images_similar(
             with PIL.Image.open(image) as expected_image:
                 expected = np.asarray(expected_image)
 
-                # Keep the comparison strict, but show what differed in CI's captured logs.
-                if actual.shape != expected.shape or not np.allclose(
-                    actual, expected, atol=tolerance
-                ):
+                matches = actual.shape == expected.shape
+                if matches:
+                    delta = np.abs(actual.astype(float) - expected.astype(float))
+                    if comparison == "pixels":
+                        matches = bool(np.allclose(actual, expected, atol=tolerance))
+                    elif comparison == "sampling":
+                        # Independent renderer processes can choose different samples.
+                        # Bound RMS error in every 64px region, so a local defect cannot
+                        # disappear into a small whole-image average.
+                        region_errors = [
+                            np.sqrt(np.mean(delta[y : y + 64, x : x + 64] ** 2))
+                            for y in range(0, delta.shape[0], 64)
+                            for x in range(0, delta.shape[1], 64)
+                        ]
+                        matches = max(region_errors) <= tolerance
+                    elif comparison == "layout":
+                        # Historical desktop references retain a coarse composition and
+                        # color check; detailed pixels are checked against native Maya.
+                        actual_layout = np.asarray(
+                            actual_image.resize((32, 18), PIL.Image.Resampling.BOX), dtype=float
+                        )
+                        expected_layout = np.asarray(
+                            expected_image.resize((32, 18), PIL.Image.Resampling.BOX), dtype=float
+                        )
+                        matches = bool(
+                            np.mean(np.abs(actual_layout - expected_layout)) <= tolerance
+                        )
+                    else:
+                        raise ValueError(f"Unknown image comparison: {comparison}")
+                if not matches:
                     diagnostic: dict[str, Any] = {
                         "filename": image.name,
                         "actual_mode": actual_image.mode,
@@ -45,11 +75,15 @@ def are_images_similar(
                         "actual_shape": actual.shape,
                         "expected_shape": expected.shape,
                         "tolerance": tolerance,
+                        "comparison": comparison,
                     }
                     if actual.shape == expected.shape:
                         delta = np.abs(actual.astype(float) - expected.astype(float))
                         diagnostic["max_error"] = float(delta.max())
                         diagnostic["mean_error"] = float(delta.mean())
+                        diagnostic["rms_error"] = float(np.sqrt(np.mean(delta**2)))
+                        if comparison == "sampling":
+                            diagnostic["max_region_rms_error"] = float(max(region_errors))
                         diagnostic["error_percentiles"] = np.percentile(
                             delta, [50, 90, 99, 100]
                         ).tolist()
