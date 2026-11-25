@@ -5,6 +5,7 @@ from PIL import Image
 
 from test.integ.helpers.output_comparison import are_images_similar
 from test.integ import test_maya_adaptors
+from test.integ.helpers import test_runners
 
 
 @pytest.mark.parametrize(
@@ -40,6 +41,35 @@ def test_arnold_license_failure_stops_before_image_comparison(monkeypatch, tmp_p
 
     with pytest.raises(RuntimeError, match="Arnold license checkout failed"):
         test_maya_adaptors.TestAdaptors().test_mtoa_scene_adaptor(tmp_path, tmp_path)
+
+
+def test_native_reference_rejects_license_failure_even_with_zero_exit_and_png(
+    monkeypatch, tmp_path
+):
+    import subprocess
+
+    output = tmp_path / "reference"
+
+    def render(args):
+        Image.new("RGB", (2, 2)).save(output / "frame.png")
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            stdout=b"WARNING | rendering with watermarks because of failed authorization",
+            stderr=b"",
+        )
+
+    monkeypatch.setattr(test_runners, "run_command", render)
+    params = {
+        "MayaSceneFile": "scene.ma",
+        "ProjectPath": ".",
+        "OutputFilePrefix": "frame",
+        "ImageWidth": 2,
+        "ImageHeight": 2,
+        "Frames": "1",
+    }
+    with pytest.raises(AssertionError, match="failed license authorization"):
+        test_runners.run_native_reference("arnold", params, output)
 
 
 @pytest.mark.parametrize(

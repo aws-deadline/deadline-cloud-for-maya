@@ -83,5 +83,12 @@ def run_native_reference(renderer: str, job_params: dict[str, Any], output_path:
         ["mayapy", str(Path(__file__).with_name("native_render.py")), json.dumps(request)]
     )
     assert result.returncode == 0, f"Native {renderer} reference render failed"
+    # Maya can report a renderer error in its log while mayapy still exits zero.
+    # A leftover/partial PNG must never turn an unlicensed render into a reference.
+    render_log = (result.stdout + result.stderr).decode("utf-8", errors="replace").lower()
+    assert (
+        "rendering with watermarks" not in render_log
+    ), f"Native {renderer} reference failed license authorization"
+    assert "aborting render because" not in render_log, f"Native {renderer} reference aborted"
     assert any(output_path.glob("*.png")), f"Native {renderer} reference produced no PNG"
     return output_path
