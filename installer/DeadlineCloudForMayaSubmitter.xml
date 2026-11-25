@@ -44,7 +44,9 @@
             user's shell startup files. The frozen value masks the user's own MAYA_MODULE_PATH, and nothing
             removed it on upgrade or uninstall. This removes exactly those lines, for this install directory
             only, from the startup files in ${user_home_directory}. It never fails the install. For a
-            system-scope install it runs as root, and keeps each file's owner and mode.
+            system-scope install it runs as root, and keeps each file's owner and mode. This action is
+            used on uninstall. The component's postInstallationActionList runs the same script inline on
+            install, because the component may be included by projects that don't define this action.
 
             Windows is deliberately not handled here. Those installers wrote the merged value to the
             MAYA_MODULE_PATH registry value instead, and on machines upgraded from 0.15.15 or earlier that

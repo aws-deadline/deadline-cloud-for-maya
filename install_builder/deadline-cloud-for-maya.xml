@@ -80,8 +80,32 @@
 		</stringParameter>
 	</parameterList>
     <postInstallationActionList>
-        <!-- Runs first so that upgrading over an installer up to 0.15.15 removes its MAYA_MODULE_PATH line. -->
-        <fnRemoveLegacyMayaModulePath installDir="${maya_installdir}"/>
+        <!-- Runs first so that upgrading over an installer up to 0.15.15 removes its MAYA_MODULE_PATH line.
+        See fnRemoveLegacyMayaModulePath in installer/DeadlineCloudForMayaSubmitter.xml, which runs the same
+        script on uninstall. It is inlined here, not called, because this component may be included by other
+        installer projects that don't define that action. -->
+        <actionGroup>
+            <ruleEvaluationLogic>or</ruleEvaluationLogic>
+            <ruleList>
+                <platformTest type="linux"/>
+                <platformTest type="osx"/>
+            </ruleList>
+            <actionList>
+                <setInstallerVariable name="program_stdout" value=""/>
+                <setInstallerVariable name="program_stderr" value=""/>
+                <runProgram>
+                    <progressText>Removing legacy MAYA_MODULE_PATH settings</progressText>
+                    <program>/bin/sh</program>
+                    <programArguments>"${maya_installdir}/installer_scripts/remove_legacy_maya_module_path.sh" "${maya_installdir}" "${user_home_directory}"</programArguments>
+                    <abortOnError>0</abortOnError>
+                    <showMessageOnError>0</showMessageOnError>
+                    <ruleList>
+                        <fileExists path="${maya_installdir}/installer_scripts/remove_legacy_maya_module_path.sh"/>
+                    </ruleList>
+                </runProgram>
+                <logMessage text="${program_stdout}${program_stderr}"/>
+            </actionList>
+        </actionGroup>
         <unzip>
             <destinationDirectory>${maya_installdir}/scripts</destinationDirectory>
             <zipFile>${installdir}/tmp/maya_deps/dependency_bundle/deadline_cloud_for_maya_submitter-deps.zip</zipFile>
