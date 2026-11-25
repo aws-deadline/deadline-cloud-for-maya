@@ -7,7 +7,7 @@ import yaml
 from flaky import flaky
 
 from .helpers.output_comparison import are_images_similar
-from .helpers.test_runners import run_adaptor_test, run_command
+from .helpers.test_runners import run_adaptor_test, run_command, run_native_reference
 
 from test.integ.test_const import (
     TEMPLATE,
@@ -66,11 +66,14 @@ class TestAdaptors:
             "RenderSetupIncludeLights": "false",
         }
 
+        reference = run_native_reference("redshift", job_params, tmp_path / "native_reference")
         run_adaptor_test(test_file_location / EXPECTED_JOB_BUNDLE_FOLDER / TEMPLATE, job_params)
+        assert are_images_similar(reference, output_path, tolerance=2, comparison="sampling")
         assert are_images_similar(
             expected_image_directory=test_file_location / EXPECTED_OUTPUT_FOLDER,
             actual_image_directory=output_path,
             tolerance=2,
+            comparison="layout",
         )
 
     @pytest.mark.mtoa_renderer
@@ -91,11 +94,14 @@ class TestAdaptors:
             "ArnoldErrorOnLicenseFailure": "true",
         }
 
+        reference = run_native_reference("arnold", job_params, tmp_path / "native_reference")
         run_adaptor_test(test_file_location / EXPECTED_JOB_BUNDLE_FOLDER / TEMPLATE, job_params)
+        assert are_images_similar(reference, output_path, tolerance=2, comparison="sampling")
         assert are_images_similar(
             expected_image_directory=test_file_location / EXPECTED_OUTPUT_FOLDER,
             actual_image_directory=output_path,
             tolerance=2,
+            comparison="layout",
         )
 
     @pytest.mark.vray_renderer
@@ -115,11 +121,14 @@ class TestAdaptors:
             "RenderSetupIncludeLights": "false",
         }
 
+        reference = run_native_reference("vray", job_params, tmp_path / "native_reference")
         run_adaptor_test(test_file_location / EXPECTED_JOB_BUNDLE_FOLDER / TEMPLATE, job_params)
+        assert are_images_similar(reference, output_path, tolerance=2, comparison="sampling")
         assert are_images_similar(
             expected_image_directory=test_file_location / EXPECTED_OUTPUT_FOLDER,
             actual_image_directory=output_path,
             tolerance=2,
+            comparison="layout",
         )
 
 

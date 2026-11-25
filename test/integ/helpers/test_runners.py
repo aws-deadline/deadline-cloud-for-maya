@@ -63,3 +63,25 @@ def run_adaptor_test(template_path: Path, job_params: dict[str, Any]) -> None:
             ]
         )
         assert output.returncode == 0
+
+
+def run_native_reference(renderer: str, job_params: dict[str, Any], output_path: Path) -> Path:
+    """Generate reference pixels using Maya directly, without importing the adaptor."""
+    output_path.mkdir()
+    request = {
+        "renderer": renderer,
+        "scene": job_params["MayaSceneFile"],
+        "project": job_params["ProjectPath"],
+        "output": str(output_path),
+        "prefix": job_params["OutputFilePrefix"],
+        "width": job_params["ImageWidth"],
+        "height": job_params["ImageHeight"],
+        "frame": int(job_params["Frames"]),
+        "camera": "persp",
+    }
+    result = run_command(
+        ["mayapy", str(Path(__file__).with_name("native_render.py")), json.dumps(request)]
+    )
+    assert result.returncode == 0, f"Native {renderer} reference render failed"
+    assert any(output_path.glob("*.png")), f"Native {renderer} reference produced no PNG"
+    return output_path
