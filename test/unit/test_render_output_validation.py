@@ -25,6 +25,23 @@ def test_render_mismatch_fails_each_adaptor_case(monkeypatch, tmp_path, method):
         getattr(test_maya_adaptors.TestAdaptors(), method)(tmp_path, tmp_path)
 
 
+def test_arnold_license_failure_stops_before_image_comparison(monkeypatch, tmp_path):
+    monkeypatch.setattr(test_maya_adaptors, "run_native_reference", lambda *args: tmp_path)
+
+    def fail_without_license(template, params):
+        assert params["ArnoldErrorOnLicenseFailure"] == "true"
+        raise RuntimeError("Arnold license checkout failed")
+
+    def unexpected_comparison(*args, **kwargs):
+        pytest.fail("An unlicensed render must fail before comparing images")
+
+    monkeypatch.setattr(test_maya_adaptors, "run_adaptor_test", fail_without_license)
+    monkeypatch.setattr(test_maya_adaptors, "are_images_similar", unexpected_comparison)
+
+    with pytest.raises(RuntimeError, match="Arnold license checkout failed"):
+        test_maya_adaptors.TestAdaptors().test_mtoa_scene_adaptor(tmp_path, tmp_path)
+
+
 @pytest.mark.parametrize(
     "pixel,size,similar",
     [(100, (2, 2), True), (102, (2, 2), True), (255, (2, 2), False), (100, (3, 3), False)],
