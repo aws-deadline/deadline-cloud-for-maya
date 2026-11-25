@@ -175,20 +175,6 @@ Submitter integration tests are located under `test/integ/test_maya_submitters.p
 or modifying functionality, then you will want to be writing one or more integ tests to demonstrate that your
 logic behaves as expected and that future changes do not accidentally break your change.
 
-The Arnold, Redshift, and V-Ray adaptor cases render each fixture directly in a
-separate Maya process before rendering it through the adaptor. This provides an
-independent reference from the same Maya/renderer version and platform, rather
-than requiring new renderers to reproduce pixels saved by older macOS versions.
-The reference process exits before the adaptor starts, releasing its license.
-Arnold authorization failures abort the test instead of producing watermarks.
-
-Detailed comparisons bound RMS channel error to two intensity levels in every
-64-pixel region. This permits sparse sampling noise without letting a localized
-render defect disappear into the whole-image average. A separate comparison to
-the historical images at 32×18 resolution checks overall composition and color.
-The Maya software-renderer case retains its per-pixel comparison. Failed comparisons
-include dimensions, error statistics, and a rendered preview in the test logs.
-
 To run the integ tests, you need to:
 1. Install Maya 2025
 2. Install Redshift for Maya 2025

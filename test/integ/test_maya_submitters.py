@@ -183,10 +183,7 @@ class TestSubmitters:
         widget.shared_job_settings.update_settings(settings)
         widget.job_settings.update_settings(settings)
 
-        # Import Maya's render-setup module only after standalone initialization.
-        from deadline.maya_submitter.render_layers import LayerSelection
-
-        settings.render_layer_selection = LayerSelection.ALL
+        settings.view_layer_selection = "All Renderable Layers"
         settings.camera_selection = "All Renderable Cameras"
         settings.description = ""
         settings.include_adaptor_wheels = False
@@ -333,9 +330,7 @@ class TestSubmitters:
         widget.shared_job_settings.update_settings(settings)
         widget.job_settings.update_settings(settings)
 
-        from deadline.maya_submitter.render_layers import LayerSelection
-
-        settings.render_layer_selection = LayerSelection.ALL
+        settings.view_layer_selection = "All Renderable Layers"
         settings.camera_selection = "All Renderable Cameras"
         settings.description = ""
         settings.include_adaptor_wheels = False
