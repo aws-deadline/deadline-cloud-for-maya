@@ -448,6 +448,35 @@ def _configure_arnold_licensing_linux(install_dir: Path) -> None:
         raise RuntimeError(f"MtoA installer is missing its licensing updater: {updater}")
     run(["chmod", "+x", str(updater)])
     run_with_timeout([str(updater)], label="Register Arnold licensing")
+    license_dns = os.environ.get("LICENSE_ENDPOINT_DNS")
+    if license_dns:
+        # The vendor updater registers USER licensing. CI has a network license
+        # endpoint, and cannot answer the Desktop Licensing Service's login UI.
+        helper = Path("/opt/Autodesk/AdskLicensing/Current/helper/AdskLicensingInstHelper")
+        listed = subprocess.run([str(helper), "list"], check=True, capture_output=True, text=True)
+        products = [
+            product for product in json.loads(listed.stdout) if product.get("feature_id") == "ARNOL"
+        ]
+        if not products:
+            raise RuntimeError("Arnold was not registered with Autodesk Licensing")
+        for product in products:
+            run_with_timeout(
+                [
+                    str(helper),
+                    "change",
+                    "--pk",
+                    str(product.get("sel_prod_key") or product["def_prod_key"]),
+                    "--pv",
+                    str(product.get("sel_prod_ver") or product["def_prod_ver"]),
+                    "--lm",
+                    "NETWORK",
+                    "--lt",
+                    "SINGLE",
+                    "--ls",
+                    f"2701@{license_dns}",
+                ],
+                label="Configure Arnold network licensing",
+            )
 
 
 def _install_mtoa_linux(version: str) -> None:
