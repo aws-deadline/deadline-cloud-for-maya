@@ -21,6 +21,8 @@ def test_gui_workflows_test_release_tags_and_run_on_mainline(platform):
     gui = data["jobs"][f"GuiTests{platform.title()}"]
     assert "refs/heads/mainline" in gui["if"]
     assert gui["concurrency"]["group"] == "maya-gui-tests"
+    assert gui["concurrency"]["queue"] == "max"
+    assert gui["concurrency"].get("cancel-in-progress", "false") == "false"
     for job in data["jobs"].values():
         for step in job["steps"]:
             if step.get("name") == "Checkout":

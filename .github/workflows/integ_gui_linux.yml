@@ -62,6 +62,8 @@ jobs:
     # Share the developer-license seats with the Windows GUI workflow.
     concurrency:
       group: maya-gui-tests
+      # Preserve waiting release tests when later mainline GUI jobs arrive.
+      queue: max
     permissions:
       id-token: write
       contents: read

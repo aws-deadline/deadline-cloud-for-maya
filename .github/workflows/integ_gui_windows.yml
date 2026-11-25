@@ -44,6 +44,8 @@ jobs:
     # Serialize license use per job, including reusable release calls.
     concurrency:
       group: maya-gui-tests
+      # Preserve waiting release tests when later mainline GUI jobs arrive.
+      queue: max
     strategy:
       fail-fast: false
       matrix:
