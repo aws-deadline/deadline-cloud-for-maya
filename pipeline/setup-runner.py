@@ -125,6 +125,14 @@ MTOA_YEAR_TO_CONFIG: dict[str, RendererVersionConfig] = {
     },
 }
 
+# Arnold's license year follows its minor version, not the Maya host year.
+# MtoA 5.5 / Arnold 7.4 uses ARNOL_2026; MtoA 5.6 / Arnold 7.5 uses ARNOL_2027.
+MTOA_LICENSE_VERSION = {
+    "2025": "2026.0.0.F",
+    "2026": "2026.0.0.F",
+    "2027": "2027.0.0.F",
+}
+
 # V-Ray for Maya — Chaos RHEL8 self-extracting installer per Maya version.
 VRAY_YEAR_TO_CONFIG: dict[str, RendererVersionConfig] = {
     "2025": {
@@ -435,6 +443,99 @@ def _install_maya_linux(version: str) -> Path:
     return maya_dir
 
 
+def _configure_arnold_licensing_linux(install_dir: Path) -> None:
+    """Run the licensing steps from Autodesk's MtoA unix_installer.py."""
+    license_dir = install_dir / "license"
+    # Older payloads have a separate CLM/PIT installer; newer payloads bundle
+    # installation and product registration into LicensingUpdater.
+    for installer in sorted(license_dir.glob("ArnoldLicensing-*-linux.run")):
+        run(["chmod", "+x", str(installer)])
+        run_with_timeout([str(installer), "--silent"], label="Install Arnold licensing")
+    updater = license_dir / "LicensingUpdater"
+    if not updater.is_file():
+        raise RuntimeError(f"MtoA installer is missing its licensing updater: {updater}")
+    run(["chmod", "+x", str(updater)])
+    run_with_timeout([str(updater)], label="Register Arnold licensing")
+    license_dns = os.environ.get("LICENSE_ENDPOINT_DNS")
+    if license_dns:
+        # The vendor updater registers USER licensing. CI has a network license
+        # endpoint, and cannot answer the Desktop Licensing Service's login UI.
+        helper = Path("/opt/Autodesk/AdskLicensing/Current/helper/AdskLicensingInstHelper")
+        listed = subprocess.run([str(helper), "list"], check=True, capture_output=True, text=True)
+        products = [
+            product for product in json.loads(listed.stdout) if product.get("feature_id") == "ARNOL"
+        ]
+        if not products:
+            raise RuntimeError("Arnold was not registered with Autodesk Licensing")
+        for product in products:
+            run_with_timeout(
+                [
+                    str(helper),
+                    "change",
+                    "--pk",
+                    str(product.get("sel_prod_key") or product["def_prod_key"]),
+                    "--pv",
+                    str(product.get("sel_prod_ver") or product["def_prod_ver"]),
+                    "--lm",
+                    "NETWORK",
+                    "--lt",
+                    "SINGLE",
+                    "--ls",
+                    f"2701@{license_dns}",
+                ],
+                label="Configure Arnold network licensing",
+            )
+
+
+def _register_arnold_for_mayaio(version: str, install_dir: Path) -> None:
+    """Merge the matching Arnold product into MayaIO's local PIT.
+
+    MayaIO reads lib/ProductInformation.pit instead of the system PIT written
+    by LicensingUpdater. Seed the system PIT with MayaIO's entries, register
+    Arnold using Autodesk's helper, then copy the merged file back. Replacing
+    MayaIO's PIT with an Arnold-only PIT would discard the MayaIO product.
+    """
+    maya_dir = Path(f"/opt/Autodesk/mayaio/{version}")
+    maya_pit = _find_mayapy(maya_dir).parent.parent / "lib" / "ProductInformation.pit"
+    system_pit = Path("/var/opt/Autodesk/Adlm/.config/ProductInformation.pit")
+    arnold_pit = install_dir / "license" / "pit" / "ArnoldConfig.pit"
+    helper = Path("/opt/Autodesk/AdskLicensing/Current/helper/AdskLicensingInstHelper")
+    for pit in (maya_pit, arnold_pit):
+        if not pit.is_file():
+            raise RuntimeError(f"Missing product information required for Arnold licensing: {pit}")
+    listed = subprocess.run([str(helper), "list"], check=True, capture_output=True, text=True)
+    product = next(
+        (
+            entry
+            for entry in json.loads(listed.stdout)
+            if entry.get("feature_id") == "ARNOL"
+            and entry.get("def_prod_ver") == MTOA_LICENSE_VERSION[version]
+        ),
+        None,
+    )
+    if product is None:
+        raise RuntimeError(f"Arnold {MTOA_LICENSE_VERSION[version]} is not registered")
+    system_pit.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(maya_pit, system_pit)
+    run_with_timeout(
+        [
+            str(helper),
+            "register",
+            "--pk",
+            str(product["def_prod_key"]),
+            "--pv",
+            str(product["def_prod_ver"]),
+            "--lm",
+            "NETWORK",
+            "--cf",
+            str(arnold_pit),
+        ],
+        label=f"Register Arnold product in MayaIO {version} PIT",
+    )
+    shutil.copy2(system_pit, maya_pit)
+    print(f"MayaIO {version} PIT includes Arnold {product['def_prod_ver']}", flush=True)
+
+
 def _install_mtoa_linux(version: str) -> None:
     """Install MtoA (Arnold for Maya) for the given Maya version."""
     if version not in MTOA_YEAR_TO_CONFIG:
@@ -444,6 +545,8 @@ def _install_mtoa_linux(version: str) -> None:
     mtoa_install_dir = Path(f"/opt/solidangle/mtoa/{version}")
     marker = mtoa_install_dir / ".installed"
     if marker.exists():
+        _configure_arnold_licensing_linux(mtoa_install_dir)
+        _register_arnold_for_mayaio(version, mtoa_install_dir)
         print(f"MtoA for Maya {version} already installed")
         return
 
@@ -484,6 +587,8 @@ def _install_mtoa_linux(version: str) -> None:
         else:
             run(["tar", "-xzf", str(pkg), "-C", str(mtoa_install_dir)])
         run(["rm", "-rf", str(extract_tmp)], check=False)
+        _configure_arnold_licensing_linux(mtoa_install_dir)
+        _register_arnold_for_mayaio(version, mtoa_install_dir)
 
         # Verify — installer lays down plugins under $prefix/plug-ins.
         arnold_plugin = mtoa_install_dir / "plug-ins" / "mtoa.so"
