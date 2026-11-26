@@ -181,6 +181,13 @@ independent reference from the same Maya/renderer version and platform, rather
 than requiring new renderers to reproduce pixels saved by older macOS versions.
 The reference process exits before the adaptor starts, releasing its license.
 Arnold authorization failures abort the test instead of producing watermarks.
+The explicit native-render license checks cover Arnold only; V-Ray and Redshift
+retain their existing adaptor error handling and image checks.
+
+Linux setup restores the system PIT after updating MayaIO's bundled PIT.
+Successful registration is cached per Maya version using the MtoA checksum,
+Arnold license version, license endpoint, and bundled PIT hash. A changed PIT
+(including one replaced by reinstalling MayaIO) invalidates the cache.
 
 Detailed comparisons bound RMS channel error to two intensity levels in every
 64-pixel region. This permits sparse sampling noise without letting a localized
