@@ -85,7 +85,8 @@ class DefaultMayaHandler:
                 _get_render_layer_display_name(name): name
                 for name in maya.cmds.ls(type="renderLayer")
                 if not maya.cmds.referenceQuery(name, isNodeReferenced=True)
-                and maya.cmds.listConnections(name, t="renderLayerManager")[0] == render_manager
+                and render_manager
+                in (maya.cmds.listConnections(name, t="renderLayerManager") or [])
             }
 
             if display_name in render_layer_map:

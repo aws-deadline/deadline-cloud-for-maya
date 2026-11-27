@@ -2,6 +2,9 @@
 
 from pathlib import Path
 from typing import Any
+import base64
+import io
+import json
 import yaml
 import re
 
@@ -13,26 +16,87 @@ from test.integ.test_const import ASSET_REFERENCES, PARAMETER_VALUES
 
 
 def are_images_similar(
-    expected_image_directory: Path, actual_image_directory: Path, tolerance: int
+    expected_image_directory: Path,
+    actual_image_directory: Path,
+    tolerance: int,
+    *,
+    comparison: str = "pixels",
 ) -> bool:
     """
     Helper function that compare if the render output from the adaptor match what we expected
     """
-    for image in (expected_image_directory).iterdir():
-        if not image.is_file():
-            continue
+    images = [image for image in expected_image_directory.iterdir() if image.is_file()]
+    if not images:
+        return False
+    for image in images:
 
         # Open the two image files with Pillow https://pillow.readthedocs.io/en/stable/index.html
         # and put them in numpy arrays. Pillow doesn't have a good built-in way to do image comparison
         # with tolerance.
-        actual = np.asarray(PIL.Image.open(actual_image_directory / image.name))
-        expected = np.asarray(PIL.Image.open(image))
+        with PIL.Image.open(actual_image_directory / image.name) as actual_image:
+            actual = np.asarray(actual_image)
+            with PIL.Image.open(image) as expected_image:
+                expected = np.asarray(expected_image)
 
-        # Check that the two images are the same within a tolerance.
-        # It's normal for there to be noise in an output image, so it is unlikely that two
-        # renders will be exactly the same.
-        if not np.allclose(actual, expected, atol=tolerance):
-            return False
+                matches = actual.shape == expected.shape
+                if matches:
+                    delta = np.abs(actual.astype(float) - expected.astype(float))
+                    if comparison == "pixels":
+                        matches = bool(np.allclose(actual, expected, atol=tolerance))
+                    elif comparison == "sampling":
+                        # Independent renderer processes can choose different samples.
+                        # Bound RMS error in every 64px region, so a local defect cannot
+                        # disappear into a small whole-image average.
+                        region_errors = [
+                            np.sqrt(np.mean(delta[y : y + 64, x : x + 64] ** 2))
+                            for y in range(0, delta.shape[0], 64)
+                            for x in range(0, delta.shape[1], 64)
+                        ]
+                        matches = max(region_errors) <= tolerance
+                    elif comparison == "layout":
+                        # Historical desktop references retain a coarse composition and
+                        # color check; detailed pixels are checked against native Maya.
+                        actual_layout = np.asarray(
+                            actual_image.resize((32, 18), PIL.Image.Resampling.BOX), dtype=float
+                        )
+                        expected_layout = np.asarray(
+                            expected_image.resize((32, 18), PIL.Image.Resampling.BOX), dtype=float
+                        )
+                        matches = bool(
+                            np.mean(np.abs(actual_layout - expected_layout)) <= tolerance
+                        )
+                    else:
+                        raise ValueError(f"Unknown image comparison: {comparison}")
+                if not matches:
+                    diagnostic: dict[str, Any] = {
+                        "filename": image.name,
+                        "actual_mode": actual_image.mode,
+                        "expected_mode": expected_image.mode,
+                        "actual_shape": actual.shape,
+                        "expected_shape": expected.shape,
+                        "tolerance": tolerance,
+                        "comparison": comparison,
+                    }
+                    if actual.shape == expected.shape:
+                        delta = np.abs(actual.astype(float) - expected.astype(float))
+                        diagnostic["max_error"] = float(delta.max())
+                        diagnostic["mean_error"] = float(delta.mean())
+                        diagnostic["rms_error"] = float(np.sqrt(np.mean(delta**2)))
+                        if comparison == "sampling":
+                            diagnostic["max_region_rms_error"] = float(max(region_errors))
+                        diagnostic["error_percentiles"] = np.percentile(
+                            delta, [50, 90, 99, 100]
+                        ).tolist()
+                        diagnostic["outside_tolerance_fraction"] = float(np.mean(delta > tolerance))
+                    preview = actual_image.copy()
+                    preview.thumbnail((320, 180))
+                    encoded = io.BytesIO()
+                    preview.save(encoded, format="PNG")
+                    diagnostic["actual_preview_png"] = base64.b64encode(encoded.getvalue()).decode(
+                        "ascii"
+                    )
+                    print("RENDER_IMAGE_DIAGNOSTIC " + json.dumps(diagnostic), flush=True)
+                    return False
     return True
 
 
