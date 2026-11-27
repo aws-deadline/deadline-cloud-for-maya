@@ -1,6 +1,6 @@
 pillow == 12.*
 numpy == 2.*
-openjd-cli == 0.7.*
+openjd-cli == 0.8.*
 flaky == 3.*
 openjd-adaptor-runtime == 0.9.*
 qtpy == 2.4.*
