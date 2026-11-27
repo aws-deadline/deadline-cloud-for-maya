@@ -2,3 +2,4 @@
 *.mb linguist-detectable=false
 *.mel linguist-detectable=false
 *.png linguist-detectable=false
+*.sh text eol=lf

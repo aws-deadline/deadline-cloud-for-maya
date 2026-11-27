@@ -55,7 +55,7 @@ def installer_path():
     yield Path(path).absolute()
 
 
-def _run_installer(installer_path, install_scope, installation_path) -> Path:
+def _run_installer(installer_path, install_scope, installation_path, env=None) -> Path:
     # use a path that does not exist
     installation_path = installation_path / "dne"
     args = [
@@ -69,7 +69,7 @@ def _run_installer(installer_path, install_scope, installation_path) -> Path:
         "--enable-components",
         "deadline_cloud_for_maya",
     ]
-    subprocess.run(args, check=True)
+    subprocess.run(args, check=True, env=env)
 
     return Path(installation_path)
 
@@ -252,6 +252,67 @@ class TestLinuxAndMacOS:
     def test_system_permissions(self, system_installation):
         # GIVEN / WHEN / THEN
         self._validate_posix_permissions(system_installation)
+
+    def test_install_and_uninstall_remove_legacy_maya_module_path(
+        self, installer_path: Path, uninstaller_path: Path, tmp_path: Path
+    ):
+        """Installers up to 0.15.15 appended a frozen `export MAYA_MODULE_PATH=...` line to the
+        user's shell startup files. Both installing over it and uninstalling must remove exactly
+        those lines and keep everything else."""
+        # GIVEN
+        home = tmp_path / "home"
+        home.mkdir()
+        env = {**os.environ, "HOME": str(home)}
+        install_parent = tmp_path / "install"
+        install_parent.mkdir()
+        # _run_installer installs into <path>/dne, and the old installers wrote that dir with a
+        # trailing slash.
+        install_dir = install_parent / "dne"
+        customer_line = 'export MAYA_MODULE_PATH="/studio/modules:$MAYA_MODULE_PATH"'
+        other_install_line = f'export MAYA_MODULE_PATH="/studio/modules:{tmp_path}/other/"'
+        legacy_lines = [
+            f'export MAYA_MODULE_PATH="{install_dir}/"',
+            f'export MAYA_MODULE_PATH="/studio/modules:{install_dir}/"',
+        ]
+        startup_files = [home / name for name in (".bashrc", ".bash_profile", ".zshrc")]
+
+        def seed() -> None:
+            for f in startup_files:
+                f.write_text(
+                    "\n".join(
+                        ["# customer settings", customer_line, *legacy_lines, other_install_line]
+                    )
+                    + "\n"
+                )
+
+        def assert_only_legacy_lines_removed(when: str) -> None:
+            for f in startup_files:
+                assert f.read_text().splitlines() == [
+                    "# customer settings",
+                    customer_line,
+                    other_install_line,
+                ], f"{f.name} after {when}"
+
+        seed()
+
+        # WHEN
+        installation_path = _run_installer(installer_path, "user", install_parent, env=env)
+
+        # THEN
+        assert installation_path == install_dir
+        assert_only_legacy_lines_removed("install")
+
+        # GIVEN
+        seed()
+
+        # WHEN
+        subprocess.run(
+            [installation_path / uninstaller_path, "--mode", "unattended"], check=True, env=env
+        )
+
+        # THEN
+        assert_only_legacy_lines_removed("uninstall")
+        assert not installation_path.exists()
 
     def _has_group_other_write(self, mode: int) -> bool:
         return bool(mode & (stat.S_IWGRP | stat.S_IWOTH))
